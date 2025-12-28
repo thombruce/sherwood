@@ -12,6 +12,7 @@ struct Frontmatter {
     date: Option<String>,
     list: Option<bool>,
     theme: Option<String>,
+    theme_variant: Option<String>,
 }
 
 #[derive(Debug)]
@@ -176,6 +177,13 @@ impl SiteGenerator {
             .theme
             .clone()
             .unwrap_or_else(|| self.theme_manager.get_default_theme());
+        
+        // Get theme variant for this file
+        let theme_variant = file
+            .frontmatter
+            .theme_variant
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
 
         // Check if this is a list page that needs post generation
         let content = if file.frontmatter.list.unwrap_or(false) {
@@ -192,7 +200,7 @@ impl SiteGenerator {
         let html_content = self.markdown_to_semantic_html(&content)?;
 
         // Generate complete HTML document
-        let full_html = self.generate_html_document(&file.title, &html_content, &theme_name);
+        let full_html = self.generate_html_document(&file.title, &html_content, &theme_name, &theme_variant);
 
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
@@ -366,7 +374,14 @@ impl SiteGenerator {
         Ok(())
     }
 
-    fn generate_html_document(&self, title: &str, content: &str, theme_name: &str) -> String {
+    fn generate_html_document(&self, title: &str, content: &str, theme_name: &str, theme_variant: &str) -> String {
+        let css_file = format!("/css/{theme_name}.css", theme_name = theme_name);
+        let body_attrs = if theme_variant != "default" {
+            format!(r#" data-theme="{}""#, theme_variant)
+        } else {
+            String::new()
+        };
+
         format!(
             r#"<!DOCTYPE html>
 <html lang="en">
@@ -374,9 +389,9 @@ impl SiteGenerator {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
-    <link rel="stylesheet" href="/css/{theme_name}.css">
+    <link rel="stylesheet" href="{css_file}">
 </head>
-<body>
+<body{body_attrs}>
     <main>
         {content}
     </main>
@@ -384,7 +399,8 @@ impl SiteGenerator {
 </html>"#,
             title = title,
             content = content,
-            theme_name = theme_name
+            css_file = css_file,
+            body_attrs = body_attrs
         )
     }
 }

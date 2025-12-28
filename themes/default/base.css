@@ -5,7 +5,8 @@ body {
   max-width: 800px;
   margin: 0 auto;
   padding: 2rem;
-  color: #333;
+  color: var(--color-primary);
+  background-color: var(--color-background);
 }
 
 /* Main content wrapper */
