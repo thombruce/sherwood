@@ -1,10 +1,10 @@
+use crate::themes::ThemeManager;
+use anyhow::Result;
+use pulldown_cmark::{Options, Parser, html};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use pulldown_cmark::{html, Parser, Options};
-use anyhow::Result;
-use serde::Deserialize;
-use crate::themes::ThemeManager;
 
 #[derive(Debug, Deserialize, Default)]
 struct Frontmatter {
@@ -30,7 +30,10 @@ pub struct SiteGenerator {
 
 impl SiteGenerator {
     pub fn new(input_dir: &Path, output_dir: &Path) -> Self {
-        let themes_dir = input_dir.parent().unwrap_or_else(|| Path::new(".")).join("themes");
+        let themes_dir = input_dir
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("themes");
         Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
@@ -50,7 +53,7 @@ impl SiteGenerator {
 
         // Find all markdown files
         let markdown_files = self.find_markdown_files(&self.input_dir)?;
-        
+
         if markdown_files.is_empty() {
             println!("No markdown files found in {}", self.input_dir.display());
             return Ok(());
@@ -78,13 +81,16 @@ impl SiteGenerator {
             self.process_markdown_file(file, &list_pages).await?;
         }
 
-        println!("Site generated successfully in {}", self.output_dir.display());
+        println!(
+            "Site generated successfully in {}",
+            self.output_dir.display()
+        );
         Ok(())
     }
 
     fn find_markdown_files(&self, dir: &Path) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
-        
+
         if !dir.exists() {
             println!("Content directory {} does not exist", dir.display());
             return Ok(files);
@@ -93,26 +99,29 @@ impl SiteGenerator {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_dir() {
                 files.extend(self.find_markdown_files(&path)?);
             } else if let Some(extension) = path.extension()
-                && (extension == "md" || extension == "markdown") {
-                    files.push(path);
-                }
+                && (extension == "md" || extension == "markdown")
+            {
+                files.push(path);
+            }
         }
-        
+
         Ok(files)
     }
 
     fn parse_markdown_file(&self, file_path: &Path) -> Result<MarkdownFile> {
         let content = fs::read_to_string(file_path)?;
-        
+
         // Parse frontmatter and extract content
         let (frontmatter, markdown_content) = self.parse_frontmatter(&content)?;
-        
+
         // Extract title from frontmatter, first h1, or filename
-        let title = frontmatter.title.clone()
+        let title = frontmatter
+            .title
+            .clone()
             .or_else(|| self.extract_title(&markdown_content))
             .unwrap_or_else(|| {
                 file_path
@@ -136,36 +145,43 @@ impl SiteGenerator {
             if parts.len() >= 3 {
                 let frontmatter_str = parts[1];
                 let markdown_content = parts[2];
-                
-                let frontmatter: Frontmatter = serde_yaml::from_str(frontmatter_str)
-                    .unwrap_or_default();
+
+                let frontmatter: Frontmatter =
+                    serde_yaml::from_str(frontmatter_str).unwrap_or_default();
                 return Ok((frontmatter, markdown_content.to_string()));
             }
         }
-        
+
         Ok((Frontmatter::default(), content.to_string()))
     }
 
-    async fn process_markdown_file(&self, file: &MarkdownFile, list_pages: &HashMap<PathBuf, &MarkdownFile>) -> Result<()> {
+    async fn process_markdown_file(
+        &self,
+        file: &MarkdownFile,
+        list_pages: &HashMap<PathBuf, &MarkdownFile>,
+    ) -> Result<()> {
         let relative_path = file.path.strip_prefix(&self.input_dir)?;
-        
+
         // Convert .md to .html
         let html_path = self.output_dir.join(relative_path).with_extension("html");
-        
+
         // Create parent directories if needed
         if let Some(parent) = html_path.parent() {
             fs::create_dir_all(parent)?;
         }
 
         // Get theme for this file
-        let theme_name = file.frontmatter.theme.clone()
+        let theme_name = file
+            .frontmatter
+            .theme
+            .clone()
             .unwrap_or_else(|| self.theme_manager.get_default_theme());
 
         // Check if this is a list page that needs post generation
         let content = if file.frontmatter.list.unwrap_or(false) {
             let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
             let blog_list = self.generate_blog_list_content(parent_dir, list_pages)?;
-            
+
             // Replace the placeholder with the actual blog list
             file.content.replace("<!-- BLOG_POSTS_LIST -->", &blog_list)
         } else {
@@ -174,13 +190,13 @@ impl SiteGenerator {
 
         // Convert markdown to HTML with semantic structure
         let html_content = self.markdown_to_semantic_html(&content)?;
-        
+
         // Generate complete HTML document
         let full_html = self.generate_html_document(&file.title, &html_content, &theme_name);
-        
+
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
-        
+
         Ok(())
     }
 
@@ -194,56 +210,64 @@ impl SiteGenerator {
         None
     }
 
-    fn generate_blog_list_content(&self, dir: &Path, _list_pages: &HashMap<PathBuf, &MarkdownFile>) -> Result<String> {
+    fn generate_blog_list_content(
+        &self,
+        dir: &Path,
+        _list_pages: &HashMap<PathBuf, &MarkdownFile>,
+    ) -> Result<String> {
         let mut list_content = String::new();
-        
+
         // Find all markdown files in this directory (excluding index.md)
         for entry in fs::read_dir(self.input_dir.join(dir))? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file()
                 && let Some(extension) = path.extension()
-                    && (extension == "md" || extension == "markdown") {
-                        let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                        
-                        // Skip index files and other list pages
-                        if !file_name.starts_with("index") {
-                            let parsed = self.parse_markdown_file(&path)?;
-                            
-                            // Generate post list entry
-                            let date = parsed.frontmatter.date.as_deref().unwrap_or("");
-                            let relative_url_path = path.strip_prefix(&self.input_dir)
-                                .unwrap_or(&path)
-                                .with_extension("");
-                            let relative_url = relative_url_path.to_string_lossy();
-                            
-                            list_content.push_str(&format!(
-                                r##"<article class="blog-post">
+                && (extension == "md" || extension == "markdown")
+            {
+                let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+
+                // Skip index files and other list pages
+                if !file_name.starts_with("index") {
+                    let parsed = self.parse_markdown_file(&path)?;
+
+                    // Generate post list entry
+                    let date = parsed.frontmatter.date.as_deref().unwrap_or("");
+                    let relative_url_path = path
+                        .strip_prefix(&self.input_dir)
+                        .unwrap_or(&path)
+                        .with_extension("");
+                    let relative_url = relative_url_path.to_string_lossy();
+
+                    list_content.push_str(&format!(
+                        r##"<article class="blog-post">
     <h2><a href="/{}">{}</a></h2>
     {}"##,
-                                relative_url, parsed.title,
-                                if !date.is_empty() {
-                                    format!("<p class=\"post-date\">{}</p>", date)
-                                } else {
-                                    String::new()
-                                }
-                            ));
-                            
-                            // Extract first paragraph as excerpt
-                            let first_paragraph = self.extract_first_paragraph(&parsed.content);
-                            if !first_paragraph.is_empty() {
-                                let parser = Parser::new(&first_paragraph);
-                                let mut excerpt_html = String::new();
-                                html::push_html(&mut excerpt_html, parser);
-                                list_content.push_str(&format!("<p class=\"post-excerpt\">{}</p>", excerpt_html));
-                            }
-                            
-                            list_content.push_str("</article>\n\n");
+                        relative_url,
+                        parsed.title,
+                        if !date.is_empty() {
+                            format!("<p class=\"post-date\">{}</p>", date)
+                        } else {
+                            String::new()
                         }
+                    ));
+
+                    // Extract first paragraph as excerpt
+                    let first_paragraph = self.extract_first_paragraph(&parsed.content);
+                    if !first_paragraph.is_empty() {
+                        let parser = Parser::new(&first_paragraph);
+                        let mut excerpt_html = String::new();
+                        html::push_html(&mut excerpt_html, parser);
+                        list_content
+                            .push_str(&format!("<p class=\"post-excerpt\">{}</p>", excerpt_html));
                     }
+
+                    list_content.push_str("</article>\n\n");
+                }
+            }
         }
-        
+
         // If no list content was found, return empty string
         if list_content.is_empty() {
             Ok("<!-- No posts found -->".to_string())
@@ -255,10 +279,10 @@ impl SiteGenerator {
     fn extract_first_paragraph(&self, content: &str) -> String {
         let mut in_code_block = false;
         let mut lines_since_heading = 0;
-        
+
         for line in content.lines() {
             let trimmed = line.trim();
-            
+
             // Skip code blocks
             if trimmed.starts_with("```") {
                 in_code_block = !in_code_block;
@@ -267,7 +291,7 @@ impl SiteGenerator {
             if in_code_block {
                 continue;
             }
-            
+
             // Skip headings and empty lines right after headings
             if trimmed.starts_with('#') {
                 lines_since_heading = 0;
@@ -277,16 +301,16 @@ impl SiteGenerator {
                 lines_since_heading += 1;
                 continue;
             }
-            
+
             // Skip empty lines
             if trimmed.is_empty() {
                 continue;
             }
-            
+
             // Found a paragraph, return it
             return trimmed.to_string();
         }
-        
+
         String::new()
     }
 
@@ -295,23 +319,23 @@ impl SiteGenerator {
         options.insert(Options::ENABLE_STRIKETHROUGH);
         options.insert(Options::ENABLE_TABLES);
         options.insert(Options::ENABLE_FOOTNOTES);
-        
+
         let parser = Parser::new_ext(markdown, options);
         let mut html_output = String::new();
         html::push_html(&mut html_output, parser);
-        
+
         Ok(self.enhance_semantics(&html_output))
     }
 
     fn enhance_semantics(&self, html: &str) -> String {
         let mut enhanced = html.to_string();
-        
+
         // Wrap paragraphs in semantic sections if they seem like articles
         enhanced = self.wrap_articles(&enhanced);
-        
+
         // Add semantic structure to lists
         enhanced = self.enhance_lists(&enhanced);
-        
+
         enhanced
     }
 
@@ -334,8 +358,10 @@ impl SiteGenerator {
     fn generate_theme_css(&self) -> Result<()> {
         let default_theme_name = self.theme_manager.get_default_theme();
         let theme = self.theme_manager.load_theme(&default_theme_name)?;
-        let css_path = self.theme_manager.generate_css_file(&theme, &self.output_dir)?;
-        
+        let css_path = self
+            .theme_manager
+            .generate_css_file(&theme, &self.output_dir)?;
+
         println!("Generated CSS: {}", css_path.display());
         Ok(())
     }
