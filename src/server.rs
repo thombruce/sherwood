@@ -4,17 +4,20 @@ use axum::{
     http::{StatusCode, Uri},
     response::{Html, IntoResponse, Response},
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tower::ServiceBuilder;
-use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::cors::CorsLayer;
 
 pub async fn run_dev_server(input_dir: &Path, output_dir: &Path, port: u16) -> Result<()> {
     println!("Generating site...");
     super::generate_site(input_dir, output_dir).await?;
 
+    let output_dir_buf = output_dir.to_path_buf();
+    let fallback_handler =
+        move |uri: Uri| async move { handle_fallback(uri, output_dir_buf.clone()).await };
+
     let app = Router::new()
-        .nest_service("/", ServeDir::new(output_dir))
-        .fallback(handle_fallback)
+        .fallback(fallback_handler)
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
 
     let addr = format!("127.0.0.1:{}", port);
@@ -26,7 +29,7 @@ pub async fn run_dev_server(input_dir: &Path, output_dir: &Path, port: u16) -> R
     Ok(())
 }
 
-async fn handle_fallback(uri: Uri) -> impl IntoResponse {
+async fn handle_fallback(uri: Uri, output_dir: PathBuf) -> impl IntoResponse {
     let path = uri.path();
 
     // Try multiple file path possibilities for robust URL handling
@@ -53,9 +56,8 @@ async fn handle_fallback(uri: Uri) -> impl IntoResponse {
     // Try each possible path until we find one that exists
     let mut found_path = None;
     for clean_path in possible_paths {
-        let file_path = Path::new("dist")
-            .join(clean_path.strip_prefix('/').unwrap_or(&clean_path));
-        
+        let file_path = output_dir.join(clean_path.strip_prefix('/').unwrap_or(&clean_path));
+
         if file_path.exists() {
             found_path = Some((clean_path, file_path));
             break;
@@ -67,6 +69,8 @@ async fn handle_fallback(uri: Uri) -> impl IntoResponse {
             Ok(content) => {
                 let content_type = if clean_path.ends_with(".html") {
                     "text/html"
+                } else if clean_path.ends_with(".css") {
+                    "text/css"
                 } else {
                     "text/plain"
                 };
@@ -77,9 +81,7 @@ async fn handle_fallback(uri: Uri) -> impl IntoResponse {
                     .body(content.into())
                     .unwrap()
             }
-            Err(_) => {
-                create_404_response(path)
-            }
+            Err(_) => create_404_response(path),
         }
     } else {
         create_404_response(path)
@@ -121,4 +123,3 @@ fn create_404_response(path: &str) -> Response {
 
     (StatusCode::NOT_FOUND, Html(html)).into_response()
 }
-
