@@ -390,14 +390,15 @@ impl SiteGenerator {
             .replace("<ol>", "<ol class=\"numbered-list\">")
     }
 
-    fn generate_theme_css(&self) -> Result<()> {
+fn generate_theme_css(&self) -> Result<()> {
+        // Only generate the theme explicitly configured in sherwood.toml
         let theme_name = self.site_config.site.theme.clone()
             .unwrap_or_else(|| "default".to_string());
         let theme = self.theme_manager.load_theme(&theme_name)?;
         let css_path = self
             .theme_manager
             .generate_css_file(&theme, &self.output_dir)?;
-
+        
         println!("Generated CSS: {}", css_path.display());
         Ok(())
     }
