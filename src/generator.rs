@@ -1,10 +1,21 @@
 use crate::themes::ThemeManager;
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use toml;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SiteConfig {
+    site: SiteSection,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SiteSection {
+    theme: Option<String>,
+}
 
 #[derive(Debug, Deserialize, Default)]
 struct Frontmatter {
@@ -27,19 +38,35 @@ pub struct SiteGenerator {
     input_dir: PathBuf,
     output_dir: PathBuf,
     theme_manager: ThemeManager,
+    site_config: SiteConfig,
 }
 
 impl SiteGenerator {
-    pub fn new(input_dir: &Path, output_dir: &Path) -> Self {
+    pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
         let themes_dir = input_dir
             .parent()
             .unwrap_or_else(|| Path::new("."))
             .join("themes");
-        Self {
+        
+        // Load site configuration
+        let config_path = input_dir.parent().unwrap_or_else(|| Path::new(".")).join("sherwood.toml");
+        let site_config = if config_path.exists() {
+            let content = fs::read_to_string(&config_path)?;
+            toml::from_str(&content)?
+        } else {
+            SiteConfig {
+                site: SiteSection {
+                    theme: Some("default".to_string()),
+                },
+            }
+        };
+        
+        Ok(Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
             theme_manager: ThemeManager::new(&themes_dir),
-        }
+            site_config,
+        })
     }
 
     pub async fn generate(&self) -> Result<()> {
@@ -176,7 +203,7 @@ impl SiteGenerator {
             .frontmatter
             .theme
             .clone()
-            .unwrap_or_else(|| self.theme_manager.get_default_theme());
+            .unwrap_or_else(|| self.site_config.site.theme.clone().unwrap_or_else(|| "default".to_string()));
         
         // Get theme variant for this file
         let theme_variant = file
@@ -364,8 +391,9 @@ impl SiteGenerator {
     }
 
     fn generate_theme_css(&self) -> Result<()> {
-        let default_theme_name = self.theme_manager.get_default_theme();
-        let theme = self.theme_manager.load_theme(&default_theme_name)?;
+        let theme_name = self.site_config.site.theme.clone()
+            .unwrap_or_else(|| "default".to_string());
+        let theme = self.theme_manager.load_theme(&theme_name)?;
         let css_path = self
             .theme_manager
             .generate_css_file(&theme, &self.output_dir)?;
@@ -406,6 +434,6 @@ impl SiteGenerator {
 }
 
 pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {
-    let generator = SiteGenerator::new(input_dir, output_dir);
+    let generator = SiteGenerator::new(input_dir, output_dir)?;
     generator.generate().await
 }
