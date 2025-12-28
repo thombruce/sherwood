@@ -3,6 +3,7 @@
 This is a **static site generator** written in Rust that converts Markdown files to semantic HTML.
 
 - [About](/about)
+- [Blog](/blog/)
 
 ## Features
 

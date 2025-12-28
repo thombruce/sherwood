@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About</title>
+    <title>Getting Started with Rust</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -91,10 +91,35 @@
 </head>
 <body>
     <main>
-        <h1>About</h1>
-<p>This is an empty about page.</p>
-<p><a href="/">Return Home</a></p>
+        <article>
+<h1>Getting Started with Rust</h1>
+<p>Rust is a systems programming language that runs blazingly fast, prevents segfaults, and guarantees thread safety.</p>
+<h2>Why Rust?</h2>
+<p>Rust offers several compelling benefits:</p>
+<ul class="content-list">
+<li><strong>Memory Safety</strong>: No null pointers, no data races</li>
+<li><strong>Performance</strong>: Zero-cost abstractions</li>
+<li><strong>Concurrency</strong>: Fearless concurrency</li>
+<li><strong>Tooling</strong>: Excellent package manager and build system</li>
+</ul>
+<h2>Installation</h2>
+<p>You can install Rust using rustup:</p>
+<pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+</code></pre>
+<h2>Your First Program</h2>
+<p>Let's write the classic &quot;Hello, World!&quot; program:</p>
+<pre><code class="language-rust">fn main() {
+    println!(&quot;Hello, World!&quot;);
+}
+</code></pre>
+<p>Save this as <code>main.rs</code> and run it with:</p>
+<pre><code class="language-bash">rustc main.rs
+./main
+</code></pre>
+<h2>Conclusion</h2>
+<p>Rust is an excellent choice for systems programming, web development, and many other domains. Its focus on safety and performance makes it stand out among modern programming languages.</p>
 
+</article>
     </main>
 </body>
 </html>

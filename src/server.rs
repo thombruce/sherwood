@@ -29,39 +29,66 @@ pub async fn run_dev_server(input_dir: &Path, output_dir: &Path, port: u16) -> R
 async fn handle_fallback(uri: Uri) -> impl IntoResponse {
     let path = uri.path();
 
-    // Handle clean URLs: /about -> /about.html, /about/ -> /about.html
-    let clean_path = if path == "/" {
-        "/index.html".to_string()
+    // Try multiple file path possibilities for robust URL handling
+    let possible_paths = if path == "/" {
+        vec!["/index.html".to_string()]
     } else if path.ends_with('/') && path != "/" {
-        format!("{}.html", path.trim_end_matches('/'))
+        // For /about/, try about/index.html, then about.html
+        let base_path = path.trim_end_matches('/');
+        vec![
+            format!("{}/index.html", base_path),
+            format!("{}.html", base_path),
+        ]
     } else if !path.contains('.') {
-        format!("{}.html", path)
+        // For /about, try about.html, then about/index.html
+        let base_path = path.trim_start_matches('/');
+        vec![
+            format!("{}.html", base_path),
+            format!("{}/index.html", base_path),
+        ]
     } else {
-        path.to_string()
+        vec![path.to_string()]
     };
 
-    let file_path = Path::new("dist")
-        .strip_prefix("/")
-        .unwrap_or_else(|_| Path::new("dist"))
-        .join(clean_path.strip_prefix('/').unwrap_or(&clean_path));
-
-    match std::fs::read_to_string(&file_path) {
-        Ok(content) => {
-            let content_type = if clean_path.ends_with(".html") {
-                "text/html"
-            } else {
-                "text/plain"
-            };
-
-            Response::builder()
-                .status(200)
-                .header("Content-Type", content_type)
-                .body(content.into())
-                .unwrap()
+    // Try each possible path until we find one that exists
+    let mut found_path = None;
+    for clean_path in possible_paths {
+        let file_path = Path::new("dist")
+            .join(clean_path.strip_prefix('/').unwrap_or(&clean_path));
+        
+        if file_path.exists() {
+            found_path = Some((clean_path, file_path));
+            break;
         }
-        Err(_) => {
-            let html = format!(
-                r#"<!DOCTYPE html>
+    }
+
+    if let Some((clean_path, file_path)) = found_path {
+        match std::fs::read_to_string(&file_path) {
+            Ok(content) => {
+                let content_type = if clean_path.ends_with(".html") {
+                    "text/html"
+                } else {
+                    "text/plain"
+                };
+
+                Response::builder()
+                    .status(200)
+                    .header("Content-Type", content_type)
+                    .body(content.into())
+                    .unwrap()
+            }
+            Err(_) => {
+                create_404_response(path)
+            }
+        }
+    } else {
+        create_404_response(path)
+    }
+}
+
+fn create_404_response(path: &str) -> Response {
+    let html = format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -87,15 +114,11 @@ async fn handle_fallback(uri: Uri) -> impl IntoResponse {
     <h1>Page Not Found</h1>
     <p>The page you're looking for doesn't exist.</p>
     <p>Requested path: {}</p>
-    <p>Tried to serve: {}</p>
 </body>
 </html>"#,
-                path,
-                file_path.display()
-            );
+        path
+    );
 
-            (StatusCode::NOT_FOUND, Html(html)).into_response()
-        }
-    }
+    (StatusCode::NOT_FOUND, Html(html)).into_response()
 }
 

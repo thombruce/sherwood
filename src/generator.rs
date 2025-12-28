@@ -1,7 +1,24 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use pulldown_cmark::{html, Parser, Options};
 use anyhow::Result;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize, Default)]
+struct Frontmatter {
+    title: Option<String>,
+    date: Option<String>,
+    list: Option<bool>,
+}
+
+#[derive(Debug)]
+struct MarkdownFile {
+    path: PathBuf,
+    content: String,
+    frontmatter: Frontmatter,
+    title: String,
+}
 
 pub struct SiteGenerator {
     input_dir: PathBuf,
@@ -31,9 +48,26 @@ impl SiteGenerator {
             return Ok(());
         }
 
-        // Process each markdown file
+        // Parse all markdown files to extract metadata
+        let mut parsed_files = Vec::new();
         for file_path in markdown_files {
-            self.process_markdown_file(&file_path).await?;
+            let parsed = self.parse_markdown_file(&file_path)?;
+            parsed_files.push(parsed);
+        }
+
+        // Find list pages and generate their content
+        let mut list_pages = HashMap::new();
+        for file in &parsed_files {
+            if file.frontmatter.list.unwrap_or(false) {
+                let relative_path = file.path.strip_prefix(&self.input_dir)?;
+                let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
+                list_pages.insert(parent_dir.to_path_buf(), file);
+            }
+        }
+
+        // Process each markdown file
+        for file in &parsed_files {
+            self.process_markdown_file(file, &list_pages).await?;
         }
 
         println!("Site generated successfully in {}", self.output_dir.display());
@@ -64,9 +98,49 @@ impl SiteGenerator {
         Ok(files)
     }
 
-    async fn process_markdown_file(&self, file_path: &Path) -> Result<()> {
+    fn parse_markdown_file(&self, file_path: &Path) -> Result<MarkdownFile> {
         let content = fs::read_to_string(file_path)?;
-        let relative_path = file_path.strip_prefix(&self.input_dir)?;
+        
+        // Parse frontmatter and extract content
+        let (frontmatter, markdown_content) = self.parse_frontmatter(&content)?;
+        
+        // Extract title from frontmatter, first h1, or filename
+        let title = frontmatter.title.clone()
+            .or_else(|| self.extract_title(&markdown_content))
+            .unwrap_or_else(|| {
+                file_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Untitled")
+                    .to_string()
+            });
+
+        Ok(MarkdownFile {
+            path: file_path.to_path_buf(),
+            content: markdown_content,
+            frontmatter,
+            title,
+        })
+    }
+
+    fn parse_frontmatter(&self, content: &str) -> Result<(Frontmatter, String)> {
+        if content.starts_with("---\n") {
+            let parts: Vec<&str> = content.splitn(3, "---\n").collect();
+            if parts.len() >= 3 {
+                let frontmatter_str = parts[1];
+                let markdown_content = parts[2];
+                
+                let frontmatter: Frontmatter = serde_yaml::from_str(frontmatter_str)
+                    .unwrap_or_default();
+                return Ok((frontmatter, markdown_content.to_string()));
+            }
+        }
+        
+        Ok((Frontmatter::default(), content.to_string()))
+    }
+
+    async fn process_markdown_file(&self, file: &MarkdownFile, list_pages: &HashMap<PathBuf, &MarkdownFile>) -> Result<()> {
+        let relative_path = file.path.strip_prefix(&self.input_dir)?;
         
         // Convert .md to .html
         let html_path = self.output_dir.join(relative_path).with_extension("html");
@@ -76,21 +150,22 @@ impl SiteGenerator {
             fs::create_dir_all(parent)?;
         }
 
-        // Extract title from first h1 or use filename
-        let title = self.extract_title(&content)
-            .unwrap_or_else(|| {
-                file_path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("Untitled")
-                    .to_string()
-            });
+        // Check if this is a list page that needs post generation
+        let content = if file.frontmatter.list.unwrap_or(false) {
+            let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
+            let blog_list = self.generate_blog_list_content(parent_dir, list_pages)?;
+            
+            // Replace the placeholder with the actual blog list
+            file.content.replace("<!-- BLOG_POSTS_LIST -->", &blog_list)
+        } else {
+            file.content.clone()
+        };
 
         // Convert markdown to HTML with semantic structure
         let html_content = self.markdown_to_semantic_html(&content)?;
         
         // Generate complete HTML document
-        let full_html = self.generate_html_document(&title, &html_content);
+        let full_html = self.generate_html_document(&file.title, &html_content);
         
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
@@ -106,6 +181,104 @@ impl SiteGenerator {
             }
         }
         None
+    }
+
+    fn generate_blog_list_content(&self, dir: &Path, _list_pages: &HashMap<PathBuf, &MarkdownFile>) -> Result<String> {
+        let mut list_content = String::new();
+        
+        // Find all markdown files in this directory (excluding index.md)
+        for entry in fs::read_dir(self.input_dir.join(dir))? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    if extension == "md" || extension == "markdown" {
+                        let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                        
+                        // Skip index files and other list pages
+                        if !file_name.starts_with("index") {
+                            let parsed = self.parse_markdown_file(&path)?;
+                            
+                            // Generate post list entry
+                            let date = parsed.frontmatter.date.as_deref().unwrap_or("");
+                            let relative_url_path = path.strip_prefix(&self.input_dir)
+                                .unwrap_or(&path)
+                                .with_extension("");
+                            let relative_url = relative_url_path.to_string_lossy();
+                            
+                            list_content.push_str(&format!(
+                                r##"<article class="blog-post">
+    <h2><a href="/{}">{}</a></h2>
+    {}"##,
+                                relative_url, parsed.title,
+                                if !date.is_empty() {
+                                    format!("<p class=\"post-date\">{}</p>", date)
+                                } else {
+                                    String::new()
+                                }
+                            ));
+                            
+                            // Extract first paragraph as excerpt
+                            let first_paragraph = self.extract_first_paragraph(&parsed.content);
+                            if !first_paragraph.is_empty() {
+                                let parser = Parser::new(&first_paragraph);
+                                let mut excerpt_html = String::new();
+                                html::push_html(&mut excerpt_html, parser);
+                                list_content.push_str(&format!("<p class=\"post-excerpt\">{}</p>", excerpt_html));
+                            }
+                            
+                            list_content.push_str("</article>\n\n");
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If no list content was found, return empty string
+        if list_content.is_empty() {
+            Ok("<!-- No posts found -->".to_string())
+        } else {
+            Ok(list_content)
+        }
+    }
+
+    fn extract_first_paragraph(&self, content: &str) -> String {
+        let mut in_code_block = false;
+        let mut lines_since_heading = 0;
+        
+        for line in content.lines() {
+            let trimmed = line.trim();
+            
+            // Skip code blocks
+            if trimmed.starts_with("```") {
+                in_code_block = !in_code_block;
+                continue;
+            }
+            if in_code_block {
+                continue;
+            }
+            
+            // Skip headings and empty lines right after headings
+            if trimmed.starts_with('#') {
+                lines_since_heading = 0;
+                continue;
+            }
+            if lines_since_heading < 1 {
+                lines_since_heading += 1;
+                continue;
+            }
+            
+            // Skip empty lines
+            if trimmed.is_empty() {
+                continue;
+            }
+            
+            // Found a paragraph, return it
+            return trimmed.to_string();
+        }
+        
+        String::new()
     }
 
     fn markdown_to_semantic_html(&self, markdown: &str) -> Result<String> {
@@ -212,6 +385,33 @@ impl SiteGenerator {
         }}
         article {{
             margin-bottom: 2rem;
+        }}
+        .blog-post {{
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            background: #fafafa;
+        }}
+        .blog-post h2 {{
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }}
+        .blog-post h2 a {{
+            color: #222;
+            text-decoration: none;
+        }}
+        .blog-post h2 a:hover {{
+            text-decoration: underline;
+        }}
+        .post-date {{
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }}
+        .post-excerpt {{
+            color: #555;
+            font-style: italic;
         }}
     </style>
 </head>

@@ -60,6 +60,33 @@
         article {
             margin-bottom: 2rem;
         }
+        .blog-post {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            background: #fafafa;
+        }
+        .blog-post h2 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        .blog-post h2 a {
+            color: #222;
+            text-decoration: none;
+        }
+        .blog-post h2 a:hover {
+            text-decoration: underline;
+        }
+        .post-date {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        .post-excerpt {
+            color: #555;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -69,6 +96,7 @@
 <p>This is a <strong>static site generator</strong> written in Rust that converts Markdown files to semantic HTML.</p>
 <ul class="content-list">
 <li><a href="/about">About</a></li>
+<li><a href="/blog/">Blog</a></li>
 </ul>
 <h2>Features</h2>
 <ul class="content-list">

@@ -12,3 +12,4 @@ axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors"] }
 anyhow = "1.0"
+serde_yaml = "0.9"
