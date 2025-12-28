@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Sherwood</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: #333;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #222;
+        }
+        h1 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 1rem;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        blockquote {
+            border-left: 4px solid #ddd;
+            margin: 0;
+            padding-left: 1rem;
+            color: #666;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1rem 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            text-align: left;
+        }
+        th {
+            background: #f9f9f9;
+        }
+        article {
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <article>
+<h1>Welcome to Sherwood</h1>
+<p>This is a <strong>static site generator</strong> written in Rust that converts Markdown files to semantic HTML.</p>
+<h2>Features</h2>
+<ul class="content-list">
+<li>Converts Markdown to HTML5 with semantic structure</li>
+<li>Command-line interface with <code>generate</code> and <code>dev</code> commands</li>
+<li>Development server for local testing</li>
+<li>Semantic HTML with proper accessibility</li>
+</ul>
+<h2>Usage</h2>
+<h3>Generate Site</h3>
+<pre><code class="language-bash">sherwood generate
+</code></pre>
+<h3>Development Server</h3>
+<pre><code class="language-bash">sherwood dev
+</code></pre>
+<h2>Markdown Support</h2>
+<p>Sherwood supports standard Markdown syntax including:</p>
+<ul class="content-list">
+<li><strong>Bold text</strong> and <em>italic text</em></li>
+<li><code>Code snippets</code> and code blocks</li>
+<li>Lists (ordered and unordered)</li>
+<li>Links and images</li>
+<li>Tables</li>
+<li>Blockquotes</li>
+</ul>
+<blockquote>
+<p>This is a blockquote to demonstrate the styling.</p>
+</blockquote>
+<h3>Code Example</h3>
+<pre><code class="language-rust">fn main() {
+    println!(&quot;Hello, Sherwood!&quot;);
+}
+</code></pre>
+<h3>Table Example</h3>
+<table><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>
+<tr><td>Markdown parsing</td><td>✅ Complete</td></tr>
+<tr><td>HTML generation</td><td>✅ Complete</td></tr>
+<tr><td>Dev server</td><td>✅ Complete</td></tr>
+<tr><td>Hot reload</td><td>🚧 Future</td></tr>
+</tbody></table>
+<p>The generator creates semantic HTML with proper structure and basic styling for readability.</p>
+
+</article>
+    </main>
+</body>
+</html>
