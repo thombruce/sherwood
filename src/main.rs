@@ -38,7 +38,11 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Dev { input, output, port } => {
+        Commands::Dev {
+            input,
+            output,
+            port,
+        } => {
             if let Err(e) = sherwood::run_dev_server(&input, &output, port).await {
                 eprintln!("Error running dev server: {}", e);
                 std::process::exit(1);
