@@ -4,12 +4,14 @@ use std::path::{Path, PathBuf};
 use pulldown_cmark::{html, Parser, Options};
 use anyhow::Result;
 use serde::Deserialize;
+use crate::themes::ThemeManager;
 
 #[derive(Debug, Deserialize, Default)]
 struct Frontmatter {
     title: Option<String>,
     date: Option<String>,
     list: Option<bool>,
+    theme: Option<String>,
 }
 
 #[derive(Debug)]
@@ -23,13 +25,16 @@ struct MarkdownFile {
 pub struct SiteGenerator {
     input_dir: PathBuf,
     output_dir: PathBuf,
+    theme_manager: ThemeManager,
 }
 
 impl SiteGenerator {
     pub fn new(input_dir: &Path, output_dir: &Path) -> Self {
+        let themes_dir = input_dir.parent().unwrap_or_else(|| Path::new(".")).join("themes");
         Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
+            theme_manager: ThemeManager::new(&themes_dir),
         }
     }
 
@@ -39,6 +44,9 @@ impl SiteGenerator {
             fs::remove_dir_all(&self.output_dir)?;
         }
         fs::create_dir_all(&self.output_dir)?;
+
+        // Generate CSS for default theme
+        self.generate_theme_css()?;
 
         // Find all markdown files
         let markdown_files = self.find_markdown_files(&self.input_dir)?;
@@ -88,11 +96,10 @@ impl SiteGenerator {
             
             if path.is_dir() {
                 files.extend(self.find_markdown_files(&path)?);
-            } else if let Some(extension) = path.extension() {
-                if extension == "md" || extension == "markdown" {
+            } else if let Some(extension) = path.extension()
+                && (extension == "md" || extension == "markdown") {
                     files.push(path);
                 }
-            }
         }
         
         Ok(files)
@@ -150,6 +157,10 @@ impl SiteGenerator {
             fs::create_dir_all(parent)?;
         }
 
+        // Get theme for this file
+        let theme_name = file.frontmatter.theme.clone()
+            .unwrap_or_else(|| self.theme_manager.get_default_theme());
+
         // Check if this is a list page that needs post generation
         let content = if file.frontmatter.list.unwrap_or(false) {
             let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
@@ -165,7 +176,7 @@ impl SiteGenerator {
         let html_content = self.markdown_to_semantic_html(&content)?;
         
         // Generate complete HTML document
-        let full_html = self.generate_html_document(&file.title, &html_content);
+        let full_html = self.generate_html_document(&file.title, &html_content, &theme_name);
         
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
@@ -191,9 +202,9 @@ impl SiteGenerator {
             let entry = entry?;
             let path = entry.path();
             
-            if path.is_file() {
-                if let Some(extension) = path.extension() {
-                    if extension == "md" || extension == "markdown" {
+            if path.is_file()
+                && let Some(extension) = path.extension()
+                    && (extension == "md" || extension == "markdown") {
                         let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
                         
                         // Skip index files and other list pages
@@ -231,8 +242,6 @@ impl SiteGenerator {
                             list_content.push_str("</article>\n\n");
                         }
                     }
-                }
-            }
         }
         
         // If no list content was found, return empty string
@@ -322,7 +331,16 @@ impl SiteGenerator {
             .replace("<ol>", "<ol class=\"numbered-list\">")
     }
 
-    fn generate_html_document(&self, title: &str, content: &str) -> String {
+    fn generate_theme_css(&self) -> Result<()> {
+        let default_theme_name = self.theme_manager.get_default_theme();
+        let theme = self.theme_manager.load_theme(&default_theme_name)?;
+        let css_path = self.theme_manager.generate_css_file(&theme, &self.output_dir)?;
+        
+        println!("Generated CSS: {}", css_path.display());
+        Ok(())
+    }
+
+    fn generate_html_document(&self, title: &str, content: &str, theme_name: &str) -> String {
         format!(
             r#"<!DOCTYPE html>
 <html lang="en">
@@ -330,90 +348,7 @@ impl SiteGenerator {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-            color: #333;
-        }}
-        h1, h2, h3, h4, h5, h6 {{
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-            color: #222;
-        }}
-        h1 {{
-            border-bottom: 2px solid #eee;
-            padding-bottom: 0.5rem;
-        }}
-        code {{
-            background: #f4f4f4;
-            padding: 0.2rem 0.4rem;
-            border-radius: 3px;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-        }}
-        pre {{
-            background: #f4f4f4;
-            padding: 1rem;
-            border-radius: 5px;
-            overflow-x: auto;
-        }}
-        pre code {{
-            background: none;
-            padding: 0;
-        }}
-        blockquote {{
-            border-left: 4px solid #ddd;
-            margin: 0;
-            padding-left: 1rem;
-            color: #666;
-        }}
-        table {{
-            border-collapse: collapse;
-            width: 100%;
-            margin: 1rem 0;
-        }}
-        th, td {{
-            border: 1px solid #ddd;
-            padding: 0.5rem;
-            text-align: left;
-        }}
-        th {{
-            background: #f9f9f9;
-        }}
-        article {{
-            margin-bottom: 2rem;
-        }}
-        .blog-post {{
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            background: #fafafa;
-        }}
-        .blog-post h2 {{
-            margin-top: 0;
-            margin-bottom: 0.5rem;
-        }}
-        .blog-post h2 a {{
-            color: #222;
-            text-decoration: none;
-        }}
-        .blog-post h2 a:hover {{
-            text-decoration: underline;
-        }}
-        .post-date {{
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
-        }}
-        .post-excerpt {{
-            color: #555;
-            font-style: italic;
-        }}
-    </style>
+    <link rel="stylesheet" href="/css/{theme_name}.css">
 </head>
 <body>
     <main>
@@ -422,7 +357,8 @@ impl SiteGenerator {
 </body>
 </html>"#,
             title = title,
-            content = content
+            content = content,
+            theme_name = theme_name
         )
     }
 }

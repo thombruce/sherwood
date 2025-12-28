@@ -13,7 +13,7 @@ pub async fn run_dev_server(input_dir: &Path, output_dir: &Path, port: u16) -> R
     super::generate_site(input_dir, output_dir).await?;
 
     let app = Router::new()
-        .nest_service("/static", ServeDir::new(output_dir))
+        .nest_service("/", ServeDir::new(output_dir))
         .fallback(handle_fallback)
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
 
