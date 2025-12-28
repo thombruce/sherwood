@@ -1,39 +1,67 @@
-use std::path::Path;
+use anyhow::Result;
 use axum::{
-    http::StatusCode,
-    response::Html,
     Router,
+    http::{StatusCode, Uri},
+    response::{Html, IntoResponse, Response},
 };
+use std::path::Path;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, services::ServeDir};
-use anyhow::Result;
 
 pub async fn run_dev_server(input_dir: &Path, output_dir: &Path, port: u16) -> Result<()> {
     println!("Generating site...");
     super::generate_site(input_dir, output_dir).await?;
-    
+
     let app = Router::new()
-        .nest_service("/", ServeDir::new(output_dir))
-        .layer(
-            ServiceBuilder::new()
-                .layer(CorsLayer::permissive())
-        )
-        .fallback(handle_404);
+        .nest_service("/static", ServeDir::new(output_dir))
+        .fallback(handle_fallback)
+        .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
 
     let addr = format!("127.0.0.1:{}", port);
     println!("Development server running at http://{}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
-    
+
     Ok(())
 }
 
-async fn handle_404() -> (StatusCode, Html<String>) {
-    (
-        StatusCode::NOT_FOUND,
-        Html(format!(
-            r#"<!DOCTYPE html>
+async fn handle_fallback(uri: Uri) -> impl IntoResponse {
+    let path = uri.path();
+
+    // Handle clean URLs: /about -> /about.html, /about/ -> /about.html
+    let clean_path = if path == "/" {
+        "/index.html".to_string()
+    } else if path.ends_with('/') && path != "/" {
+        format!("{}.html", path.trim_end_matches('/'))
+    } else if !path.contains('.') {
+        format!("{}.html", path)
+    } else {
+        path.to_string()
+    };
+
+    let file_path = Path::new("dist")
+        .strip_prefix("/")
+        .unwrap_or_else(|_| Path::new("dist"))
+        .join(clean_path.strip_prefix('/').unwrap_or(&clean_path));
+
+    match std::fs::read_to_string(&file_path) {
+        Ok(content) => {
+            let content_type = if clean_path.ends_with(".html") {
+                "text/html"
+            } else {
+                "text/plain"
+            };
+
+            Response::builder()
+                .status(200)
+                .header("Content-Type", content_type)
+                .body(content.into())
+                .unwrap()
+        }
+        Err(_) => {
+            let html = format!(
+                r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -58,8 +86,16 @@ async fn handle_404() -> (StatusCode, Html<String>) {
 <body>
     <h1>Page Not Found</h1>
     <p>The page you're looking for doesn't exist.</p>
+    <p>Requested path: {}</p>
+    <p>Tried to serve: {}</p>
 </body>
-</html>"#
-        )),
-    )
+</html>"#,
+                path,
+                file_path.display()
+            );
+
+            (StatusCode::NOT_FOUND, Html(html)).into_response()
+        }
+    }
 }
+
