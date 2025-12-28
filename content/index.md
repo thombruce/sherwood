@@ -4,6 +4,7 @@ This is a **static site generator** written in Rust that converts Markdown files
 
 - [About](/about)
 - [Blog](/blog/)
+- [Documentation](/docs/)
 
 ## Features
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Sherwood</title>
+    <title>Getting Started</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -92,53 +92,90 @@
 <body>
     <main>
         <article>
-<h1>Welcome to Sherwood</h1>
-<p>This is a <strong>static site generator</strong> written in Rust that converts Markdown files to semantic HTML.</p>
+<h1>Getting Started</h1>
+<p>Sherwood is a simple yet powerful static site generator for Markdown content. This guide will help you get up and running quickly.</p>
+<h2>Installation</h2>
+<p>Sherwood is written in Rust. To install, you'll need to have Rust installed on your system.</p>
+<h3>Prerequisites</h3>
 <ul class="content-list">
-<li><a href="/about">About</a></li>
-<li><a href="/blog/">Blog</a></li>
-<li><a href="/docs/">Documentation</a></li>
+<li>Rust 1.70+ (recommended)</li>
+<li>Cargo (comes with Rust)</li>
 </ul>
-<h2>Features</h2>
-<ul class="content-list">
-<li>Converts Markdown to HTML5 with semantic structure</li>
-<li>Command-line interface with <code>generate</code> and <code>dev</code> commands</li>
-<li>Development server for local testing</li>
-<li>Semantic HTML with proper accessibility</li>
-</ul>
-<h2>Usage</h2>
-<h3>Generate Site</h3>
+<h3>Building from Source</h3>
+<pre><code class="language-bash">git clone &lt;repository-url&gt;
+cd sherwood
+cargo build --release
+</code></pre>
+<h2>Quick Start</h2>
+<ol class="numbered-list">
+<li>
+<p><strong>Create a content directory:</strong></p>
+<pre><code class="language-bash">mkdir content
+echo &quot;# Welcome to My Site&quot; &gt; content/index.md
+</code></pre>
+</li>
+<li>
+<p><strong>Generate your site:</strong></p>
 <pre><code class="language-bash">sherwood generate
 </code></pre>
-<h3>Development Server</h3>
+</li>
+<li>
+<p><strong>Start development server:</strong></p>
 <pre><code class="language-bash">sherwood dev
 </code></pre>
-<h2>Markdown Support</h2>
-<p>Sherwood supports standard Markdown syntax including:</p>
-<ul class="content-list">
-<li><strong>Bold text</strong> and <em>italic text</em></li>
-<li><code>Code snippets</code> and code blocks</li>
-<li>Lists (ordered and unordered)</li>
-<li>Links and images</li>
-<li>Tables</li>
-<li>Blockquotes</li>
-</ul>
-<blockquote>
-<p>This is a blockquote to demonstrate the styling.</p>
-</blockquote>
-<h3>Code Example</h3>
-<pre><code class="language-rust">fn main() {
-    println!(&quot;Hello, Sherwood!&quot;);
-}
+</li>
+<li>
+<p><strong>Open your browser:</strong>
+Navigate to <code>http://localhost:3000</code></p>
+</li>
+</ol>
+<h2>Directory Structure</h2>
+<p>Sherwood expects a simple, intuitive directory structure:</p>
+<pre><code>content/
+├── index.md          # Homepage
+├── about.md          # About page
+├── blog/             # Blog section
+│   ├── index.md      # Blog index (list page)
+│   └── post.md       # Individual blog post
+└── docs/             # Documentation section
+    ├── index.md      # Docs index (list page)
+    └── guide.md      # Documentation page
 </code></pre>
-<h3>Table Example</h3>
-<table><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>
-<tr><td>Markdown parsing</td><td>✅ Complete</td></tr>
-<tr><td>HTML generation</td><td>✅ Complete</td></tr>
-<tr><td>Dev server</td><td>✅ Complete</td></tr>
-<tr><td>Hot reload</td><td>🚧 Future</td></tr>
-</tbody></table>
-<p>The generator creates semantic HTML with proper structure and basic styling for readability.</p>
+<h2>Content Types</h2>
+<h3>Regular Pages</h3>
+<p>Simple Markdown files that get converted to HTML:</p>
+<pre><code class="language-markdown"># About Us
+
+We are a company that makes amazing things.
+</code></pre>
+<h3>Blog Posts</h3>
+<p>Markdown files with optional frontmatter:</p>
+<pre><code class="language-markdown">---
+title: &quot;My First Post&quot;
+date: &quot;2024-01-15&quot;
+---
+
+# My First Post
+
+This is the content of my post.
+</code></pre>
+<h3>List Pages</h3>
+<p>Directory index pages that automatically list all posts in that directory:</p>
+<pre><code class="language-markdown">---
+list: true
+title: &quot;Blog&quot;
+---
+
+# Blog
+
+&lt;!-- BLOG_POSTS_LIST --&gt;
+</code></pre>
+<h2>Next Steps</h2>
+<ul class="content-list">
+<li>Learn about <a href="/docs/frontmatter">Frontmatter</a></li>
+<li>Explore <a href="/docs/blog-features">Blog Features</a></li>
+<li>Check out <a href="/docs/deployment">Deployment Options</a></li>
+</ul>
 
 </article>
     </main>

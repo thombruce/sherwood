@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment Guide</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: #333;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #222;
+        }
+        h1 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 1rem;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        blockquote {
+            border-left: 4px solid #ddd;
+            margin: 0;
+            padding-left: 1rem;
+            color: #666;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1rem 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            text-align: left;
+        }
+        th {
+            background: #f9f9f9;
+        }
+        article {
+            margin-bottom: 2rem;
+        }
+        .blog-post {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            background: #fafafa;
+        }
+        .blog-post h2 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        .blog-post h2 a {
+            color: #222;
+            text-decoration: none;
+        }
+        .blog-post h2 a:hover {
+            text-decoration: underline;
+        }
+        .post-date {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        .post-excerpt {
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <article>
+<h1>Deployment Guide</h1>
+<p>This guide covers various ways to deploy your Sherwood-generated static site.</p>
+<h2>Static Hosting Options</h2>
+<h3>Netlify</h3>
+<p>Netlify is ideal for JAMstack sites with continuous deployment:</p>
+<ol class="numbered-list">
+<li>
+<p><strong>Connect Repository:</strong></p>
+<ul class="content-list">
+<li>Sign up for Netlify account</li>
+<li>Connect your Git repository</li>
+<li>Configure build settings</li>
+</ul>
+</li>
+<li>
+<p><strong>Build Settings:</strong></p>
+<pre><code>Build command: cargo run -- generate
+Publish directory: dist
+</code></pre>
+</li>
+<li>
+<p><strong>Environment Variables:</strong>
+Set <code>RUST_VERSION</code> to <code>1.70.0</code> or higher</p>
+</li>
+</ol>
+<h3>Vercel</h3>
+<p>Vercel offers zero-config deployment:</p>
+<ol class="numbered-list">
+<li>
+<p><strong>Install Vercel CLI:</strong></p>
+<pre><code class="language-bash">npm i -g vercel
+</code></pre>
+</li>
+<li>
+<p><strong>Configure Project:</strong>
+Create <code>vercel.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;buildCommand&quot;: &quot;cargo run -- generate&quot;,
+  &quot;outputDirectory&quot;: &quot;dist&quot;,
+  &quot;installCommand&quot;: &quot;&quot;
+}
+</code></pre>
+</li>
+<li>
+<p><strong>Deploy:</strong></p>
+<pre><code class="language-bash">vercel --prod
+</code></pre>
+</li>
+</ol>
+<h3>GitHub Pages</h3>
+<p>Free static hosting for public repositories:</p>
+<ol class="numbered-list">
+<li>
+<p><strong>Create Workflow:</strong>
+<code>.github/workflows/deploy.yml</code>:</p>
+<pre><code class="language-yaml">name: Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: cargo run -- generate
+      - uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+</code></pre>
+</li>
+<li>
+<p><strong>Enable GitHub Pages:</strong></p>
+<ul class="content-list">
+<li>Repository Settings → Pages</li>
+<li>Source: GitHub Actions</li>
+</ul>
+</li>
+</ol>
+<h3>Cloudflare Pages</h3>
+<p>Fast CDN-backed static hosting:</p>
+<ol class="numbered-list">
+<li><strong>Connect Repository</strong></li>
+<li><strong>Build Settings:</strong>
+<pre><code>Build command: cargo run -- generate
+Build output directory: dist
+</code></pre>
+</li>
+<li><strong>Deploy</strong></li>
+</ol>
+<h2>Custom Server Deployment</h2>
+<h3>Simple HTTP Server</h3>
+<p>For development or simple hosting:</p>
+<pre><code class="language-bash"># Using Python
+cd dist &amp;&amp; python -m http.server 8000
+
+# Using Node.js
+npx serve dist
+
+# Using Rust basic-server
+cargo install basic-http-server
+basic-http-server dist
+</code></pre>
+<h3>Nginx</h3>
+<p>Production-grade web server configuration:</p>
+<pre><code class="language-nginx">server {
+    listen 80;
+    server_name example.com;
+    root /var/www/sherwood/dist;
+    index index.html;
+
+    # Handle clean URLs
+    location / {
+        try_files $uri $uri.html $uri/index.html =404;
+    }
+
+    # Cache static assets
+    location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control &quot;public, immutable&quot;;
+    }
+}
+</code></pre>
+<h3>Apache</h3>
+<p>Web server configuration:</p>
+<pre><code class="language-apache">&lt;VirtualHost *:80&gt;
+    ServerName example.com
+    DocumentRoot /var/www/sherwood/dist
+    
+    # Enable clean URLs
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ $1.html [L]
+    
+    RewriteCond %{REQUEST_FILENAME}/ -d
+    RewriteRule ^(.*)$ $1/index.html [L]
+&lt;/VirtualHost&gt;
+</code></pre>
+<h2>Build Optimization</h2>
+<h3>Reduce Build Time</h3>
+<p>For large sites, consider these optimizations:</p>
+<ol class="numbered-list">
+<li>
+<p><strong>Parallel Processing:</strong>
+Future versions may support parallel markdown processing</p>
+</li>
+<li>
+<p><strong>Selective Rebuild:</strong>
+Only regenerate changed content</p>
+</li>
+<li>
+<p><strong>Asset Optimization:</strong></p>
+<pre><code class="language-bash"># Minify CSS
+npm install -g clean-css-cli
+find dist -name &quot;*.css&quot; -exec cleancss -o {} {} \;
+
+# Optimize images
+npm install -g imagemin-cli
+imagemin dist/images/* --out-dir=dist/images
+</code></pre>
+</li>
+</ol>
+<h3>Caching Strategy</h3>
+<p>Implement proper caching headers:</p>
+<pre><code class="language-nginx"># HTML files - short cache for content updates
+location ~* \.html$ {
+    expires 1h;
+    add_header Cache-Control &quot;public, must-revalidate&quot;;
+}
+
+# Static assets - long cache
+location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+    expires 1y;
+    add_header Cache-Control &quot;public, immutable&quot;;
+}
+</code></pre>
+<h2>CI/CD Integration</h2>
+<h3>Docker</h3>
+<p>Containerized deployment:</p>
+<pre><code class="language-dockerfile">FROM rust:1.70 as builder
+WORKDIR /app
+COPY . .
+RUN cargo build --release
+
+FROM nginx:alpine
+COPY --from=builder /app/target/release/sherwood /usr/local/bin/
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD [&quot;nginx&quot;, &quot;-g&quot;, &quot;daemon off;&quot;]
+</code></pre>
+<h3>Kubernetes</h3>
+<p>Deployment manifest:</p>
+<pre><code class="language-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sherwood-site
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: sherwood-site
+  template:
+    metadata:
+      labels:
+        app: sherwood-site
+    spec:
+      containers:
+      - name: sherwood
+        image: sherwood-site:latest
+        ports:
+        - containerPort: 80
+</code></pre>
+<h2>Performance Tips</h2>
+<ol class="numbered-list">
+<li><strong>Use CDN</strong> for static asset delivery</li>
+<li><strong>Enable Gzip/Brotli</strong> compression</li>
+<li><strong>Implement proper caching headers</strong></li>
+<li><strong>Optimize images</strong> and use modern formats</li>
+<li><strong>Minimize bundle sizes</strong> through content optimization</li>
+</ol>
+<p>Your Sherwood site is now ready for production deployment!</p>
+
+</article>
+    </main>
+</body>
+</html>

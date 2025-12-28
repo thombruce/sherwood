@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontmatter Reference</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: #333;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #222;
+        }
+        h1 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 1rem;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        blockquote {
+            border-left: 4px solid #ddd;
+            margin: 0;
+            padding-left: 1rem;
+            color: #666;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1rem 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            text-align: left;
+        }
+        th {
+            background: #f9f9f9;
+        }
+        article {
+            margin-bottom: 2rem;
+        }
+        .blog-post {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            background: #fafafa;
+        }
+        .blog-post h2 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        .blog-post h2 a {
+            color: #222;
+            text-decoration: none;
+        }
+        .blog-post h2 a:hover {
+            text-decoration: underline;
+        }
+        .post-date {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        .post-excerpt {
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <article>
+<h1>Frontmatter Reference</h1>
+<p>Frontmatter is optional YAML metadata at the beginning of your Markdown files. It allows you to add structured data to your content.</p>
+<h2>Syntax</h2>
+<p>Frontmatter must be the first thing in your file and must be valid YAML set between triple-dashed lines:</p>
+<pre><code class="language-yaml">---
+title: &quot;My Page Title&quot;
+date: &quot;2024-01-15&quot;
+list: true
+---
+</code></pre>
+<h2>Available Fields</h2>
+<h3><code>title</code> (string)</h3>
+<p>Overrides the page title. If not provided, Sherwood will extract the first H1 heading or use the filename.</p>
+<pre><code class="language-yaml">---
+title: &quot;Custom Page Title&quot;
+---
+</code></pre>
+<h3><code>date</code> (string)</h3>
+<p>Publication date for content sorting and display. Used in blog listings and other time-sensitive content.</p>
+<pre><code class="language-yaml">---
+date: &quot;2024-01-15&quot;
+---
+</code></pre>
+<h3><code>list</code> (boolean)</h3>
+<p>Marks an index page as a list page that automatically displays all other content in the same directory.</p>
+<pre><code class="language-yaml">---
+list: true
+title: &quot;Blog&quot;
+---
+</code></pre>
+<h2>Usage Examples</h2>
+<h3>Blog Post</h3>
+<pre><code class="language-markdown">---
+title: &quot;Understanding Rust Ownership&quot;
+date: &quot;2024-01-20&quot;
+---
+
+# Understanding Rust Ownership
+
+Rust's ownership system is one of its most distinctive features...
+</code></pre>
+<h3>Documentation Page</h3>
+<pre><code class="language-markdown">---
+title: &quot;API Reference&quot;
+---
+
+# API Reference
+
+Here are the available API endpoints...
+</code></pre>
+<h3>Blog Index</h3>
+<pre><code class="language-markdown">---
+list: true
+title: &quot;Blog&quot;
+---
+
+# Blog
+
+&lt;!-- BLOG_POSTS_LIST --&gt;
+</code></pre>
+<h2>Placeholder</h2>
+<p>For list pages, include the placeholder <code>&lt;!-- BLOG_POSTS_LIST --&gt;</code> where you want the automatic content listing to appear.</p>
+<h2>Field Priority</h2>
+<ol class="numbered-list">
+<li>
+<p><strong>Title Resolution:</strong></p>
+<ul class="content-list">
+<li><code>title</code> from frontmatter (highest priority)</li>
+<li>First H1 heading in content</li>
+<li>Filename (lowest priority)</li>
+</ul>
+</li>
+<li>
+<p><strong>Content Types:</strong></p>
+<ul class="content-list">
+<li>Pages without <code>list: true</code> → rendered as individual pages</li>
+<li>Pages with <code>list: true</code> → automatically generate listings of sibling content</li>
+</ul>
+</li>
+</ol>
+<h2>Best Practices</h2>
+<ul class="content-list">
+<li>Always use quotes around string values in YAML</li>
+<li>Use ISO date format (<code>YYYY-MM-DD</code>) for dates</li>
+<li>Keep frontmatter simple - complex nesting isn't currently supported</li>
+<li>Use meaningful filenames that reflect your content</li>
+</ul>
+<h2>Future Extensions</h2>
+<p>Sherwood may support additional frontmatter fields in future versions:</p>
+<ul class="content-list">
+<li><code>description</code> for SEO meta tags</li>
+<li><code>tags</code> for categorization</li>
+<li><code>author</code> for bylines</li>
+<li><code>draft</code> for unpublished content</li>
+<li><code>layout</code> for different page templates</li>
+</ul>
+
+</article>
+    </main>
+</body>
+</html>
