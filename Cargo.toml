@@ -21,3 +21,8 @@ tower-http = { version = "0.5", features = ["fs", "cors"] }
 anyhow = "1.0"
 serde_yaml = "0.9"
 toml = "0.8"
+
+[workspace.metadata.release]
+tag-name = "v{{version}}"
+publish = false
+verify = true
