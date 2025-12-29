@@ -2,6 +2,13 @@
 name = "sherwood"
 version = "0.1.0"
 edition = "2024"
+description = "A static site generator with built-in development server"
+license = "MIT"
+repository = "https://github.com/thombruce/sherwood"
+homepage = "https://github.com/thombruce/sherwood"
+authors = ["Thom Bruce <thom@thombruce.com>"]
+keywords = ["static-site-generator", "blog", "markdown", "web"]
+categories = ["web-programming", "development-tools"]
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
