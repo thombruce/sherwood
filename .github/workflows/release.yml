@@ -114,7 +114,7 @@ jobs:
           echo "archive_file=$ARCHIVE_NAME.tar.gz" >> $GITHUB_ENV
 
       - name: Upload archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sherwood-x86_64-unknown-linux-gnu
           path: ${{ env.archive_file }}
