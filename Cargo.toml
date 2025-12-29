@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/thombruce/sherwood"
 homepage = "https://github.com/thombruce/sherwood"
 authors = ["Thom Bruce <thom@thombruce.com>"]
-keywords = ["static-site-generator", "blog", "markdown", "web"]
+keywords = ["ssg", "static", "generator", "blog", "markdown", "web"]
 categories = ["web-programming", "development-tools"]
 
 [dependencies]
