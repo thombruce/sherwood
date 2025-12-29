@@ -2,10 +2,10 @@ use crate::themes::ThemeManager;
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
 use serde::{Deserialize, Serialize};
-use toml;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use toml;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SiteConfig {
@@ -47,9 +47,12 @@ impl SiteGenerator {
             .parent()
             .unwrap_or_else(|| Path::new("."))
             .join("themes");
-        
+
         // Load site configuration
-        let config_path = input_dir.parent().unwrap_or_else(|| Path::new(".")).join("sherwood.toml");
+        let config_path = input_dir
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("sherwood.toml");
         let site_config = if config_path.exists() {
             let content = fs::read_to_string(&config_path)?;
             toml::from_str(&content)?
@@ -60,7 +63,7 @@ impl SiteGenerator {
                 },
             }
         };
-        
+
         Ok(Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
@@ -199,12 +202,14 @@ impl SiteGenerator {
         }
 
         // Get theme for this file
-        let theme_name = file
-            .frontmatter
-            .theme
-            .clone()
-            .unwrap_or_else(|| self.site_config.site.theme.clone().unwrap_or_else(|| "default".to_string()));
-        
+        let theme_name = file.frontmatter.theme.clone().unwrap_or_else(|| {
+            self.site_config
+                .site
+                .theme
+                .clone()
+                .unwrap_or_else(|| "default".to_string())
+        });
+
         // Get theme variant for this file
         let theme_variant = file
             .frontmatter
@@ -227,7 +232,8 @@ impl SiteGenerator {
         let html_content = self.markdown_to_semantic_html(&content)?;
 
         // Generate complete HTML document
-        let full_html = self.generate_html_document(&file.title, &html_content, &theme_name, &theme_variant);
+        let full_html =
+            self.generate_html_document(&file.title, &html_content, &theme_name, &theme_variant);
 
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
@@ -390,20 +396,30 @@ impl SiteGenerator {
             .replace("<ol>", "<ol class=\"numbered-list\">")
     }
 
-fn generate_theme_css(&self) -> Result<()> {
+    fn generate_theme_css(&self) -> Result<()> {
         // Only generate the theme explicitly configured in sherwood.toml
-        let theme_name = self.site_config.site.theme.clone()
+        let theme_name = self
+            .site_config
+            .site
+            .theme
+            .clone()
             .unwrap_or_else(|| "default".to_string());
         let theme = self.theme_manager.load_theme(&theme_name)?;
         let css_path = self
             .theme_manager
             .generate_css_file(&theme, &self.output_dir)?;
-        
+
         println!("Generated CSS: {}", css_path.display());
         Ok(())
     }
 
-    fn generate_html_document(&self, title: &str, content: &str, theme_name: &str, theme_variant: &str) -> String {
+    fn generate_html_document(
+        &self,
+        title: &str,
+        content: &str,
+        theme_name: &str,
+        theme_variant: &str,
+    ) -> String {
         let css_file = format!("/css/{theme_name}.css", theme_name = theme_name);
         let body_attrs = if theme_variant != "default" {
             format!(r#" data-theme="{}""#, theme_variant)
