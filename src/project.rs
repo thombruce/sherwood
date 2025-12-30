@@ -30,7 +30,9 @@ pub fn create_new_project(path: &Path, theme: &str, no_theme: bool) -> Result<()
 
 fn copy_template_file(templates_dir: &Dir, template_path: &str, output_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(file) = templates_dir.get_file(template_path) {
-        fs::write(output_path, file.contents_utf8().unwrap())?;
+        fs::write(output_path, file.contents_utf8().ok_or_else(|| {
+            format!("Template file {} contains invalid UTF-8", template_path)
+        })?)?;
     } else {
         return Err(format!("Template file not found: {}", template_path).into());
     }
@@ -41,7 +43,9 @@ fn copy_config_template(path: &Path, theme: &str, no_theme: bool) -> Result<(), 
     let config_path = path.join("sherwood.toml");
     
     if let Some(file) = TEMPLATES.get_file("config/sherwood.toml") {
-        let config_content = file.contents_utf8().unwrap();
+        let config_content = file.contents_utf8().ok_or_else(|| {
+            "Config template file contains invalid UTF-8".to_string()
+        })?;
         
         let processed_content = if no_theme {
             // Remove theme line when --no-theme is used
@@ -81,7 +85,9 @@ fn copy_theme_files(path: &Path, theme: &str) -> Result<(), Box<dyn std::error::
                     fs::create_dir_all(parent)?;
                 }
                 
-                fs::write(&target_path, file.contents_utf8().unwrap())?;
+                fs::write(&target_path, file.contents_utf8().ok_or_else(|| {
+                    format!("Theme file {} contains invalid UTF-8", entry.path().display())
+                })?)?;
             }
         }
     } else {
