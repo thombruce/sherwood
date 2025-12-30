@@ -1,21 +1,13 @@
+use crate::config::{SiteConfig, SiteSection};
 use crate::themes::ThemeManager;
+use crate::utils::{ensure_directory_exists, ensure_parent_exists};
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml;
-
-#[derive(Debug, Deserialize, Serialize)]
-struct SiteConfig {
-    site: SiteSection,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct SiteSection {
-    theme: Option<String>,
-}
 
 #[derive(Debug, Deserialize, Default)]
 struct Frontmatter {
@@ -77,9 +69,9 @@ impl SiteGenerator {
         if self.output_dir.exists() {
             fs::remove_dir_all(&self.output_dir)?;
         }
-        fs::create_dir_all(&self.output_dir)?;
+        ensure_directory_exists(&self.output_dir)?;
 
-        // Generate CSS for default theme
+        // Generate CSS if theme is configured
         self.generate_theme_css()?;
 
         // Find all markdown files
@@ -121,22 +113,27 @@ impl SiteGenerator {
 
     fn find_markdown_files(&self, dir: &Path) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
+        let mut dirs_to_visit = Vec::new();
 
         if !dir.exists() {
             println!("Content directory {} does not exist", dir.display());
             return Ok(files);
         }
 
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
+        dirs_to_visit.push(dir.to_path_buf());
 
-            if path.is_dir() {
-                files.extend(self.find_markdown_files(&path)?);
-            } else if let Some(extension) = path.extension()
-                && (extension == "md" || extension == "markdown")
-            {
-                files.push(path);
+        while let Some(current_dir) = dirs_to_visit.pop() {
+            for entry in fs::read_dir(&current_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+
+                if path.is_dir() {
+                    dirs_to_visit.push(path);
+                } else if let Some(extension) = path.extension()
+                    && (extension == "md" || extension == "markdown")
+                {
+                    files.push(path);
+                }
             }
         }
 
@@ -197,18 +194,14 @@ impl SiteGenerator {
         let html_path = self.output_dir.join(relative_path).with_extension("html");
 
         // Create parent directories if needed
-        if let Some(parent) = html_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        ensure_parent_exists(&html_path)?;
 
         // Get theme for this file
-        let theme_name = file.frontmatter.theme.clone().unwrap_or_else(|| {
-            self.site_config
-                .site
-                .theme
-                .clone()
-                .unwrap_or_else(|| "default".to_string())
-        });
+        let theme_name = file
+            .frontmatter
+            .theme
+            .clone()
+            .or_else(|| self.site_config.site.theme.clone());
 
         // Get theme variant for this file
         let theme_variant = file
@@ -232,8 +225,11 @@ impl SiteGenerator {
         let html_content = self.markdown_to_semantic_html(&content)?;
 
         // Generate complete HTML document
-        let full_html =
-            self.generate_html_document(&file.title, &html_content, &theme_name, &theme_variant);
+        let full_html = if let Some(theme_name) = &theme_name {
+            self.generate_html_document(&file.title, &html_content, theme_name, &theme_variant)
+        } else {
+            self.generate_html_document_no_theme(&file.title, &html_content)
+        };
 
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
@@ -397,19 +393,18 @@ impl SiteGenerator {
     }
 
     fn generate_theme_css(&self) -> Result<()> {
-        // Only generate the theme explicitly configured in sherwood.toml
-        let theme_name = self
-            .site_config
-            .site
-            .theme
-            .clone()
-            .unwrap_or_else(|| "default".to_string());
-        let theme = self.theme_manager.load_theme(&theme_name)?;
-        let css_path = self
-            .theme_manager
-            .generate_css_file(&theme, &self.output_dir)?;
-
-        println!("Generated CSS: {}", css_path.display());
+        // Check if theme is configured
+        if let Some(theme_name) = self.site_config.site.theme.clone() {
+            // Only generate theme if explicitly configured in sherwood.toml
+            let theme = self.theme_manager.load_theme(&theme_name)?;
+            let css_path = self
+                .theme_manager
+                .generate_css_file(&theme, &self.output_dir)?;
+            println!("Generated CSS: {}", css_path.display());
+        } else {
+            // No theme configured - skip CSS generation
+            println!("No theme configured - skipping CSS generation");
+        }
         Ok(())
     }
 
@@ -446,6 +441,26 @@ impl SiteGenerator {
             content = content,
             css_file = css_file,
             body_attrs = body_attrs
+        )
+    }
+
+    fn generate_html_document_no_theme(&self, title: &str, content: &str) -> String {
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+</head>
+<body>
+    <main>
+        {content}
+    </main>
+</body>
+</html>"#,
+            title = title,
+            content = content
         )
     }
 }
