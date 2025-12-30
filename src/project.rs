@@ -1,6 +1,18 @@
 use std::fs;
 use std::path::Path;
 use include_dir::{include_dir, Dir};
+use serde::{Deserialize, Serialize};
+use toml;
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SiteConfig {
+    site: SiteSection,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SiteSection {
+    theme: Option<String>,
+}
 
 // Embed templates directory at compile time
 static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -47,16 +59,21 @@ fn copy_config_template(path: &Path, theme: &str, no_theme: bool) -> Result<(), 
             "Config template file contains invalid UTF-8".to_string()
         })?;
         
-        let processed_content = if no_theme {
-            // Remove theme line when --no-theme is used
-            config_content.lines()
-                .filter(|line| !line.trim_start().starts_with("theme ="))
-                .collect::<Vec<_>>()
-                .join("\n")
+        // Parse as TOML structure
+        let mut config: SiteConfig = toml::from_str(config_content)
+            .map_err(|e| format!("Failed to parse config template: {}", e))?;
+        
+        if no_theme {
+            // Remove theme when --no-theme is used
+            config.site.theme = None;
         } else {
-            // Replace default theme with selected theme
-            config_content.replace("theme = \"default\"", &format!("theme = \"{}\"", theme))
-        };
+            // Set the selected theme
+            config.site.theme = Some(theme.to_string());
+        }
+        
+        // Serialize back to TOML
+        let processed_content = toml::to_string_pretty(&config)
+            .map_err(|e| format!("Failed to serialize config: {}", e))?;
         
         fs::write(config_path, processed_content)?;
     } else {
