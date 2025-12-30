@@ -19,6 +19,9 @@ static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 static THEMES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates/themes");
 
 pub fn create_new_project(path: &Path, theme: &str, no_theme: bool) -> Result<(), Box<dyn std::error::Error>> {
+    // Validate inputs
+    validate_inputs(path, theme, no_theme)?;
+    
     // Create content directory
     let content_dir = path.join("content");
     fs::create_dir_all(&content_dir)?;
@@ -112,6 +115,69 @@ fn copy_theme_files(path: &Path, theme: &str) -> Result<(), Box<dyn std::error::
     }
     
     Ok(())
+}
+
+fn validate_inputs(path: &Path, theme: &str, no_theme: bool) -> Result<(), Box<dyn std::error::Error>> {
+    // Validate path
+    if path.exists() {
+        // Check if it's a directory with existing content
+        if path.is_dir() && path.read_dir()?.next().is_some() {
+            return Err(format!("Directory '{}' is not empty - refusing to overwrite existing files", path.display()).into());
+        } else if !path.is_dir() {
+            return Err(format!("Path '{}' exists but is not a directory", path.display()).into());
+        }
+    }
+    
+    // Check if parent directory exists and is writable
+    if let Some(parent) = path.parent() {
+        if parent.as_os_str().is_empty() {
+            // Path is just a filename, current directory should be used
+        } else if !parent.exists() {
+            return Err(format!("Parent directory '{}' does not exist", parent.display()).into());
+        }
+        
+        // Test writability by creating a temporary file
+        let test_dir = if parent.as_os_str().is_empty() { 
+            Path::new(".") 
+        } else { 
+            parent 
+        };
+        let test_file = test_dir.join(".sherwood_write_test");
+        match fs::write(&test_file, "test") {
+            Ok(_) => {
+                let _ = fs::remove_file(&test_file);
+            }
+            Err(e) => {
+                return Err(format!("Cannot write to parent directory '{}': {}", test_dir.display(), e).into());
+            }
+        }
+    }
+    
+    // Validate theme if not using --no-theme
+    if !no_theme {
+        if theme.trim().is_empty() {
+            return Err("Theme name cannot be empty".into());
+        }
+        
+        // Validate theme name characters (alphanumeric, hyphens, underscores)
+        if !theme.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            return Err(format!("Invalid theme name '{}': only letters, numbers, hyphens, and underscores are allowed", theme).into());
+        }
+        
+        // Check if theme exists in embedded templates
+        if !THEMES.get_dir(theme).is_some() {
+            return Err(format!("Theme '{}' not found. Available themes: {}", theme, get_available_themes().join(", ")).into());
+        }
+    }
+    
+    Ok(())
+}
+
+fn get_available_themes() -> Vec<String> {
+    THEMES
+        .dirs()
+        .map(|dir| dir.path().file_name().unwrap().to_string_lossy().to_string())
+        .collect()
 }
 
 fn print_success_message(path: &Path, theme: &str, no_theme: bool) {
