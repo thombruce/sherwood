@@ -1,3 +1,4 @@
+use crate::utils::ensure_directory_exists;
 use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -61,7 +62,7 @@ impl ThemeManager {
 
     pub fn generate_css_file(&self, theme: &Theme, output_dir: &Path) -> Result<PathBuf> {
         let css_dir = output_dir.join("css");
-        fs::create_dir_all(&css_dir)?;
+        ensure_directory_exists(&css_dir)?;
 
         // Copy all CSS files from theme directory except the main theme file
         self.copy_all_css_files(theme, &css_dir)?;

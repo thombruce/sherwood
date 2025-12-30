@@ -1,21 +1,13 @@
+use crate::config::{SiteConfig, SiteSection};
 use crate::themes::ThemeManager;
+use crate::utils::{ensure_directory_exists, ensure_parent_exists};
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml;
-
-#[derive(Debug, Deserialize, Serialize)]
-struct SiteConfig {
-    site: SiteSection,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct SiteSection {
-    theme: Option<String>,
-}
 
 #[derive(Debug, Deserialize, Default)]
 struct Frontmatter {
@@ -77,7 +69,7 @@ impl SiteGenerator {
         if self.output_dir.exists() {
             fs::remove_dir_all(&self.output_dir)?;
         }
-        fs::create_dir_all(&self.output_dir)?;
+        ensure_directory_exists(&self.output_dir)?;
 
         // Generate CSS if theme is configured
         self.generate_theme_css()?;
@@ -121,22 +113,27 @@ impl SiteGenerator {
 
     fn find_markdown_files(&self, dir: &Path) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
+        let mut dirs_to_visit = Vec::new();
 
         if !dir.exists() {
             println!("Content directory {} does not exist", dir.display());
             return Ok(files);
         }
 
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
+        dirs_to_visit.push(dir.to_path_buf());
 
-            if path.is_dir() {
-                files.extend(self.find_markdown_files(&path)?);
-            } else if let Some(extension) = path.extension()
-                && (extension == "md" || extension == "markdown")
-            {
-                files.push(path);
+        while let Some(current_dir) = dirs_to_visit.pop() {
+            for entry in fs::read_dir(&current_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+
+                if path.is_dir() {
+                    dirs_to_visit.push(path);
+                } else if let Some(extension) = path.extension()
+                    && (extension == "md" || extension == "markdown")
+                {
+                    files.push(path);
+                }
             }
         }
 
@@ -197,9 +194,7 @@ impl SiteGenerator {
         let html_path = self.output_dir.join(relative_path).with_extension("html");
 
         // Create parent directories if needed
-        if let Some(parent) = html_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        ensure_parent_exists(&html_path)?;
 
         // Get theme for this file
         let theme_name = file

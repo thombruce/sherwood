@@ -59,7 +59,11 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::New { path, theme, no_theme } => {
+        Commands::New {
+            path,
+            theme,
+            no_theme,
+        } => {
             if let Err(e) = sherwood::create_new_project(&path, &theme, no_theme) {
                 eprintln!("Error creating new project: {}", e);
                 std::process::exit(1);
