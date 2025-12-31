@@ -1,4 +1,5 @@
-use crate::config::{SiteConfig, SiteSection};
+use crate::config::{SiteConfig, SiteSection, TemplateSection};
+use crate::templates::TemplateManager;
 use crate::themes::ThemeManager;
 use crate::utils::{ensure_directory_exists, ensure_parent_exists};
 use anyhow::Result;
@@ -16,6 +17,9 @@ struct Frontmatter {
     list: Option<bool>,
     theme: Option<String>,
     theme_variant: Option<String>,
+    page_template: Option<String>,
+    #[allow(dead_code)]
+    blog_post_template: Option<String>,
 }
 
 #[derive(Debug)]
@@ -30,12 +34,14 @@ pub struct SiteGenerator {
     input_dir: PathBuf,
     output_dir: PathBuf,
     theme_manager: ThemeManager,
+    template_manager: TemplateManager,
     site_config: SiteConfig,
 }
 
 impl SiteGenerator {
     pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
         let themes_dir = input_dir.join("../themes");
+        let templates_dir = input_dir.join("../templates");
 
         // Load site configuration
         let config_path = input_dir.join("../sherwood.toml");
@@ -47,6 +53,10 @@ impl SiteGenerator {
                 site: SiteSection {
                     theme: Some("default".to_string()),
                 },
+                templates: Some(TemplateSection {
+                    page_template: Some("default.stpl".to_string()),
+                    blog_post_template: Some("blog_post.stpl".to_string()),
+                }),
             }
         };
 
@@ -54,6 +64,7 @@ impl SiteGenerator {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
             theme_manager: ThemeManager::new(&themes_dir),
+            template_manager: TemplateManager::new(&templates_dir),
             site_config,
         })
     }
@@ -204,23 +215,41 @@ impl SiteGenerator {
             .clone()
             .unwrap_or_else(|| "default".to_string());
 
-        // Check if this is a list page that needs post generation
-        let content = if file.frontmatter.list.unwrap_or(false) {
-            let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
-            let blog_list = self.generate_blog_list_content(parent_dir, list_pages)?;
-
-            // Replace the placeholder with the actual blog list
-            file.content.replace("<!-- BLOG_POSTS_LIST -->", &blog_list)
-        } else {
-            file.content.clone()
-        };
-
         // Convert markdown to HTML with semantic structure
-        let html_content = self.markdown_to_semantic_html(&content)?;
+        let html_content = if file.frontmatter.list.unwrap_or(false) {
+            // For list pages, process content around the blog list placeholder
+            let parts: Vec<&str> = file.content.split("<!-- BLOG_POSTS_LIST -->").collect();
+            let mut html_parts = Vec::new();
+
+            for (i, part) in parts.iter().enumerate() {
+                // Process markdown content before/after blog list
+                if !part.trim().is_empty() {
+                    let part_html = self.markdown_to_semantic_html(part)?;
+                    html_parts.push(part_html);
+                }
+
+                // Insert blog list between parts (but not after the last part)
+                if i < parts.len() - 1 {
+                    let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
+                    let blog_list = self.generate_blog_list_content(parent_dir, list_pages)?;
+                    html_parts.push(blog_list);
+                }
+            }
+
+            html_parts.join("\n")
+        } else {
+            // For regular pages, process entire content
+            self.markdown_to_semantic_html(&file.content)?
+        };
 
         // Generate complete HTML document
         let full_html = if let Some(theme_name) = &theme_name {
-            self.generate_html_document(&file.title, &html_content, theme_name, &theme_variant)
+            self.generate_html_document_with_template(
+                file,
+                &html_content,
+                theme_name,
+                &theme_variant,
+            )?
         } else {
             self.generate_html_document_no_theme(&file.title, &html_content)
         };
@@ -263,38 +292,34 @@ impl SiteGenerator {
                 if !file_name.starts_with("index") {
                     let parsed = self.parse_markdown_file(&path)?;
 
-                    // Generate post list entry
-                    let date = parsed.frontmatter.date.as_deref().unwrap_or("");
+                    // Generate post list entry using template
+                    let date = parsed.frontmatter.date.as_deref();
                     let relative_url_path = path
                         .strip_prefix(&self.input_dir)
                         .unwrap_or(&path)
                         .with_extension("");
                     let relative_url = relative_url_path.to_string_lossy();
 
-                    list_content.push_str(&format!(
-                        r##"<article class="blog-post">
-    <h2><a href="/{}">{}</a></h2>
-    {}"##,
-                        relative_url,
-                        parsed.title,
-                        if !date.is_empty() {
-                            format!("<p class=\"post-date\">{}</p>", date)
-                        } else {
-                            String::new()
-                        }
-                    ));
-
                     // Extract first paragraph as excerpt
-                    let first_paragraph = self.extract_first_paragraph(&parsed.content);
-                    if !first_paragraph.is_empty() {
+                    let excerpt = if !self.extract_first_paragraph(&parsed.content).is_empty() {
+                        let first_paragraph = self.extract_first_paragraph(&parsed.content);
                         let parser = Parser::new(&first_paragraph);
                         let mut excerpt_html = String::new();
                         html::push_html(&mut excerpt_html, parser);
-                        list_content
-                            .push_str(&format!("<p class=\"post-excerpt\">{}</p>", excerpt_html));
-                    }
+                        Some(excerpt_html)
+                    } else {
+                        None
+                    };
 
-                    list_content.push_str("</article>\n\n");
+                    let blog_post_html = self.template_manager.render_blog_post(
+                        &parsed.title,
+                        &relative_url,
+                        date,
+                        excerpt.as_deref(),
+                    )?;
+
+                    list_content.push_str(&blog_post_html);
+                    list_content.push_str("\n\n");
                 }
             }
         }
@@ -402,40 +427,35 @@ impl SiteGenerator {
         Ok(())
     }
 
-    fn generate_html_document(
+    fn generate_html_document_with_template(
         &self,
-        title: &str,
+        file: &MarkdownFile,
         content: &str,
         theme_name: &str,
         theme_variant: &str,
-    ) -> String {
-        let css_file = format!("/css/{theme_name}.css", theme_name = theme_name);
+    ) -> Result<String> {
+        // Note: template_name is used for future extensibility
+        let _template_name = file
+            .frontmatter
+            .page_template
+            .as_ref()
+            .or_else(|| {
+                self.site_config
+                    .templates
+                    .as_ref()
+                    .and_then(|t| t.page_template.as_ref())
+            })
+            .map_or("default.stpl", |s| s.as_str());
+
+        let css_file = Some(format!("/css/{theme_name}.css", theme_name = theme_name));
         let body_attrs = if theme_variant != "default" {
             format!(r#" data-theme="{}""#, theme_variant)
         } else {
             String::new()
         };
 
-        format!(
-            r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
-    <link rel="stylesheet" href="{css_file}">
-</head>
-<body{body_attrs}>
-    <main>
-        {content}
-    </main>
-</body>
-</html>"#,
-            title = title,
-            content = content,
-            css_file = css_file,
-            body_attrs = body_attrs
-        )
+        self.template_manager
+            .render_page(&file.title, content, css_file.as_deref(), &body_attrs)
     }
 
     fn generate_html_document_no_theme(&self, title: &str, content: &str) -> String {

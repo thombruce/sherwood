@@ -1,4 +1,5 @@
 use crate::config::SiteConfig;
+use crate::templates::copy_embedded_templates;
 use crate::utils::{ensure_directory_exists, ensure_parent_exists};
 use include_dir::{Dir, include_dir};
 use std::fs;
@@ -13,6 +14,10 @@ static THEMES: Dir = include_dir!("$CARGO_MANIFEST_DIR/themes");
 const DEFAULT_SHERWOOD_TOML: &str = r#"[site]
 theme = "default"
 # Available themes: default, kanagawa
+
+[templates]
+page_template = "default.stpl"
+blog_post_template = "blog_post.stpl"
 "#;
 
 pub fn create_new_project(
@@ -42,10 +47,13 @@ pub fn create_new_project(
         copy_theme_files(path, theme)?;
     }
 
+    // Copy template files
+    copy_embedded_templates(path)?;
+
     // Print success message
     print_success_message(path, theme, no_theme);
 
-Ok(())
+    Ok(())
 }
 
 fn copy_template_file(
