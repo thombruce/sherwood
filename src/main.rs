@@ -35,6 +35,9 @@ enum Commands {
         /// Skip creating theme files
         #[arg(long)]
         no_theme: bool,
+        /// Skip creating template files
+        #[arg(long)]
+        no_template: bool,
     },
 }
 
@@ -63,8 +66,9 @@ async fn main() {
             path,
             theme,
             no_theme,
+            no_template,
         } => {
-            if let Err(e) = sherwood::create_new_project(&path, &theme, no_theme) {
+            if let Err(e) = sherwood::create_new_project(&path, &theme, no_theme, no_template) {
                 eprintln!("Error creating new project: {}", e);
                 std::process::exit(1);
             }

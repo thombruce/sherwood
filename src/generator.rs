@@ -1,21 +1,24 @@
 use crate::config::{SiteConfig, SiteSection};
+use crate::template::{TemplateManager, TemplateContext, SiteContext};
 use crate::themes::ThemeManager;
 use crate::utils::{ensure_directory_exists, ensure_parent_exists};
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml;
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 struct Frontmatter {
     title: Option<String>,
     date: Option<String>,
     list: Option<bool>,
     theme: Option<String>,
     theme_variant: Option<String>,
+    template: Option<String>,
 }
 
 #[derive(Debug)]
@@ -31,6 +34,7 @@ pub struct SiteGenerator {
     output_dir: PathBuf,
     theme_manager: ThemeManager,
     site_config: SiteConfig,
+    template_manager: TemplateManager,
 }
 
 impl SiteGenerator {
@@ -39,6 +43,11 @@ impl SiteGenerator {
             .parent()
             .unwrap_or_else(|| Path::new("."))
             .join("themes");
+
+        let templates_dir = input_dir
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("templates");
 
         // Load site configuration
         let config_path = input_dir
@@ -60,6 +69,7 @@ impl SiteGenerator {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
             theme_manager: ThemeManager::new(&themes_dir),
+            template_manager: TemplateManager::new(&templates_dir)?,
             site_config,
         })
     }
@@ -196,20 +206,6 @@ impl SiteGenerator {
         // Create parent directories if needed
         ensure_parent_exists(&html_path)?;
 
-        // Get theme for this file
-        let theme_name = file
-            .frontmatter
-            .theme
-            .clone()
-            .or_else(|| self.site_config.site.theme.clone());
-
-        // Get theme variant for this file
-        let theme_variant = file
-            .frontmatter
-            .theme_variant
-            .clone()
-            .unwrap_or_else(|| "default".to_string());
-
         // Check if this is a list page that needs post generation
         let content = if file.frontmatter.list.unwrap_or(false) {
             let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
@@ -224,11 +220,42 @@ impl SiteGenerator {
         // Convert markdown to HTML with semantic structure
         let html_content = self.markdown_to_semantic_html(&content)?;
 
-        // Generate complete HTML document
-        let full_html = if let Some(theme_name) = &theme_name {
-            self.generate_html_document(&file.title, &html_content, theme_name, &theme_variant)
+        // Create template context
+        let _template_context = self.create_template_context(file, relative_path, &html_content)?;
+
+        // Try to use template rendering first
+        let full_html = if let Some(template_name) = &file.frontmatter.template {
+            // Use explicitly specified template
+            let mut template_path = template_name.clone();
+            if !template_path.ends_with(".html") {
+                template_path.push_str(".html");
+            }
+            if !template_path.ends_with(".tera") {
+                template_path.push_str(".tera");
+            }
+            
+            let context = TemplateContext {
+                title: file.title.clone(),
+                content: html_content.clone(),
+                frontmatter: serde_json::to_value(&file.frontmatter)?,
+                path: relative_path.to_string_lossy().to_string(),
+                url: relative_path.with_extension("").to_string_lossy().to_string(),
+                site: SiteContext {
+                    title: None, // Could be added to site config later
+                    theme: self.site_config.site.theme.clone(),
+                },
+            };
+
+            match self.template_manager.render_template(Path::new(&template_path), context) {
+                Ok(rendered) => rendered,
+                Err(_) => {
+                    // Fallback to template resolver if explicit template fails
+                    self.render_with_template_resolver(file, relative_path, &html_content)?
+                }
+            }
         } else {
-            self.generate_html_document_no_theme(&file.title, &html_content)
+            // Use template resolver
+            self.render_with_template_resolver(file, relative_path, &html_content)?
         };
 
         fs::write(&html_path, full_html)?;
@@ -408,43 +435,55 @@ impl SiteGenerator {
         Ok(())
     }
 
-    fn generate_html_document(
-        &self,
-        title: &str,
-        content: &str,
-        theme_name: &str,
-        theme_variant: &str,
-    ) -> String {
-        let css_file = format!("/css/{theme_name}.css", theme_name = theme_name);
-        let body_attrs = if theme_variant != "default" {
-            format!(r#" data-theme="{}""#, theme_variant)
-        } else {
-            String::new()
-        };
 
-        format!(
-            r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
-    <link rel="stylesheet" href="{css_file}">
-</head>
-<body{body_attrs}>
-    <main>
-        {content}
-    </main>
-</body>
-</html>"#,
-            title = title,
-            content = content,
-            css_file = css_file,
-            body_attrs = body_attrs
-        )
+
+    fn create_template_context(
+        &self,
+        file: &MarkdownFile,
+        relative_path: &Path,
+        html_content: &str,
+    ) -> Result<TemplateContext> {
+        Ok(TemplateContext {
+            title: file.title.clone(),
+            content: html_content.to_string(),
+            frontmatter: serde_json::to_value(&file.frontmatter)?,
+            path: relative_path.to_string_lossy().to_string(),
+            url: relative_path.with_extension("").to_string_lossy().to_string(),
+            site: SiteContext {
+                title: None, // Could be added to site config later
+                theme: self.site_config.site.theme.clone(),
+            },
+        })
     }
 
-    fn generate_html_document_no_theme(&self, title: &str, content: &str) -> String {
+    fn render_with_template_resolver(
+        &self,
+        file: &MarkdownFile,
+        relative_path: &Path,
+        html_content: &str,
+    ) -> Result<String> {
+        let context = TemplateContext {
+            title: file.title.clone(),
+            content: html_content.to_string(),
+            frontmatter: serde_json::to_value(&file.frontmatter)?,
+            path: relative_path.to_string_lossy().to_string(),
+            url: relative_path.with_extension("").to_string_lossy().to_string(),
+            site: SiteContext {
+                title: None,
+                theme: self.site_config.site.theme.clone(),
+            },
+        };
+
+        match self.template_manager.render_template(relative_path, context) {
+            Ok(rendered) => Ok(rendered),
+            Err(e) => {
+                eprintln!("Warning: Template rendering failed: {}. Using fallback HTML.", e);
+                Ok(self.generate_fallback_html(&file.title, html_content))
+            }
+        }
+    }
+
+    fn generate_fallback_html(&self, title: &str, content: &str) -> String {
         format!(
             r#"<!DOCTYPE html>
 <html lang="en">
@@ -462,6 +501,10 @@ impl SiteGenerator {
             title = title,
             content = content
         )
+    }
+
+    fn generate_html_document_no_theme(&self, title: &str, content: &str) -> String {
+        self.generate_fallback_html(title, content)
     }
 }
 
