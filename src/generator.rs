@@ -76,7 +76,7 @@ impl SiteGenerator {
         })
     }
 
-    pub async fn generate(&self) -> Result<()> {
+    pub async fn generate(&mut self) -> Result<()> {
         // Clean output directory
         if self.output_dir.exists() {
             fs::remove_dir_all(&self.output_dir)?;
@@ -196,7 +196,7 @@ impl SiteGenerator {
     }
 
     async fn process_markdown_file(
-        &self,
+        &mut self,
         file: &MarkdownFile,
         list_pages: &HashMap<PathBuf, &MarkdownFile>,
     ) -> Result<()> {
@@ -460,7 +460,7 @@ impl SiteGenerator {
     }
 
     fn render_with_template_resolver(
-        &self,
+        &mut self,
         file: &MarkdownFile,
         relative_path: &Path,
         html_content: &str,
@@ -504,6 +504,6 @@ impl SiteGenerator {
 }
 
 pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {
-    let generator = SiteGenerator::new(input_dir, output_dir)?;
+    let mut generator = SiteGenerator::new(input_dir, output_dir)?;
     generator.generate().await
 }
