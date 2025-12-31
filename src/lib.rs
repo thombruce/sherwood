@@ -7,10 +7,10 @@ pub mod template_resolver;
 pub mod themes;
 pub mod utils;
 
-pub use config::{SiteConfig, SiteSection, NavigationItem, Navigation};
+pub use config::{Navigation, NavigationItem, SiteConfig, SiteSection};
 pub use generator::generate_site;
 pub use project::create_new_project;
 pub use server::run_dev_server;
-pub use template::{TemplateManager, TemplateContext, SiteContext};
+pub use template::{SiteContext, TemplateContext, TemplateManager};
 pub use template_resolver::TemplateResolver;
 pub use themes::{Theme, ThemeManager};

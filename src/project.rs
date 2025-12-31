@@ -107,7 +107,7 @@ fn copy_template_files(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(templates_source) = TEMPLATES.get_dir("templates") {
         // Copy all files from _templates/templates/ to user's templates/
-        copy_dir_contents(&templates_source, &templates_dir)?;
+        copy_dir_contents(templates_source, &templates_dir)?;
     } else {
         return Err("Templates directory not found in embedded templates".into());
     }
@@ -258,10 +258,8 @@ fn validate_inputs(
     }
 
     // Validate template availability if not using --no-template
-    if !no_template {
-        if TEMPLATES.get_dir("templates").is_none() {
-            return Err("Template files not found in embedded templates".into());
-        }
+    if !no_template && TEMPLATES.get_dir("templates").is_none() {
+        return Err("Template files not found in embedded templates".into());
     }
 
     Ok(())

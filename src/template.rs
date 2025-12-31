@@ -33,7 +33,7 @@ pub struct TemplateManager {
 impl TemplateManager {
     pub fn new(templates_dir: &Path, site_config: SiteConfig) -> Result<Self> {
         let templates_dir = templates_dir.to_path_buf();
-        
+
         // Ensure templates directory exists
         if !templates_dir.exists() {
             fs::create_dir_all(&templates_dir)?;
@@ -41,10 +41,10 @@ impl TemplateManager {
 
         // Initialize Tera with the templates directory
         let mut tera = Tera::new(&format!("{}/**/*.html.tera", templates_dir.display()))?;
-        
+
         // Configure Tera
         tera.autoescape_on(vec![".html"]);
-        
+
         let resolver = TemplateResolver::new(&templates_dir)?;
 
         Ok(Self {
@@ -55,28 +55,28 @@ impl TemplateManager {
         })
     }
 
-    pub fn render_template(
-        &self,
-        content_path: &Path,
-        context: TemplateContext,
-    ) -> Result<String> {
+    pub fn render_template(&self, content_path: &Path, context: TemplateContext) -> Result<String> {
         let template_name = self.resolver.find_best_template(content_path)?;
-        
+
         // Add navigation to context
-        let navigation = self.site_config.site.navigation.clone()
+        let navigation = self
+            .site_config
+            .site
+            .navigation
+            .clone()
             .map(|nav| nav.items)
             .unwrap_or_default();
-        
+
         let template_context = TemplateContext {
             navigation,
             ..context
         };
-        
+
         match template_name {
             Some(name) => {
                 let mut tera_context = Context::new();
                 tera_context.insert("page", &template_context);
-                
+
                 // Try with .tera extension first, then without
                 let template_with_tera = format!("{}.tera", name);
                 let rendered = match self.tera.render(&template_with_tera, &tera_context) {
@@ -86,7 +86,7 @@ impl TemplateManager {
                         self.tera.render(&name, &tera_context)?
                     }
                 };
-                
+
                 Ok(rendered)
             }
             None => {
@@ -100,10 +100,10 @@ impl TemplateManager {
         // Rebuild the template engine
         self.tera = Tera::new(&format!("{}/**/*.html.tera", self.templates_dir.display()))?;
         self.tera.autoescape_on(vec![".html"]);
-        
+
         // Reload the resolver
         self.resolver = TemplateResolver::new(&self.templates_dir)?;
-        
+
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 use crate::config::{SiteConfig, SiteSection};
-use crate::template::{TemplateManager, TemplateContext, SiteContext};
+use crate::template::{SiteContext, TemplateContext, TemplateManager};
 use crate::themes::ThemeManager;
 use crate::utils::{ensure_directory_exists, ensure_parent_exists};
 use anyhow::Result;
@@ -54,7 +54,6 @@ impl SiteGenerator {
             .parent()
             .unwrap_or_else(|| Path::new("."))
             .join("sherwood.toml");
-        
 
         let site_config = if config_path.exists() {
             let content = fs::read_to_string(&config_path)?;
@@ -233,10 +232,14 @@ impl SiteGenerator {
             if !template_path.ends_with(".tera") {
                 template_path.push_str(".tera");
             }
-            
-            let context = self.create_template_context(file, relative_path, html_content.clone())?;
-            
-            match self.template_manager.render_template(Path::new(&template_path), context) {
+
+            let context =
+                self.create_template_context(file, relative_path, html_content.clone())?;
+
+            match self
+                .template_manager
+                .render_template(Path::new(&template_path), context)
+            {
                 Ok(rendered) => rendered,
                 Err(_) => {
                     // Fallback to template resolver if explicit template fails
@@ -425,8 +428,6 @@ impl SiteGenerator {
         Ok(())
     }
 
-
-
     fn create_template_context(
         &self,
         file: &MarkdownFile,
@@ -437,17 +438,20 @@ impl SiteGenerator {
             title: None, // Could be added to site config later
             theme: self.site_config.site.theme.clone(),
         };
-        
+
         let context = TemplateContext {
             title: file.title.clone(),
             content: html_content.to_string(),
             frontmatter: serde_json::to_value(&file.frontmatter)?,
             path: relative_path.to_string_lossy().to_string(),
-            url: relative_path.with_extension("").to_string_lossy().to_string(),
+            url: relative_path
+                .with_extension("")
+                .to_string_lossy()
+                .to_string(),
             site: site_context,
             navigation: vec![], // Will be populated by template manager
         };
-        
+
         Ok(context)
     }
 
@@ -462,7 +466,10 @@ impl SiteGenerator {
             content: html_content.to_string(),
             frontmatter: serde_json::to_value(&file.frontmatter)?,
             path: relative_path.to_string_lossy().to_string(),
-            url: relative_path.with_extension("").to_string_lossy().to_string(),
+            url: relative_path
+                .with_extension("")
+                .to_string_lossy()
+                .to_string(),
             site: SiteContext {
                 title: None, // Could be added to site config later
                 theme: self.site_config.site.theme.clone(),
@@ -470,10 +477,16 @@ impl SiteGenerator {
             navigation: vec![], // Will be populated by template manager
         };
 
-        match self.template_manager.render_template(relative_path, context) {
+        match self
+            .template_manager
+            .render_template(relative_path, context)
+        {
             Ok(rendered) => Ok(rendered),
             Err(e) => {
-                eprintln!("Warning: Template rendering failed: {}. Using fallback HTML.", e);
+                eprintln!(
+                    "Warning: Template rendering failed: {}. Using fallback HTML.",
+                    e
+                );
                 Ok(self.generate_fallback_html(&file.title, html_content))
             }
         }
