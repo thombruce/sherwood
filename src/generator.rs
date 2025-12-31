@@ -10,6 +10,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use toml;
 
+// Constants for relative path construction
+const THEMES_DIR_RELATIVE: &str = "../themes";
+const TEMPLATES_DIR_RELATIVE: &str = "../templates";
+const CONFIG_PATH_RELATIVE: &str = "../sherwood.toml";
+
+// Constants for template names
+const DEFAULT_PAGE_TEMPLATE: &str = "default.stpl";
+
 #[derive(Debug, Deserialize, Default)]
 struct Frontmatter {
     title: Option<String>,
@@ -18,8 +26,6 @@ struct Frontmatter {
     theme: Option<String>,
     theme_variant: Option<String>,
     page_template: Option<String>,
-    #[allow(dead_code)]
-    blog_post_template: Option<String>,
 }
 
 #[derive(Debug)]
@@ -40,11 +46,11 @@ pub struct SiteGenerator {
 
 impl SiteGenerator {
     pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
-        let themes_dir = input_dir.join("../themes");
-        let templates_dir = input_dir.join("../templates");
+        let themes_dir = input_dir.join(THEMES_DIR_RELATIVE);
+        let templates_dir = input_dir.join(TEMPLATES_DIR_RELATIVE);
 
         // Load site configuration
-        let config_path = input_dir.join("../sherwood.toml");
+        let config_path = input_dir.join(CONFIG_PATH_RELATIVE);
         let site_config = if config_path.exists() {
             let content = fs::read_to_string(&config_path)?;
             toml::from_str(&content)?
@@ -54,8 +60,7 @@ impl SiteGenerator {
                     theme: Some("default".to_string()),
                 },
                 templates: Some(TemplateSection {
-                    page_template: Some("default.stpl".to_string()),
-                    blog_post_template: Some("blog_post.stpl".to_string()),
+                    page_template: Some(DEFAULT_PAGE_TEMPLATE.to_string()),
                 }),
             }
         };
@@ -445,7 +450,7 @@ impl SiteGenerator {
                     .as_ref()
                     .and_then(|t| t.page_template.as_ref())
             })
-            .map_or("default.stpl", |s| s.as_str());
+            .map_or(DEFAULT_PAGE_TEMPLATE, |s| s.as_str());
 
         let css_file = Some(format!("/css/{theme_name}.css", theme_name = theme_name));
         let body_attrs = if theme_variant != "default" {

@@ -10,15 +10,22 @@ use toml;
 static CONTENT_TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/content");
 static THEMES: Dir = include_dir!("$CARGO_MANIFEST_DIR/themes");
 
-// Default sherwood.toml template
-const DEFAULT_SHERWOOD_TOML: &str = r#"[site]
+// Constants for template names
+const DEFAULT_PAGE_TEMPLATE: &str = "default.stpl";
+
+// Default sherwood.toml template function
+fn get_default_sherwood_toml() -> String {
+    format!(
+        r#"[site]
 theme = "default"
 # Available themes: default, kanagawa
 
 [templates]
-page_template = "default.stpl"
-blog_post_template = "blog_post.stpl"
-"#;
+page_template = "{}"
+"#,
+        DEFAULT_PAGE_TEMPLATE
+    )
+}
 
 pub fn create_new_project(
     path: &Path,
@@ -81,7 +88,7 @@ fn copy_config_template(
     let config_path = path.join("sherwood.toml");
 
     // Parse default TOML structure
-    let mut config: SiteConfig = toml::from_str(DEFAULT_SHERWOOD_TOML)
+    let mut config: SiteConfig = toml::from_str(&get_default_sherwood_toml())
         .map_err(|e| format!("Failed to parse config template: {}", e))?;
 
     if no_theme {

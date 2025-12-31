@@ -14,5 +14,4 @@ pub struct SiteSection {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TemplateSection {
     pub page_template: Option<String>,
-    pub blog_post_template: Option<String>,
 }
