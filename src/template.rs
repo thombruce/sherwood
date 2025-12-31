@@ -79,7 +79,7 @@ impl TemplateManager {
     /// Load a specific template on demand if not already loaded
     fn ensure_template_loaded(&mut self, template_name: &str) -> Result<()> {
         let normalized_name = Self::normalize_template_name(template_name);
-        
+
         // Check if already loaded
         if self.loaded_templates.contains(&normalized_name) {
             return Ok(());
@@ -89,30 +89,36 @@ impl TemplateManager {
         if let Some(template_path) = self.resolver.get_template_path(&normalized_name) {
             // Load the template file content
             let _template_content = fs::read_to_string(template_path)?;
-            
+
             // Add template to Tera
-            self.tera.add_template_file(template_path, Some(&normalized_name))?;
-            
+            self.tera
+                .add_template_file(template_path, Some(&normalized_name))?;
+
             // Mark as loaded
             self.loaded_templates.insert(normalized_name);
-            
+
             Ok(())
         } else {
             // Try the original template name for backward compatibility
-            if normalized_name != template_name {
-                if let Some(template_path) = self.resolver.get_template_path(template_name) {
-                    let _template_content = fs::read_to_string(template_path)?;
-                    self.tera.add_template_file(template_path, Some(template_name))?;
-                    self.loaded_templates.insert(template_name.to_string());
-                    return Ok(());
-                }
+            if normalized_name != template_name
+                && let Some(template_path) = self.resolver.get_template_path(template_name)
+            {
+                let _template_content = fs::read_to_string(template_path)?;
+                self.tera
+                    .add_template_file(template_path, Some(template_name))?;
+                self.loaded_templates.insert(template_name.to_string());
+                return Ok(());
             }
-            
+
             Err(anyhow::anyhow!("Template '{}' not found", template_name))
         }
     }
 
-    pub fn render_template(&mut self, content_path: &Path, context: TemplateContext) -> Result<String> {
+    pub fn render_template(
+        &mut self,
+        content_path: &Path,
+        context: TemplateContext,
+    ) -> Result<String> {
         let template_name = self.resolver.find_best_template(content_path)?;
 
         // Add navigation to context
@@ -145,7 +151,7 @@ impl TemplateManager {
 
                 // Normalize template name to ensure proper .html.tera extension
                 let normalized_name = Self::normalize_template_name(&name);
-                
+
                 // Try rendering with the normalized name first
                 match self.tera.render(&normalized_name, &tera_context) {
                     Ok(html) => Ok(html),
@@ -218,13 +224,17 @@ impl TemplateManager {
 
     /// Get statistics about template loading
     pub fn get_loading_stats(&self) -> (usize, usize) {
-        (self.loaded_templates.len(), self.resolver.list_templates().unwrap_or_default().len())
+        (
+            self.loaded_templates.len(),
+            self.resolver.list_templates().unwrap_or_default().len(),
+        )
     }
 
     /// Check if a specific template is loaded
     pub fn is_template_loaded(&self, template_name: &str) -> bool {
         let normalized_name = Self::normalize_template_name(template_name);
-        self.loaded_templates.contains(&normalized_name) || self.loaded_templates.contains(template_name)
+        self.loaded_templates.contains(&normalized_name)
+            || self.loaded_templates.contains(template_name)
     }
 }
 
@@ -237,7 +247,7 @@ mod tests {
     fn test_normalize_template_name() {
         let test_cases = vec![
             ("blog", "blog.html.tera"),
-            ("blog.html", "blog.html.tera"), 
+            ("blog.html", "blog.html.tera"),
             ("blog.tera", "blog.html.tera"),
             ("blog.html.tera", "blog.html.tera"),
             ("docs/page", "docs/page.html.tera"),
