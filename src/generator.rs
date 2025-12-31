@@ -234,7 +234,7 @@ impl SiteGenerator {
             }
 
             let context =
-                self.create_template_context(file, relative_path, html_content.clone())?;
+                self.build_template_context(file, relative_path, &html_content)?;
 
             match self
                 .template_manager
@@ -428,11 +428,11 @@ impl SiteGenerator {
         Ok(())
     }
 
-    fn create_template_context(
+    fn build_template_context(
         &self,
         file: &MarkdownFile,
         relative_path: &Path,
-        html_content: String,
+        html_content: &str,
     ) -> Result<TemplateContext> {
         let site_context = SiteContext {
             title: None, // Could be added to site config later
@@ -461,21 +461,7 @@ impl SiteGenerator {
         relative_path: &Path,
         html_content: &str,
     ) -> Result<String> {
-        let context = TemplateContext {
-            title: file.title.clone(),
-            content: html_content.to_string(),
-            frontmatter: serde_json::to_value(&file.frontmatter)?,
-            path: relative_path.to_string_lossy().to_string(),
-            url: relative_path
-                .with_extension("")
-                .to_string_lossy()
-                .to_string(),
-            site: SiteContext {
-                title: None, // Could be added to site config later
-                theme: self.site_config.site.theme.clone(),
-            },
-            navigation: vec![], // Will be populated by template manager
-        };
+        let context = self.build_template_context(file, relative_path, html_content)?;
 
         match self
             .template_manager
@@ -512,9 +498,7 @@ impl SiteGenerator {
         )
     }
 
-    fn generate_html_document_no_theme(&self, title: &str, content: &str) -> String {
-        self.generate_fallback_html(title, content)
-    }
+
 }
 
 pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {

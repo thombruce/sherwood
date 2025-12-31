@@ -26,6 +26,9 @@ include_dir = { version = "0.7", features = ["glob"] }
 tera = "1.19"
 glob = "0.3"
 
+[dev-dependencies]
+tempfile = "3.0"
+
 [workspace.metadata.release]
 tag-name = "v{{version}}"
 publish = false
