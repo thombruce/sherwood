@@ -1,5 +1,5 @@
 /target
 /dist
-# /content
-# /templates
-# /themes
+/content
+/templates
+/themes
