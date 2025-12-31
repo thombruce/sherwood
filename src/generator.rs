@@ -224,14 +224,19 @@ impl SiteGenerator {
 
         // Try to use template rendering first
         let full_html = if let Some(template_name) = &file.frontmatter.template {
-            // Use explicitly specified template
-            let mut template_path = template_name.clone();
-            if !template_path.ends_with(".html") {
-                template_path.push_str(".html");
-            }
-            if !template_path.ends_with(".tera") {
-                template_path.push_str(".tera");
-            }
+            // Use explicitly specified template - normalize the name
+            let template_path = if template_name.ends_with(".html.tera") {
+                template_name.clone()
+            } else if template_name.ends_with(".tera") {
+                // Has .tera but missing .html
+                template_name.trim_end_matches(".tera").to_string() + ".html.tera"
+            } else if template_name.ends_with(".html") {
+                // Has .html but missing .tera
+                template_name.to_string() + ".tera"
+            } else {
+                // No extension - add both
+                template_name.to_string() + ".html.tera"
+            };
 
             let context =
                 self.build_template_context(file, relative_path, &html_content)?;

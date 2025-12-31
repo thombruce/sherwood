@@ -31,6 +31,25 @@ pub struct TemplateManager {
 }
 
 impl TemplateManager {
+    /// Normalize template name to ensure it has the proper .html.tera extension
+    fn normalize_template_name(template_name: &str) -> String {
+        let normalized = if template_name.ends_with(".html.tera") {
+            // Already has the correct extension
+            template_name.to_string()
+        } else if template_name.ends_with(".tera") {
+            // Has .tera but missing .html - insert .html before .tera
+            template_name.trim_end_matches(".tera").to_string() + ".html.tera"
+        } else if template_name.ends_with(".html") {
+            // Has .html but missing .tera
+            template_name.to_string() + ".tera"
+        } else {
+            // No extension - add both
+            template_name.to_string() + ".html.tera"
+        };
+        
+        normalized
+    }
+
     pub fn new(templates_dir: &Path, site_config: SiteConfig) -> Result<Self> {
         let templates_dir = templates_dir.to_path_buf();
 
@@ -77,17 +96,35 @@ impl TemplateManager {
                 let mut tera_context = Context::new();
                 tera_context.insert("page", &template_context);
 
-                // Try with .tera extension first, then without
-                let template_with_tera = format!("{}.tera", name);
-                let rendered = match self.tera.render(&template_with_tera, &tera_context) {
-                    Ok(html) => html,
-                    Err(_) => {
-                        // Try without .tera extension
-                        self.tera.render(&name, &tera_context)?
+                // Normalize template name to ensure proper .html.tera extension
+                let normalized_name = Self::normalize_template_name(&name);
+                
+                // Try rendering with the normalized name
+                match self.tera.render(&normalized_name, &tera_context) {
+                    Ok(html) => Ok(html),
+                    Err(e) => {
+                        // If normalized name fails, try the original name for backward compatibility
+                        if normalized_name != name {
+                            match self.tera.render(&name, &tera_context) {
+                                Ok(html) => Ok(html),
+                                Err(_) => {
+                                    // Final fallback to basic HTML
+                                    eprintln!(
+                                        "Warning: Template '{}' (tried '{}') failed to render: {}. Using fallback HTML.",
+                                        name, normalized_name, e
+                                    );
+                                    Ok(self.generate_fallback_html(&template_context))
+                                }
+                            }
+                        } else {
+                            eprintln!(
+                                "Warning: Template '{}' failed to render: {}. Using fallback HTML.",
+                                name, e
+                            );
+                            Ok(self.generate_fallback_html(&template_context))
+                        }
                     }
-                };
-
-                Ok(rendered)
+                }
             }
             None => {
                 // Fallback to basic HTML if no template found
@@ -129,5 +166,28 @@ impl TemplateManager {
 
     pub fn list_available_templates(&self) -> Result<Vec<String>> {
         self.resolver.list_templates()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_template_name() {
+        let test_cases = vec![
+            ("blog", "blog.html.tera"),
+            ("blog.html", "blog.html.tera"), 
+            ("blog.tera", "blog.html.tera"),
+            ("blog.html.tera", "blog.html.tera"),
+            ("docs/page", "docs/page.html.tera"),
+            ("docs/page.html", "docs/page.html.tera"),
+            ("docs/page.tera", "docs/page.html.tera"),
+            ("docs/page.html.tera", "docs/page.html.tera"),
+        ];
+
+        for (input, expected) in test_cases {
+            assert_eq!(TemplateManager::normalize_template_name(input), expected);
+        }
     }
 }
