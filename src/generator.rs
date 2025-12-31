@@ -238,8 +238,7 @@ impl SiteGenerator {
                 template_name.to_string() + ".html.tera"
             };
 
-            let context =
-                self.build_template_context(file, relative_path, &html_content)?;
+            let context = self.build_template_context(file, relative_path, &html_content)?;
 
             match self
                 .template_manager
@@ -502,8 +501,6 @@ impl SiteGenerator {
             content = content
         )
     }
-
-
 }
 
 pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {

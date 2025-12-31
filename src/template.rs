@@ -33,7 +33,7 @@ pub struct TemplateManager {
 impl TemplateManager {
     /// Normalize template name to ensure it has the proper .html.tera extension
     fn normalize_template_name(template_name: &str) -> String {
-        let normalized = if template_name.ends_with(".html.tera") {
+        if template_name.ends_with(".html.tera") {
             // Already has the correct extension
             template_name.to_string()
         } else if template_name.ends_with(".tera") {
@@ -45,9 +45,7 @@ impl TemplateManager {
         } else {
             // No extension - add both
             template_name.to_string() + ".html.tera"
-        };
-        
-        normalized
+        }
     }
 
     pub fn new(templates_dir: &Path, site_config: SiteConfig) -> Result<Self> {
@@ -98,7 +96,7 @@ impl TemplateManager {
 
                 // Normalize template name to ensure proper .html.tera extension
                 let normalized_name = Self::normalize_template_name(&name);
-                
+
                 // Try rendering with the normalized name
                 match self.tera.render(&normalized_name, &tera_context) {
                     Ok(html) => Ok(html),
@@ -178,7 +176,7 @@ mod tests {
     fn test_normalize_template_name() {
         let test_cases = vec![
             ("blog", "blog.html.tera"),
-            ("blog.html", "blog.html.tera"), 
+            ("blog.html", "blog.html.tera"),
             ("blog.tera", "blog.html.tera"),
             ("blog.html.tera", "blog.html.tera"),
             ("docs/page", "docs/page.html.tera"),
