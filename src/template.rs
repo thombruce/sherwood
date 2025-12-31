@@ -133,16 +133,17 @@ impl TemplateManager {
         }
     }
 
-    pub fn reload_templates(&mut self) -> Result<()> {
-        // Rebuild the template engine
-        self.tera = Tera::new(&format!("{}/**/*.html.tera", self.templates_dir.display()))?;
-        self.tera.autoescape_on(vec![".html"]);
-
-        // Reload the resolver
-        self.resolver = TemplateResolver::new(&self.templates_dir)?;
-
-        Ok(())
-    }
+    // TODO: Implement hot reloading functionality before uncommenting this method
+    // pub fn reload_templates(&mut self) -> Result<()> {
+    //     // Rebuild the template engine
+    //     self.tera = Tera::new(&format!("{}/**/*.html.tera", self.templates_dir.display()))?;
+    //     self.tera.autoescape_on(vec![".html"]);
+    //
+    //     // Reload the resolver
+    //     self.resolver = TemplateResolver::new(&self.templates_dir)?;
+    //
+    //     Ok(())
+    // }
 
     fn generate_fallback_html(&self, context: &TemplateContext) -> String {
         format!(
