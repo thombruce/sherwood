@@ -1,3 +1,4 @@
+use crate::config::{NavigationItem, SiteConfig};
 use crate::template_resolver::TemplateResolver;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ pub struct TemplateContext {
     pub path: String,
     pub url: String,
     pub site: SiteContext,
+    pub navigation: Vec<NavigationItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,10 +27,11 @@ pub struct TemplateManager {
     tera: Tera,
     resolver: TemplateResolver,
     templates_dir: PathBuf,
+    site_config: SiteConfig,
 }
 
 impl TemplateManager {
-    pub fn new(templates_dir: &Path) -> Result<Self> {
+    pub fn new(templates_dir: &Path, site_config: SiteConfig) -> Result<Self> {
         let templates_dir = templates_dir.to_path_buf();
         
         // Ensure templates directory exists
@@ -48,6 +51,7 @@ impl TemplateManager {
             tera,
             resolver,
             templates_dir,
+            site_config,
         })
     }
 
@@ -58,10 +62,20 @@ impl TemplateManager {
     ) -> Result<String> {
         let template_name = self.resolver.find_best_template(content_path)?;
         
+        // Add navigation to context
+        let navigation = self.site_config.site.navigation.clone()
+            .map(|nav| nav.items)
+            .unwrap_or_default();
+        
+        let template_context = TemplateContext {
+            navigation,
+            ..context
+        };
+        
         match template_name {
             Some(name) => {
                 let mut tera_context = Context::new();
-                tera_context.insert("page", &context);
+                tera_context.insert("page", &template_context);
                 
                 // Try with .tera extension first, then without
                 let template_with_tera = format!("{}.tera", name);
@@ -77,7 +91,7 @@ impl TemplateManager {
             }
             None => {
                 // Fallback to basic HTML if no template found
-                Ok(self.generate_fallback_html(&context))
+                Ok(self.generate_fallback_html(&template_context))
             }
         }
     }

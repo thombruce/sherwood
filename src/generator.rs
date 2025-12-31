@@ -54,6 +54,8 @@ impl SiteGenerator {
             .parent()
             .unwrap_or_else(|| Path::new("."))
             .join("sherwood.toml");
+        
+
         let site_config = if config_path.exists() {
             let content = fs::read_to_string(&config_path)?;
             toml::from_str(&content)?
@@ -61,6 +63,7 @@ impl SiteGenerator {
             SiteConfig {
                 site: SiteSection {
                     theme: Some("default".to_string()),
+                    navigation: None,
                 },
             }
         };
@@ -69,7 +72,7 @@ impl SiteGenerator {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
             theme_manager: ThemeManager::new(&themes_dir),
-            template_manager: TemplateManager::new(&templates_dir)?,
+            template_manager: TemplateManager::new(&templates_dir, site_config.clone())?,
             site_config,
         })
     }
@@ -220,9 +223,6 @@ impl SiteGenerator {
         // Convert markdown to HTML with semantic structure
         let html_content = self.markdown_to_semantic_html(&content)?;
 
-        // Create template context
-        let _template_context = self.create_template_context(file, relative_path, &html_content)?;
-
         // Try to use template rendering first
         let full_html = if let Some(template_name) = &file.frontmatter.template {
             // Use explicitly specified template
@@ -234,18 +234,8 @@ impl SiteGenerator {
                 template_path.push_str(".tera");
             }
             
-            let context = TemplateContext {
-                title: file.title.clone(),
-                content: html_content.clone(),
-                frontmatter: serde_json::to_value(&file.frontmatter)?,
-                path: relative_path.to_string_lossy().to_string(),
-                url: relative_path.with_extension("").to_string_lossy().to_string(),
-                site: SiteContext {
-                    title: None, // Could be added to site config later
-                    theme: self.site_config.site.theme.clone(),
-                },
-            };
-
+            let context = self.create_template_context(file, relative_path, html_content.clone())?;
+            
             match self.template_manager.render_template(Path::new(&template_path), context) {
                 Ok(rendered) => rendered,
                 Err(_) => {
@@ -441,19 +431,24 @@ impl SiteGenerator {
         &self,
         file: &MarkdownFile,
         relative_path: &Path,
-        html_content: &str,
+        html_content: String,
     ) -> Result<TemplateContext> {
-        Ok(TemplateContext {
+        let site_context = SiteContext {
+            title: None, // Could be added to site config later
+            theme: self.site_config.site.theme.clone(),
+        };
+        
+        let context = TemplateContext {
             title: file.title.clone(),
             content: html_content.to_string(),
             frontmatter: serde_json::to_value(&file.frontmatter)?,
             path: relative_path.to_string_lossy().to_string(),
             url: relative_path.with_extension("").to_string_lossy().to_string(),
-            site: SiteContext {
-                title: None, // Could be added to site config later
-                theme: self.site_config.site.theme.clone(),
-            },
-        })
+            site: site_context,
+            navigation: vec![], // Will be populated by template manager
+        };
+        
+        Ok(context)
     }
 
     fn render_with_template_resolver(
@@ -469,9 +464,10 @@ impl SiteGenerator {
             path: relative_path.to_string_lossy().to_string(),
             url: relative_path.with_extension("").to_string_lossy().to_string(),
             site: SiteContext {
-                title: None,
+                title: None, // Could be added to site config later
                 theme: self.site_config.site.theme.clone(),
             },
+            navigation: vec![], // Will be populated by template manager
         };
 
         match self.template_manager.render_template(relative_path, context) {

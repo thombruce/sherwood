@@ -1,2 +1,16 @@
 [site]
 theme = "default"
+
+[site.navigation]
+
+[[site.navigation.items]]
+title = "Home"
+url = "/"
+
+# [[site.navigation.items]]
+# title = "Blog"
+# url = "/blog"
+ 
+# [[site.navigation.items]]
+# title = "About"
+# url = "/about"

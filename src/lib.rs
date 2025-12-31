@@ -7,7 +7,7 @@ pub mod template_resolver;
 pub mod themes;
 pub mod utils;
 
-pub use config::{SiteConfig, SiteSection};
+pub use config::{SiteConfig, SiteSection, NavigationItem, Navigation};
 pub use generator::generate_site;
 pub use project::create_new_project;
 pub use server::run_dev_server;
