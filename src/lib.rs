@@ -10,5 +10,5 @@ pub use config::{SiteConfig, SiteSection, TemplateSection};
 pub use generator::generate_site;
 pub use project::create_new_project;
 pub use server::run_dev_server;
-pub use templates::TemplateManager;
+pub use templates::{TemplateManager, validate_templates};
 pub use themes::{Theme, ThemeManager};

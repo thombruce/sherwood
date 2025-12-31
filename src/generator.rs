@@ -65,11 +65,19 @@ impl SiteGenerator {
             }
         };
 
+        let template_manager = TemplateManager::new(&templates_dir)?;
+
+        // Validate all templates during initialization
+        let validation_errors = template_manager.validate_all_templates()?;
+        if !validation_errors.is_empty() {
+            eprintln!("⚠️  Template validation warnings detected, but continuing...");
+        }
+
         Ok(Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
             theme_manager: ThemeManager::new(&themes_dir),
-            template_manager: TemplateManager::new(&templates_dir),
+            template_manager,
             site_config,
         })
     }

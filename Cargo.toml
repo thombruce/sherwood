@@ -23,6 +23,7 @@ serde_yaml = "0.9"
 toml = "0.8"
 include_dir = { version = "0.7", features = ["glob"] }
 sailfish = "0.8"
+thiserror = "1.0"
 
 [workspace.metadata.release]
 tag-name = "v{{version}}"
