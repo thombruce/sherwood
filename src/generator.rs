@@ -35,16 +35,10 @@ pub struct SiteGenerator {
 
 impl SiteGenerator {
     pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
-        let themes_dir = input_dir
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join("themes");
+        let themes_dir = input_dir.join("../themes");
 
         // Load site configuration
-        let config_path = input_dir
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join("sherwood.toml");
+        let config_path = input_dir.join("../sherwood.toml");
         let site_config = if config_path.exists() {
             let content = fs::read_to_string(&config_path)?;
             toml::from_str(&content)?

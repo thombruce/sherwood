@@ -5,9 +5,15 @@ use std::fs;
 use std::path::Path;
 use toml;
 
-// Embed templates directory at compile time
-static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
-static THEMES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates/themes");
+// Embed content and themes directories at compile time
+static CONTENT_TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/content");
+static THEMES: Dir = include_dir!("$CARGO_MANIFEST_DIR/themes");
+
+// Default sherwood.toml template
+const DEFAULT_SHERWOOD_TOML: &str = r#"[site]
+theme = "default"
+# Available themes: default, kanagawa
+"#;
 
 pub fn create_new_project(
     path: &Path,
@@ -21,10 +27,10 @@ pub fn create_new_project(
     let content_dir = path.join("content");
     ensure_directory_exists(&content_dir)?;
 
-    // Copy index.md from templates
+    // Copy index.md from content templates
     copy_template_file(
-        &TEMPLATES,
-        "content/index.md",
+        &CONTENT_TEMPLATES,
+        "index.md",
         &content_dir.join("index.md"),
     )?;
 
@@ -39,7 +45,7 @@ pub fn create_new_project(
     // Print success message
     print_success_message(path, theme, no_theme);
 
-    Ok(())
+Ok(())
 }
 
 fn copy_template_file(
@@ -66,31 +72,23 @@ fn copy_config_template(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config_path = path.join("sherwood.toml");
 
-    if let Some(file) = TEMPLATES.get_file("config/sherwood.toml") {
-        let config_content = file
-            .contents_utf8()
-            .ok_or_else(|| "Config template file contains invalid UTF-8".to_string())?;
+    // Parse default TOML structure
+    let mut config: SiteConfig = toml::from_str(DEFAULT_SHERWOOD_TOML)
+        .map_err(|e| format!("Failed to parse config template: {}", e))?;
 
-        // Parse as TOML structure
-        let mut config: SiteConfig = toml::from_str(config_content)
-            .map_err(|e| format!("Failed to parse config template: {}", e))?;
-
-        if no_theme {
-            // Remove theme when --no-theme is used
-            config.site.theme = None;
-        } else {
-            // Set the selected theme
-            config.site.theme = Some(theme.to_string());
-        }
-
-        // Serialize back to TOML
-        let processed_content = toml::to_string_pretty(&config)
-            .map_err(|e| format!("Failed to serialize config: {}", e))?;
-
-        fs::write(config_path, processed_content)?;
+    if no_theme {
+        // Remove theme when --no-theme is used
+        config.site.theme = None;
     } else {
-        return Err("Config template file not found".into());
+        // Set the selected theme
+        config.site.theme = Some(theme.to_string());
     }
+
+    // Serialize back to TOML
+    let processed_content = toml::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+
+    fs::write(config_path, processed_content)?;
 
     Ok(())
 }
@@ -193,7 +191,7 @@ fn validate_inputs(
             return Err(format!("Invalid theme name '{}': only letters, numbers, hyphens, and underscores are allowed", theme).into());
         }
 
-        // Check if theme exists in embedded templates
+        // Check if theme exists in embedded themes
         if THEMES.get_dir(theme).is_none() {
             return Err(format!(
                 "Theme '{}' not found. Available themes: {}",
