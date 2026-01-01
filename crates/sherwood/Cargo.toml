@@ -20,7 +20,7 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors"] }
 anyhow = "1.0"
 serde_yaml = "0.9"
-toml = "0.8"
+toml = "0.9"
 include_dir = { version = "0.7", features = ["glob"] }
 sailfish = "0.8"
 thiserror = "1.0"
