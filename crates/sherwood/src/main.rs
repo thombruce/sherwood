@@ -25,17 +25,6 @@ enum Commands {
         #[arg(short, long, default_value = "3000")]
         port: u16,
     },
-    New {
-        /// The directory to create the new project in (defaults to current directory)
-        #[arg(default_value = ".")]
-        path: PathBuf,
-        /// Theme to use for new project
-        #[arg(long, default_value = "default")]
-        theme: String,
-        /// Skip creating theme files
-        #[arg(long)]
-        no_theme: bool,
-    },
     Validate {
         /// Templates directory to validate (defaults to ../templates relative to content)
         #[arg(short, long)]
@@ -64,16 +53,6 @@ async fn main() {
         } => {
             if let Err(e) = sherwood::run_dev_server(&input, &output, port).await {
                 eprintln!("Error running dev server: {}", e);
-                std::process::exit(1);
-            }
-        }
-        Commands::New {
-            path,
-            theme,
-            no_theme,
-        } => {
-            if let Err(e) = sherwood::create_new_project(&path, &theme, no_theme) {
-                eprintln!("Error creating new project: {}", e);
                 std::process::exit(1);
             }
         }
