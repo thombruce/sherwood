@@ -1,0 +1,12 @@
+[package]
+name = "{{ project-name }}"
+version = "0.1.0"
+edition = "2024"
+description = "A simple static site powered by Sherwood"
+authors = ["{{ authors }}"]
+license = "MIT"
+keywords = ["ssg", "static", "blog", "markdown", "web"]
+categories = ["web-programming", "development-tools"]
+
+[dependencies]
+sherwood = "0.1.0"

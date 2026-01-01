@@ -1,0 +1,36 @@
+/* CSS Custom Properties for Light and Dark Themes */
+
+/* Light theme (default) */
+:root {
+  --color-primary: #222222;
+  --color-secondary: #666666;
+  --color-muted: #999999;
+  --color-background: #ffffff;
+  --color-surface: #fafafa;
+  --color-border: #dddddd;
+  --color-code: #f4f4f4;
+}
+
+/* Dark theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #e0e0e0;
+    --color-secondary: #b0b0b0;
+    --color-muted: #808080;
+    --color-background: #1a1a1a;
+    --color-surface: #2d2d2d;
+    --color-border: #404040;
+    --color-code: #2d2d2d;
+  }
+}
+
+/* Manual dark theme override */
+body[data-theme="dark"] {
+  --color-primary: #e0e0e0;
+  --color-secondary: #b0b0b0;
+  --color-muted: #808080;
+  --color-background: #1a1a1a;
+  --color-surface: #2d2d2d;
+  --color-border: #404040;
+  --color-code: #2d2d2d;
+}

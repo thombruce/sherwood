@@ -1,0 +1,5 @@
+[template]
+cargo_generate_version = ">=0.18.0"
+
+[placeholders]
+site_title = { type = "string", prompt = "What is your site title?", default = "My Sherwood Site" }

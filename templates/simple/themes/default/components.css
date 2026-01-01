@@ -1,0 +1,109 @@
+/* Heading styles */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: var(--color-primary);
+}
+
+h1 {
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: 0.5rem;
+}
+
+/* Code and syntax highlighting */
+code {
+  background: var(--color-code);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+pre {
+  background: var(--color-code);
+  padding: 1rem;
+  border-radius: 5px;
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Blockquotes */
+blockquote {
+  border-left: 4px solid var(--color-border);
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--color-secondary);
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+th,
+td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem;
+  text-align: left;
+}
+
+th {
+  background: var(--color-surface);
+}
+
+/* Articles and blog posts */
+article {
+  margin-bottom: 2rem;
+}
+
+.blog-post {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  background: var(--color-surface);
+}
+
+.blog-post h2 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.blog-post h2 a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.blog-post h2 a:hover {
+  text-decoration: underline;
+}
+
+.post-date {
+  color: var(--color-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.post-excerpt {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+/* Lists */
+.content-list {
+  padding-left: 1.5rem;
+}
+
+.numbered-list {
+  padding-left: 1.5rem;
+}
