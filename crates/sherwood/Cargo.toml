@@ -13,7 +13,7 @@ categories = ["web-programming", "development-tools"]
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
-pulldown-cmark = "0.9"
+pulldown-cmark = "0.13"
 tokio = { version = "1.0", features = ["full"] }
 axum = "0.7"
 tower = "0.4"
