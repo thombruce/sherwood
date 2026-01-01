@@ -1,5 +1,8 @@
-[package]
-name = "sherwood"
+[workspace]
+members = ["crates/sherwood"]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 description = "A static site generator with built-in development server"
@@ -7,25 +10,9 @@ license = "MIT"
 repository = "https://github.com/thombruce/sherwood"
 homepage = "https://github.com/thombruce/sherwood"
 authors = ["Thom Bruce <thom@thombruce.com>"]
-keywords = ["ssg", "static", "blog", "markdown", "web"]
-categories = ["web-programming", "development-tools"]
-
-[dependencies]
-clap = { version = "4.0", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
-pulldown-cmark = "0.9"
-tokio = { version = "1.0", features = ["full"] }
-axum = "0.7"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["fs", "cors"] }
-anyhow = "1.0"
-serde_yaml = "0.9"
-toml = "0.8"
-include_dir = { version = "0.7", features = ["glob"] }
-sailfish = "0.8"
-thiserror = "1.0"
 
 [workspace.metadata.release]
+shared-version = true
 tag-name = "v{{version}}"
 publish = false
 verify = true
