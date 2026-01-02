@@ -13,7 +13,7 @@ use toml;
 // Constants for relative path construction
 const THEMES_DIR_RELATIVE: &str = "../themes";
 const TEMPLATES_DIR_RELATIVE: &str = "../templates";
-const CONFIG_PATH_RELATIVE: &str = "../sherwood.toml";
+const CONFIG_PATH_RELATIVE: &str = "../Sherwood.toml";
 
 // Constants for template names
 const DEFAULT_PAGE_TEMPLATE: &str = "default.stpl";
@@ -427,7 +427,7 @@ impl SiteGenerator {
     fn generate_theme_css(&self) -> Result<()> {
         // Check if theme is configured
         if let Some(theme_name) = self.site_config.site.theme.clone() {
-            // Only generate theme if explicitly configured in sherwood.toml
+            // Only generate theme if explicitly configured in Sherwood.toml
             let theme = self.theme_manager.load_theme(&theme_name)?;
             let css_path = self
                 .theme_manager

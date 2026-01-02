@@ -15,7 +15,7 @@ A fast and simple static site generator written in Rust that converts Markdown c
 - 📱 **Responsive design** with semantic HTML
 - 🛠️ **Development server** for local testing
 - 📋 **Blog post lists** with automatic generation
-- ⚙️ **Configurable** via `sherwood.toml`
+- ⚙️ **Configurable** via `Sherwood.toml`
 
 ## Installation
 
@@ -34,7 +34,7 @@ cargo build --release
 ## Quick Start
 
 1. Create a `content` directory with Markdown files
-2. Configure your site in `sherwood.toml` (optional)
+2. Configure your site in `Sherwood.toml` (optional)
 3. Generate your site or run the development server
 
 ### Commands
@@ -53,7 +53,7 @@ sherwood dev -i content -o dist -p 3000
 
 ## Configuration
 
-Create a `sherwood.toml` file in your project root:
+Create a `Sherwood.toml` file in your project root:
 
 ```toml
 [site]
@@ -87,7 +87,7 @@ project/
 │       ├── index.md   # Blog list page
 │       └── post.md
 ├── themes/            # Custom themes (optional)
-├── sherwood.toml      # Site configuration
+├── Sherwood.toml      # Site configuration
 └── dist/             # Generated site (output)
 ```
 
