@@ -10,7 +10,8 @@
 .sherwood/*
 !.sherwood/release/
 .sherwood/release/*
-## ...but include the sherwood generate binary
+## ...but include the sherwood dev and generate binaries
+!.sherwood/release/dev
 !.sherwood/release/generate
 
 # OS
