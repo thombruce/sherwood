@@ -70,13 +70,7 @@ impl TemplateManager {
     pub fn new(templates_dir: &Path) -> Result<Self> {
         let templates_dir = templates_dir.to_path_buf();
 
-        // Check if templates directory exists
-        if !templates_dir.exists() {
-            return Err(TemplateError::TemplatesDirectoryNotFound {
-                path: templates_dir.display().to_string(),
-            }
-            .into());
-        }
+        // Templates directory is optional - we have embedded fallbacks
 
         let available_templates = Self::discover_templates(&templates_dir)?;
 

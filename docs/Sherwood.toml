@@ -1,6 +1,6 @@
 [site]
 title = "Sherwood"
-theme = "default"
+# theme = "default"
 
-[templates]
-page_template = "default.stpl"
+# [templates]
+# page_template = "default.stpl"
