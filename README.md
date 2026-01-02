@@ -31,6 +31,12 @@ cd sherwood
 cargo build --release
 ```
 
+You can also get started with a template:
+
+```bash
+cargo generate thombruce/sherwood --no-workspace
+```
+
 ## Quick Start
 
 1. Create a `content` directory with Markdown files
