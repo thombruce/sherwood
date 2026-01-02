@@ -1,27 +1,60 @@
-# Sherwood
+# Welcome to Sherwood
 
-## Welcome to Your Sherwood Site
+This is a **static site generator** written in Rust that converts Markdown files to semantic HTML.
 
-This is your homepage. Edit `content/index.md` to customize your content.
+- [About](/about)
+- [Blog](/blog/)
+- [Documentation](/docs/)
 
-## Getting Started
+## Features
 
-1. **Start development server**:
-   ```bash
-   sherwood dev
-   ```
+- Converts Markdown to HTML5 with semantic structure
+- Command-line interface with `generate` and `dev` commands
+- Development server for local testing
+- Semantic HTML with proper accessibility
 
-2. **Edit this file** to update your homepage content
+## Usage
 
-3. **Generate your static site**:
-   ```bash
-   sherwood generate
-   ```
+### Generate Site
 
-## Next Steps
+```bash
+sherwood generate
+```
 
-- Edit this page to personalize your content
-- Create more pages by adding markdown files to the `content/` directory
-- Customize the theme in the `themes/` directory
+### Development Server
 
-Enjoy building your site with Sherwood! 🚀
+```bash
+sherwood dev
+```
+
+## Markdown Support
+
+Sherwood supports standard Markdown syntax including:
+
+- **Bold text** and *italic text*
+- `Code snippets` and code blocks
+- Lists (ordered and unordered)
+- Links and images
+- Tables
+- Blockquotes
+
+> This is a blockquote to demonstrate the styling.
+
+### Code Example
+
+```rust
+fn main() {
+    println!("Hello, Sherwood!");
+}
+```
+
+### Table Example
+
+| Feature | Status |
+|---------|--------|
+| Markdown parsing | ✅ Complete |
+| HTML generation | ✅ Complete |
+| Dev server | ✅ Complete |
+| Hot reload | 🚧 Future |
+
+The generator creates semantic HTML with proper structure and basic styling for readability.
