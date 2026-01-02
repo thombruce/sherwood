@@ -1,4 +1,4 @@
-use crate::markdown_parser::MarkdownFile;
+use super::markdown_parser::MarkdownFile;
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
 use std::collections::HashMap;
