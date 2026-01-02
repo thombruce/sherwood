@@ -2,5 +2,5 @@
 title = "Sherwood"
 theme = "default"
 
-[templates]
-page_template = "default.stpl"
+# [templates]
+# page_template = "default.stpl"

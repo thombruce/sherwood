@@ -1,12 +1,17 @@
 use crate::utils::ensure_directory_exists;
 use anyhow::Result;
+use include_dir::{Dir, include_dir};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+// Embed themes directory at compile time
+static THEMES: Dir = include_dir!("$CARGO_MANIFEST_DIR/themes");
 
 #[derive(Debug, Clone)]
 pub struct Theme {
     pub name: String,
-    pub path: PathBuf,
+    pub path: Option<PathBuf>, // None for embedded themes
+    pub is_embedded: bool,
 }
 
 #[derive(Debug)]
@@ -22,41 +27,74 @@ impl ThemeManager {
     }
 
     pub fn load_theme(&self, theme_name: &str) -> Result<Theme> {
+        // 1. Try user's themes directory first, but only if it contains CSS files
         let theme_path = self.themes_dir.join(theme_name);
-
-        if !theme_path.exists() {
-            return Err(anyhow::anyhow!(
-                "Theme '{}' not found in {}",
-                theme_name,
-                self.themes_dir.display()
-            ));
+        if theme_path.exists() && theme_path.join("default.css").exists() {
+            return Ok(Theme {
+                name: theme_name.to_string(),
+                path: Some(theme_path),
+                is_embedded: false,
+            });
         }
 
-        Ok(Theme {
-            name: theme_name.to_string(),
-            path: theme_path,
-        })
+        // 2. Try embedded themes
+        if let Some(_embedded_theme) = THEMES.get_dir(theme_name) {
+            return Ok(Theme {
+                name: theme_name.to_string(),
+                path: None,
+                is_embedded: true,
+            });
+        }
+
+        // 3. Final fallback to embedded default theme
+        if theme_name != "default"
+            && let Some(_embedded_default) = THEMES.get_dir("default")
+        {
+            println!(
+                "Theme '{}' not found, falling back to embedded default theme",
+                theme_name
+            );
+            return Ok(Theme {
+                name: "default".to_string(),
+                path: None,
+                is_embedded: true,
+            });
+        }
+
+        // 4. If even default theme is missing, fail
+        Err(anyhow::anyhow!(
+            "Theme '{}' not found and no embedded default theme available",
+            theme_name
+        ))
     }
 
     pub fn get_available_themes(&self) -> Result<Vec<String>> {
         let mut themes = Vec::new();
 
-        if !self.themes_dir.exists() {
-            return Ok(themes);
+        // Add filesystem themes
+        if self.themes_dir.exists() {
+            for entry in fs::read_dir(&self.themes_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+
+                if path.is_dir()
+                    && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                {
+                    themes.push(name.to_string());
+                }
+            }
         }
 
-        for entry in fs::read_dir(&self.themes_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.is_dir()
-                && let Some(name) = path.file_name().and_then(|n| n.to_str())
-            {
+        // Add embedded themes
+        for entry in THEMES.dirs() {
+            if let Some(name) = entry.path().file_name().and_then(|n| n.to_str()) {
                 themes.push(name.to_string());
             }
         }
 
+        // Remove duplicates and sort (filesystem themes keep precedence)
         themes.sort();
+        themes.dedup();
         Ok(themes)
     }
 
@@ -69,40 +107,93 @@ impl ThemeManager {
 
         // Copy the main theme CSS file with the correct name
         let theme_css_path = css_dir.join(format!("{}.css", theme.name));
-        let source_css_path = theme.path.join("default.css");
-        if source_css_path.exists() {
-            fs::copy(&source_css_path, &theme_css_path)?;
-            println!(
-                "Generated main CSS: {} -> {}",
-                source_css_path.display(),
-                theme_css_path.display()
-            );
+
+        if let Some(css_content) = self.get_theme_css_content(theme, "default.css")? {
+            fs::write(&theme_css_path, css_content)?;
+        } else {
+            println!("Warning: No default.css found for theme '{}'", theme.name);
         }
 
         Ok(css_dir.join(format!("{}.css", theme.name)))
     }
 
     fn copy_all_css_files(&self, theme: &Theme, css_dir: &Path) -> Result<()> {
-        // Copy all CSS files from theme directory except the main theme file
-        for entry in fs::read_dir(&theme.path)? {
-            let entry = entry?;
-            let path = entry.path();
+        if theme.is_embedded {
+            // Copy all CSS files from embedded theme except the main theme file
+            if let Some(embedded_theme) = THEMES.get_dir(&theme.name) {
+                for file in embedded_theme.files() {
+                    let file_path = file.path();
+                    if let Some(file_name) = file_path.file_name()
+                        && let Some(extension) = Path::new(file_name)
+                            .extension()
+                            .and_then(|ext| ext.to_str())
+                        && extension == "css"
+                        && file_name != "default.css"
+                    {
+                        let file_name_str = file_name.to_string_lossy();
+                        let dest_path = css_dir.join(&*file_name_str);
 
-            if path.is_file()
-                && let Some(extension) = path.extension()
-                && extension == "css"
-                && let Some(file_name) = path.file_name()
-                && file_name != "default.css"
-            // Skip main theme file
-            {
-                let file_name = path.file_name().unwrap().to_string_lossy();
-                let dest_path = css_dir.join(&*file_name);
-                fs::copy(&path, &dest_path)?;
-                println!("Copied CSS: {} -> {}", path.display(), dest_path.display());
+                        if let Some(content) = file.contents_utf8() {
+                            fs::write(&dest_path, content)?;
+                            println!(
+                                "Copied embedded CSS: {} -> {}",
+                                file_name_str,
+                                dest_path.display()
+                            );
+                        }
+                    }
+                }
+            }
+        } else if let Some(theme_path) = &theme.path {
+            // Copy all CSS files from filesystem theme except the main theme file
+            for entry in fs::read_dir(theme_path)? {
+                let entry = entry?;
+                let path = entry.path();
+
+                if path.is_file()
+                    && let Some(extension) = path.extension()
+                    && extension == "css"
+                    && let Some(file_name) = path.file_name()
+                    && file_name != "default.css"
+                // Skip main theme file
+                {
+                    let file_name = path.file_name().unwrap().to_string_lossy();
+                    let dest_path = css_dir.join(&*file_name);
+                    fs::copy(&path, &dest_path)?;
+                    println!("Copied CSS: {} -> {}", path.display(), dest_path.display());
+                }
             }
         }
 
         Ok(())
+    }
+
+    /// Get CSS file content from filesystem or embedded theme
+    fn get_theme_css_content(&self, theme: &Theme, css_file: &str) -> Result<Option<String>> {
+        if theme.is_embedded {
+            // Try embedded theme first
+            if let Some(embedded_theme) = THEMES.get_dir(&theme.name) {
+                let css_path_in_theme = format!("{}/{}", theme.name, css_file);
+                if let Some(css_file_entry) = embedded_theme.get_file(&css_path_in_theme) {
+                    return Ok(Some(
+                        css_file_entry
+                            .contents_utf8()
+                            .ok_or_else(|| anyhow::anyhow!("CSS file contains invalid UTF-8"))?
+                            .to_string(),
+                    ));
+                }
+            }
+            Ok(None)
+        } else if let Some(theme_path) = &theme.path {
+            // Try filesystem
+            let css_path = theme_path.join(css_file);
+            if css_path.exists() {
+                return Ok(Some(fs::read_to_string(css_path)?));
+            }
+            Ok(None)
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn get_default_theme(&self) -> String {
