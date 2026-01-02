@@ -15,27 +15,15 @@ impl PageGenerator {
         &self,
         file: &MarkdownFile,
         content: &str,
-        theme_name: &str,
-        theme_variant: &str,
     ) -> Result<String> {
-        let css_file = Some(format!("/css/{theme_name}.css", theme_name = theme_name));
-        let body_attrs = if theme_variant != "default" {
-            format!(r#" data-theme="{}""#, theme_variant)
-        } else {
-            String::new()
-        };
+        let css_file = Some("/css/main.css".to_string());
+        let body_attrs = String::new();
 
         self.template_manager
             .render_page(&file.title, content, css_file.as_deref(), &body_attrs)
     }
 
-    pub fn process_markdown_file(
-        &self,
-        file: &MarkdownFile,
-        html_content: &str,
-        theme_name: &str,
-        theme_variant: &str,
-    ) -> Result<String> {
-        self.generate_html_document_with_template(file, html_content, theme_name, theme_variant)
+    pub fn process_markdown_file(&self, file: &MarkdownFile, html_content: &str) -> Result<String> {
+        self.generate_html_document_with_template(file, html_content)
     }
 }

@@ -7,8 +7,6 @@ pub struct Frontmatter {
     pub title: Option<String>,
     pub date: Option<String>,
     pub list: Option<bool>,
-    pub theme: Option<String>,
-    pub theme_variant: Option<String>,
     pub page_template: Option<String>,
 }
 

@@ -7,9 +7,7 @@ pub struct SiteConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct SiteSection {
-    pub theme: Option<String>,
-}
+pub struct SiteSection {}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TemplateSection {

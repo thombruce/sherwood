@@ -7,6 +7,6 @@ pub mod server;
 
 pub use config::{SiteConfig, SiteSection, TemplateSection};
 pub use generator::generate_site;
+pub use presentation::styles::StyleManager;
 pub use presentation::templates::{TemplateManager, validate_templates};
-pub use presentation::themes::{Theme, ThemeManager};
 pub use server::run_dev_server;
