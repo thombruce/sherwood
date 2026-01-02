@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 // Embed themes directory at compile time
 static THEMES: Dir = include_dir!("$CARGO_MANIFEST_DIR/themes");
 
+// Constants
+const DEFAULT_CSS_FILE: &str = "default.css";
+
 #[derive(Debug, Clone)]
 pub struct Theme {
     pub name: String,
@@ -29,7 +32,7 @@ impl ThemeManager {
     pub fn load_theme(&self, theme_name: &str) -> Result<Theme> {
         // 1. Try user's themes directory first, but only if it contains CSS files
         let theme_path = self.themes_dir.join(theme_name);
-        if theme_path.exists() && theme_path.join("default.css").exists() {
+        if theme_path.exists() && theme_path.join(DEFAULT_CSS_FILE).exists() {
             return Ok(Theme {
                 name: theme_name.to_string(),
                 path: Some(theme_path),
@@ -108,7 +111,7 @@ impl ThemeManager {
         // Copy the main theme CSS file with the correct name
         let theme_css_path = css_dir.join(format!("{}.css", theme.name));
 
-        if let Some(css_content) = self.get_theme_css_content(theme, "default.css")? {
+        if let Some(css_content) = self.get_theme_css_content(theme, DEFAULT_CSS_FILE)? {
             fs::write(&theme_css_path, css_content)?;
         } else {
             println!("Warning: No default.css found for theme '{}'", theme.name);
@@ -118,53 +121,74 @@ impl ThemeManager {
     }
 
     fn copy_all_css_files(&self, theme: &Theme, css_dir: &Path) -> Result<()> {
-        if theme.is_embedded {
-            // Copy all CSS files from embedded theme except the main theme file
-            if let Some(embedded_theme) = THEMES.get_dir(&theme.name) {
-                for file in embedded_theme.files() {
-                    let file_path = file.path();
-                    if let Some(file_name) = file_path.file_name()
-                        && let Some(extension) = Path::new(file_name)
-                            .extension()
-                            .and_then(|ext| ext.to_str())
-                        && extension == "css"
-                        && file_name != "default.css"
-                    {
-                        let file_name_str = file_name.to_string_lossy();
-                        let dest_path = css_dir.join(&*file_name_str);
+        let css_files = self.get_theme_css_files(theme)?;
 
-                        if let Some(content) = file.contents_utf8() {
-                            fs::write(&dest_path, content)?;
-                            println!(
-                                "Copied embedded CSS: {} -> {}",
-                                file_name_str,
-                                dest_path.display()
-                            );
-                        }
+        for (file_name, content) in css_files {
+            let dest_path = css_dir.join(&file_name);
+            fs::write(&dest_path, content)?;
+            println!("Copied CSS: {} -> {}", file_name, dest_path.display());
+        }
+
+        Ok(())
+    }
+
+    fn get_theme_css_files(&self, theme: &Theme) -> Result<Vec<(String, String)>> {
+        let mut css_files = Vec::new();
+
+        if theme.is_embedded {
+            self.get_embedded_css_files(theme, &mut css_files)?;
+        } else if let Some(theme_path) = &theme.path {
+            self.get_filesystem_css_files(theme_path, &mut css_files)?;
+        }
+
+        Ok(css_files)
+    }
+
+    fn get_embedded_css_files(
+        &self,
+        theme: &Theme,
+        css_files: &mut Vec<(String, String)>,
+    ) -> Result<()> {
+        if let Some(embedded_theme) = THEMES.get_dir(&theme.name) {
+            for file in embedded_theme.files() {
+                let file_path = file.path();
+                if let Some(file_name) = file_path.file_name()
+                    && let Some(extension) = Path::new(file_name)
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                    && extension == "css"
+                    && file_name != DEFAULT_CSS_FILE
+                {
+                    let file_name_str = file_name.to_string_lossy().to_string();
+                    if let Some(content) = file.contents_utf8() {
+                        css_files.push((file_name_str, content.to_string()));
                     }
                 }
             }
-        } else if let Some(theme_path) = &theme.path {
-            // Copy all CSS files from filesystem theme except the main theme file
-            for entry in fs::read_dir(theme_path)? {
-                let entry = entry?;
-                let path = entry.path();
+        }
+        Ok(())
+    }
 
-                if path.is_file()
-                    && let Some(extension) = path.extension()
-                    && extension == "css"
-                    && let Some(file_name) = path.file_name()
-                    && file_name != "default.css"
-                // Skip main theme file
-                {
-                    let file_name = path.file_name().unwrap().to_string_lossy();
-                    let dest_path = css_dir.join(&*file_name);
-                    fs::copy(&path, &dest_path)?;
-                    println!("Copied CSS: {} -> {}", path.display(), dest_path.display());
-                }
+    fn get_filesystem_css_files(
+        &self,
+        theme_path: &Path,
+        css_files: &mut Vec<(String, String)>,
+    ) -> Result<()> {
+        for entry in fs::read_dir(theme_path)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_file()
+                && let Some(extension) = path.extension()
+                && extension == "css"
+                && let Some(file_name) = path.file_name()
+                && file_name != DEFAULT_CSS_FILE
+            {
+                let file_name_str = file_name.to_string_lossy().to_string();
+                let content = fs::read_to_string(&path)?;
+                css_files.push((file_name_str, content));
             }
         }
-
         Ok(())
     }
 
@@ -198,6 +222,36 @@ impl ThemeManager {
 
     pub fn get_default_theme(&self) -> String {
         "default".to_string()
+    }
+
+    pub fn resolve_theme(
+        &self,
+        frontmatter_theme: Option<String>,
+        site_theme: Option<String>,
+    ) -> String {
+        let theme_name = frontmatter_theme
+            .or(site_theme)
+            .unwrap_or_else(|| self.get_default_theme());
+
+        // Validate theme name for security
+        self.validate_theme_name(&theme_name);
+        theme_name
+    }
+
+    fn validate_theme_name(&self, theme_name: &str) {
+        // Check for path traversal attempts
+        if theme_name.contains("..") || theme_name.contains('/') || theme_name.contains('\\') {
+            eprintln!(
+                "Warning: Theme name '{}' contains invalid characters, using default theme",
+                theme_name
+            );
+            return;
+        }
+
+        // Check for empty or whitespace-only names
+        if theme_name.trim().is_empty() {
+            eprintln!("Warning: Theme name is empty, using default theme");
+        }
     }
 
     pub fn get_default_variant(&self, _theme: &Theme) -> String {

@@ -1,5 +1,8 @@
 pub mod config;
 pub mod generator;
+pub mod html_renderer;
+pub mod markdown_parser;
+pub mod page_generator;
 pub mod server;
 pub mod templates;
 pub mod themes;
