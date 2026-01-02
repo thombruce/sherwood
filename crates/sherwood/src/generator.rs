@@ -57,7 +57,7 @@ impl SiteGenerator {
         } else {
             SiteConfig {
                 site: SiteSection {
-                    theme: Some("default".to_string()),
+                    theme: None,
                 },
                 templates: Some(TemplateSection {
                     page_template: Some(DEFAULT_PAGE_TEMPLATE.to_string()),
@@ -89,7 +89,7 @@ impl SiteGenerator {
         }
         ensure_directory_exists(&self.output_dir)?;
 
-        // Generate CSS if theme is configured
+        // Generate CSS (uses default theme if none configured)
         self.generate_theme_css()?;
 
         // Find all markdown files
@@ -219,7 +219,8 @@ impl SiteGenerator {
             .frontmatter
             .theme
             .clone()
-            .or_else(|| self.site_config.site.theme.clone());
+            .or_else(|| self.site_config.site.theme.clone())
+            .or_else(|| Some(self.theme_manager.get_default_theme()));
 
         // Get theme variant for this file
         let theme_variant = file
@@ -425,18 +426,15 @@ impl SiteGenerator {
     }
 
     fn generate_theme_css(&self) -> Result<()> {
-        // Check if theme is configured
-        if let Some(theme_name) = self.site_config.site.theme.clone() {
-            // Only generate theme if explicitly configured in Sherwood.toml
-            let theme = self.theme_manager.load_theme(&theme_name)?;
-            let css_path = self
-                .theme_manager
-                .generate_css_file(&theme, &self.output_dir)?;
-            println!("Generated CSS: {}", css_path.display());
-        } else {
-            // No theme configured - skip CSS generation
-            println!("No theme configured - skipping CSS generation");
-        }
+        // Use configured theme or fall back to default
+        let theme_name = self.site_config.site.theme.clone()
+            .unwrap_or_else(|| self.theme_manager.get_default_theme());
+        
+        let theme = self.theme_manager.load_theme(&theme_name)?;
+        let css_path = self
+            .theme_manager
+            .generate_css_file(&theme, &self.output_dir)?;
+        println!("Generated CSS: {} (theme: {})", css_path.display(), theme.name);
         Ok(())
     }
 
