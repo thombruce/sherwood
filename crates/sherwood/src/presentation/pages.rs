@@ -1,5 +1,5 @@
-use super::markdown_parser::MarkdownFile;
 use super::templates::TemplateManager;
+use crate::content::parser::MarkdownFile;
 use anyhow::Result;
 
 pub struct PageGenerator {

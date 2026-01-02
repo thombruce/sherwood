@@ -1,4 +1,4 @@
-use super::utils::ensure_directory_exists;
+use crate::core::utils::ensure_directory_exists;
 use anyhow::Result;
 use include_dir::{Dir, include_dir};
 use std::fs;

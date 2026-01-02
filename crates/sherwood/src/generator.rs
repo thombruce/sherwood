@@ -1,10 +1,10 @@
-use crate::components::config::{SiteConfig, SiteSection, TemplateSection};
-use crate::components::html_renderer::HtmlRenderer;
-use crate::components::markdown_parser::{MarkdownFile, MarkdownParser};
-use crate::components::page_generator::PageGenerator;
-use crate::components::templates::TemplateManager;
-use crate::components::themes::ThemeManager;
-use crate::components::utils::{ensure_directory_exists, ensure_parent_exists};
+use crate::config::{SiteConfig, SiteSection, TemplateSection};
+use crate::content::parser::{MarkdownFile, MarkdownParser};
+use crate::content::renderer::HtmlRenderer;
+use crate::core::utils::{ensure_directory_exists, ensure_parent_exists};
+use crate::presentation::pages::PageGenerator;
+use crate::presentation::templates::TemplateManager;
+use crate::presentation::themes::ThemeManager;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs;

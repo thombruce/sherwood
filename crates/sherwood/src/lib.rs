@@ -1,9 +1,12 @@
-pub mod components;
+pub mod config;
+pub mod content;
+pub mod core;
 pub mod generator;
+pub mod presentation;
 pub mod server;
 
-pub use components::config::{SiteConfig, SiteSection, TemplateSection};
-pub use components::templates::{TemplateManager, validate_templates};
-pub use components::themes::{Theme, ThemeManager};
+pub use config::{SiteConfig, SiteSection, TemplateSection};
 pub use generator::generate_site;
+pub use presentation::templates::{TemplateManager, validate_templates};
+pub use presentation::themes::{Theme, ThemeManager};
 pub use server::run_dev_server;

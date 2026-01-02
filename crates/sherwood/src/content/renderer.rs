@@ -1,4 +1,4 @@
-use super::markdown_parser::MarkdownFile;
+use super::parser::MarkdownFile;
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
 use std::collections::HashMap;
@@ -48,8 +48,7 @@ impl HtmlRenderer {
 
                 // Skip index files and other list pages
                 if !file_name.starts_with("index") {
-                    let parsed =
-                        super::markdown_parser::MarkdownParser::parse_markdown_file(&path)?;
+                    let parsed = super::parser::MarkdownParser::parse_markdown_file(&path)?;
 
                     // Generate post list entry using template
                     let date = parsed.frontmatter.date.as_deref();
