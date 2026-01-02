@@ -1,0 +1,25 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Sherwood
+/dist/
+## Exclude .sherwood release dir
+.sherwood/
+!.sherwood/
+.sherwood/*
+!.sherwood/release/
+.sherwood/release/*
+## ...but include the sherwood dev and generate binaries
+!.sherwood/release/dev
+!.sherwood/release/generate
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

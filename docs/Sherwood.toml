@@ -1,0 +1,6 @@
+[site]
+title = "Sherwood"
+theme = "default"
+
+[templates]
+page_template = "default.stpl"
