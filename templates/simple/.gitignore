@@ -4,7 +4,14 @@
 
 # Sherwood
 /dist/
+## Exclude .sherwood release dir
 .sherwood/
+!.sherwood/
+.sherwood/*
+!.sherwood/release/
+.sherwood/release/*
+## ...but include the sherwood generate binary
+!.sherwood/release/generate
 
 # OS
 .DS_Store
