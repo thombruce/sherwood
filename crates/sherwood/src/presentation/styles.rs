@@ -560,16 +560,12 @@ impl StyleManager {
         if STYLES.get_file(entry_point).is_some() {
             let main_css_path = css_dir.join("main.css");
 
-            // Use bundler by creating a temporary directory with embedded files
-            let temp_dir = std::env::temp_dir().join("sherwood-css-").join(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)?
-                    .as_nanos()
-                    .to_string(),
-            );
+            // Use secure temporary directory with automatic cleanup
+            let temp_dir = tempfile::tempdir()?;
+            let temp_path = temp_dir.path();
 
             // Extract embedded CSS files to temporary directory
-            self.extract_embedded_css_to_temp(&temp_dir)?;
+            self.extract_embedded_css_to_temp(temp_path)?;
 
             // Use Lightning CSS bundler for proper @import resolution
             let fs_provider = FileProvider::new();
@@ -584,7 +580,7 @@ impl StyleManager {
 
             // Change to the temp directory so bundler can resolve relative imports
             let original_dir = std::env::current_dir()?;
-            std::env::set_current_dir(&temp_dir)?;
+            std::env::set_current_dir(temp_path)?;
 
             let mut stylesheet = bundler
                 .bundle(Path::new(entry_point))
@@ -605,8 +601,7 @@ impl StyleManager {
                 main_css_path.display()
             );
 
-            // Clean up temporary directory
-            let _ = fs::remove_dir_all(&temp_dir);
+            // temp_dir automatically cleaned up when it goes out of scope
         } else {
             return Err(anyhow::anyhow!(
                 "Embedded CSS entry point '{}' not found.\n\
