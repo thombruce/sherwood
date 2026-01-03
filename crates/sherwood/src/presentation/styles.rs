@@ -409,21 +409,98 @@ impl StyleManager {
 
     fn process_embedded_css_files(&self, css_dir: &Path) -> Result<()> {
         // Process main.css if it exists (it contains @import statements)
-        if let Some(main_css_file) = STYLES.get_file("main.css") {
+        if let Some(_main_css_file) = STYLES.get_file("main.css") {
             let main_css_path = css_dir.join("main.css");
 
-            // For embedded main.css, we need to handle the imports manually
-            // since we can't bundle from embedded files directly
-            let content = main_css_file
-                .contents_utf8()
-                .ok_or_else(|| anyhow::anyhow!("Failed to read embedded main.css"))?;
+            // Use bundler by creating a temporary directory with embedded files
+            let temp_dir = std::env::temp_dir().join("sherwood-css-").join(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)?
+                    .as_nanos()
+                    .to_string(),
+            );
+            
+            // Extract all embedded CSS files to temporary directory
+            ensure_directory_exists(&temp_dir)?;
+            for file in STYLES.files() {
+                let file_path = file.path();
+                if let Some(file_name) = file_path.file_name()
+                    && let Some(extension) = Path::new(file_name)
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                    && extension == "css"
+                {
+                    let dest_path = temp_dir.join(file_name);
+                    if let Some(content) = file.contents_utf8() {
+                        fs::write(&dest_path, content)?;
+                    }
+                }
+            }
 
-            // Resolve the @import statements from embedded styles
-            let processed_content = self.process_embedded_imports(content)?;
+            // Use Lightning CSS bundler for proper @import resolution
+            let fs_provider = FileProvider::new();
+            let mut bundler = Bundler::new(
+                &fs_provider,
+                None, // No source map generation yet
+                ParserOptions {
+                    filename: "main.css".to_string(),
+                    ..ParserOptions::default()
+                },
+            );
 
-            // Process the final content with Lightning CSS directly from string
-            let processed_css = self.css_processor.process_css_string(&processed_content, "main.css")?;
-            self.css_processor.write_processed_css(&processed_css, &main_css_path)?;
+            // Change to the temp directory so bundler can resolve relative imports
+            let original_dir = std::env::current_dir()?;
+            std::env::set_current_dir(&temp_dir)?;
+            
+            let mut stylesheet = bundler.bundle(Path::new("main.css")).map_err(|e| {
+                anyhow::anyhow!("Failed to bundle embedded CSS: {}", e)
+            })?;
+            
+            // Restore original working directory
+            std::env::set_current_dir(original_dir)?;
+
+            // Apply minification and other processing
+            if self.css_processor.minify {
+                let minify_options = MinifyOptions {
+                    targets: self.css_processor.targets,
+                    #[allow(clippy::if_same_then_else)]
+                    unused_symbols: if self.css_processor.remove_unused {
+                        HashSet::new() // Remove all unused symbols
+                    } else {
+                        HashSet::new() // Default empty set
+                    },
+                };
+                stylesheet
+                    .minify(minify_options)
+                    .map_err(|e| anyhow::anyhow!("Failed to minify bundled CSS: {}", e))?;
+            }
+
+            // Print to CSS
+            let result = stylesheet
+                .to_css(PrinterOptions {
+                    minify: self.css_processor.minify,
+                    source_map: None, // Will handle source maps separately
+                    targets: self.css_processor.targets,
+                    ..PrinterOptions::default()
+                })
+                .map_err(|e| anyhow::anyhow!("Failed to serialize bundled CSS: {}", e))?;
+
+            fs::write(&main_css_path, &result.code)?;
+
+            // TODO: Implement proper source map generation when Lightning CSS API supports it
+            if self.css_processor.source_maps {
+                eprintln!(
+                    "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
+                );
+            }
+
+            println!(
+                "Bundled embedded CSS: main.css -> {}",
+                main_css_path.display()
+            );
+
+            // Clean up temporary directory
+            let _ = fs::remove_dir_all(&temp_dir);
 
             // Copy other individual CSS files
             for file in STYLES.files() {
@@ -467,31 +544,5 @@ impl StyleManager {
         Ok(())
     }
 
-    fn process_embedded_imports(&self, main_css_content: &str) -> Result<String> {
-        let mut result = String::new();
 
-        for line in main_css_content.lines() {
-            let trimmed = line.trim();
-
-            if trimmed.starts_with("@import url('") && trimmed.ends_with("');") {
-                // Extract filename from @import url('filename.css');
-                let start = 13; // After "@import url('"
-                let end = trimmed.find("');").unwrap_or(trimmed.len());
-                let filename = &trimmed[start..end];
-
-                // Get the content from embedded styles
-                if let Some(imported_file) = STYLES.get_file(filename)
-                    && let Some(content) = imported_file.contents_utf8()
-                {
-                    result.push_str(content);
-                    result.push('\n');
-                }
-            } else {
-                result.push_str(line);
-                result.push('\n');
-            }
-        }
-
-        Ok(result)
-    }
 }
