@@ -147,7 +147,7 @@ impl CssProcessor {
     pub fn process_css_file(&self, input_path: &Path, output_path: &Path) -> Result<()> {
         let css_content = fs::read_to_string(input_path)?;
         let filename = input_path.to_string_lossy().to_string();
-        
+
         let processed_content = self.process_css_string(&css_content, &filename)?;
         self.write_processed_css(&processed_content, output_path)?;
 
@@ -419,7 +419,7 @@ impl StyleManager {
                     .as_nanos()
                     .to_string(),
             );
-            
+
             // Extract all embedded CSS files to temporary directory
             ensure_directory_exists(&temp_dir)?;
             for file in STYLES.files() {
@@ -451,11 +451,11 @@ impl StyleManager {
             // Change to the temp directory so bundler can resolve relative imports
             let original_dir = std::env::current_dir()?;
             std::env::set_current_dir(&temp_dir)?;
-            
-            let mut stylesheet = bundler.bundle(Path::new("main.css")).map_err(|e| {
-                anyhow::anyhow!("Failed to bundle embedded CSS: {}", e)
-            })?;
-            
+
+            let mut stylesheet = bundler
+                .bundle(Path::new("main.css"))
+                .map_err(|e| anyhow::anyhow!("Failed to bundle embedded CSS: {}", e))?;
+
             // Restore original working directory
             std::env::set_current_dir(original_dir)?;
 
@@ -516,8 +516,11 @@ impl StyleManager {
                     let file_name_str = file_name.to_string_lossy().to_string();
                     let dest_path = css_dir.join(&file_name_str);
                     if let Some(content) = file.contents_utf8() {
-                        let processed_css = self.css_processor.process_css_string(content, &file_name_str)?;
-                        self.css_processor.write_processed_css(&processed_css, &dest_path)?;
+                        let processed_css = self
+                            .css_processor
+                            .process_css_string(content, &file_name_str)?;
+                        self.css_processor
+                            .write_processed_css(&processed_css, &dest_path)?;
                     }
                 }
             }
@@ -534,8 +537,11 @@ impl StyleManager {
                     let file_name_str = file_name.to_string_lossy().to_string();
                     let dest_path = css_dir.join(&file_name_str);
                     if let Some(content) = file.contents_utf8() {
-                        let processed_css = self.css_processor.process_css_string(content, &file_name_str)?;
-                        self.css_processor.write_processed_css(&processed_css, &dest_path)?;
+                        let processed_css = self
+                            .css_processor
+                            .process_css_string(content, &file_name_str)?;
+                        self.css_processor
+                            .write_processed_css(&processed_css, &dest_path)?;
                     }
                 }
             }
@@ -543,6 +549,4 @@ impl StyleManager {
 
         Ok(())
     }
-
-
 }
