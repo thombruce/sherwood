@@ -99,41 +99,11 @@ impl CssProcessor {
         )
         .map_err(|e| anyhow::anyhow!("Failed to parse CSS content from {}: {}", filename, e))?;
 
-        // Minify if enabled
-        if self.minify {
-            let minify_options = MinifyOptions {
-                targets: self.targets,
-                #[allow(clippy::if_same_then_else)]
-                unused_symbols: if self.remove_unused {
-                    HashSet::new() // Remove all unused symbols
-                } else {
-                    HashSet::new() // Default empty set
-                },
-            };
-            stylesheet
-                .minify(minify_options)
-                .map_err(|e| anyhow::anyhow!("Failed to minify CSS from {}: {}", filename, e))?;
-        }
-
-        // Print to CSS
-        let result = stylesheet
-            .to_css(PrinterOptions {
-                minify: self.minify,
-                source_map: None, // Will handle source maps separately
-                targets: self.targets,
-                ..PrinterOptions::default()
-            })
-            .map_err(|e| anyhow::anyhow!("Failed to serialize CSS from {}: {}", filename, e))?;
-
-        // TODO: Implement proper source map generation when Lightning CSS API supports it
-        // For now, source maps are not generated due to API limitations
-        if self.source_maps {
-            eprintln!(
-                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
-            );
-        }
-
-        Ok(result.code)
+        // Apply minification and other processing
+        Self::apply_minification(&mut stylesheet, self)?;
+        
+        // Serialize to CSS
+        Self::serialize_stylesheet(&stylesheet, self, filename)
     }
 
     /// Write processed CSS content to a file
@@ -176,31 +146,12 @@ impl CssProcessor {
             anyhow::anyhow!("Failed to bundle CSS file {}: {}", entry_point.display(), e)
         })?;
 
-        // Minify if enabled
-        if self.minify {
-            let minify_options = MinifyOptions {
-                targets: self.targets,
-                #[allow(clippy::if_same_then_else)]
-                unused_symbols: if self.remove_unused {
-                    HashSet::new() // Remove all unused symbols
-                } else {
-                    HashSet::new() // Default empty set
-                },
-            };
-            stylesheet
-                .minify(minify_options)
-                .map_err(|e| anyhow::anyhow!("Failed to minify bundled CSS: {}", e))?;
-        }
-
-        // Print to CSS
-        let result = stylesheet
-            .to_css(PrinterOptions {
-                minify: self.minify,
-                source_map: None, // Will handle source maps separately
-                targets: self.targets,
-                ..PrinterOptions::default()
-            })
-            .map_err(|e| anyhow::anyhow!("Failed to serialize bundled CSS: {}", e))?;
+        // Apply minification and other processing
+        Self::apply_minification(&mut stylesheet, self)?;
+        
+        // Serialize to CSS
+        let filename = entry_point.to_string_lossy();
+        let result = Self::serialize_stylesheet(&stylesheet, self, &filename)?;
 
         // Always output to main.css for consistent behavior
         let output_path = output_dir.join("main.css");
@@ -208,15 +159,7 @@ impl CssProcessor {
         ensure_directory_exists(output_dir)?;
 
         // Write the bundled CSS
-        fs::write(&output_path, &result.code)?;
-
-        // TODO: Implement proper source map generation when Lightning CSS API supports it
-        // For now, source maps are not generated due to API limitations
-        if self.source_maps {
-            eprintln!(
-                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
-            );
-        }
+        fs::write(&output_path, &result)?;
 
         println!(
             "Bundled CSS: {} -> {}",
@@ -225,6 +168,50 @@ impl CssProcessor {
         );
 
         Ok(output_path)
+    }
+}
+
+// Common CSS processing functions
+impl CssProcessor {
+    /// Apply minification to a stylesheet if enabled
+    fn apply_minification(stylesheet: &mut StyleSheet, processor: &Self) -> Result<()> {
+        if processor.minify {
+            let minify_options = MinifyOptions {
+                targets: processor.targets,
+                #[allow(clippy::if_same_then_else)]
+                unused_symbols: if processor.remove_unused {
+                    HashSet::new() // Remove all unused symbols
+                } else {
+                    HashSet::new() // Default empty set
+                },
+            };
+            stylesheet
+                .minify(minify_options)
+                .map_err(|e| anyhow::anyhow!("Failed to minify CSS: {}", e))?;
+        }
+        Ok(())
+    }
+
+    /// Serialize a stylesheet to CSS string
+    fn serialize_stylesheet(stylesheet: &StyleSheet, processor: &Self, filename: &str) -> Result<String> {
+        let result = stylesheet
+            .to_css(PrinterOptions {
+                minify: processor.minify,
+                source_map: None, // Will handle source maps separately
+                targets: processor.targets,
+                ..PrinterOptions::default()
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to serialize CSS from {}: {}", filename, e))?;
+
+        // TODO: Implement proper source map generation when Lightning CSS API supports it
+        // For now, source maps are not generated due to API limitations
+        if processor.source_maps {
+            eprintln!(
+                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
+            );
+        }
+
+        Ok(result.code)
     }
 }
 
@@ -316,6 +303,50 @@ pub struct StyleManager {
     css_processor: CssProcessor,
     #[allow(dead_code)]
     is_development: bool,
+}
+
+// Common CSS processing functions for StyleManager
+impl StyleManager {
+    /// Apply minification to a stylesheet if enabled
+    fn apply_minification_to_stylesheet(stylesheet: &mut StyleSheet, processor: &CssProcessor) -> Result<()> {
+        if processor.minify {
+            let minify_options = MinifyOptions {
+                targets: processor.targets,
+                #[allow(clippy::if_same_then_else)]
+                unused_symbols: if processor.remove_unused {
+                    HashSet::new() // Remove all unused symbols
+                } else {
+                    HashSet::new() // Default empty set
+                },
+            };
+            stylesheet
+                .minify(minify_options)
+                .map_err(|e| anyhow::anyhow!("Failed to minify CSS: {}", e))?;
+        }
+        Ok(())
+    }
+
+    /// Serialize a stylesheet to CSS string
+    fn serialize_stylesheet_to_string(stylesheet: &StyleSheet, processor: &CssProcessor, filename: &str) -> Result<String> {
+        let result = stylesheet
+            .to_css(PrinterOptions {
+                minify: processor.minify,
+                source_map: None, // Will handle source maps separately
+                targets: processor.targets,
+                ..PrinterOptions::default()
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to serialize CSS from {}: {}", filename, e))?;
+
+        // TODO: Implement proper source map generation when Lightning CSS API supports it
+        // For now, source maps are not generated due to API limitations
+        if processor.source_maps {
+            eprintln!(
+                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
+            );
+        }
+
+        Ok(result.code)
+    }
 }
 
 impl StyleManager {
@@ -538,40 +569,11 @@ impl StyleManager {
             // Restore original working directory
             std::env::set_current_dir(original_dir)?;
 
-            // Apply minification and other processing
-            if self.css_processor.minify {
-                let minify_options = MinifyOptions {
-                    targets: self.css_processor.targets,
-                    #[allow(clippy::if_same_then_else)]
-                    unused_symbols: if self.css_processor.remove_unused {
-                        HashSet::new() // Remove all unused symbols
-                    } else {
-                        HashSet::new() // Default empty set
-                    },
-                };
-                stylesheet
-                    .minify(minify_options)
-                    .map_err(|e| anyhow::anyhow!("Failed to minify bundled CSS: {}", e))?;
-            }
+            // Apply minification and other processing using common functions
+            StyleManager::apply_minification_to_stylesheet(&mut stylesheet, &self.css_processor)?;
+            let result = StyleManager::serialize_stylesheet_to_string(&stylesheet, &self.css_processor, entry_point)?;
 
-            // Print to CSS
-            let result = stylesheet
-                .to_css(PrinterOptions {
-                    minify: self.css_processor.minify,
-                    source_map: None, // Will handle source maps separately
-                    targets: self.css_processor.targets,
-                    ..PrinterOptions::default()
-                })
-                .map_err(|e| anyhow::anyhow!("Failed to serialize bundled CSS: {}", e))?;
-
-            fs::write(&main_css_path, &result.code)?;
-
-            // TODO: Implement proper source map generation when Lightning CSS API supports it
-            if self.css_processor.source_maps {
-                eprintln!(
-                    "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
-                );
-            }
+            fs::write(&main_css_path, &result)?;
 
             println!(
                 "Bundled embedded CSS: {} -> {}",
