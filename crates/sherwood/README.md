@@ -10,7 +10,6 @@ A fast and simple static site generator written in Rust that converts Markdown c
 
 - 🚀 **Fast static site generation** written in Rust
 - 📝 **Markdown to HTML5** conversion with semantic structure
-- 🎨 **Theme support** with built-in themes (default)
 - 🔧 **Frontmatter support** for metadata (title, date, theme, etc.)
 - 📱 **Responsive design** with semantic HTML
 - 🛠️ **Development server** for local testing
@@ -29,6 +28,12 @@ Or build from source:
 git clone <repository-url>
 cd sherwood
 cargo build --release
+```
+
+You can also get started with a template:
+
+```bash
+cargo generate thombruce/sherwood --no-workspace
 ```
 
 ## Quick Start
@@ -57,7 +62,7 @@ Create a `Sherwood.toml` file in your project root:
 
 ```toml
 [site]
-theme = "default"  # Options: default
+title = "Sherwood"
 ```
 
 ## Frontmatter
@@ -68,8 +73,6 @@ Add metadata to your Markdown files:
 ---
 title: "My Blog Post"
 date: "2025-01-01"
-theme: "default"
-theme_variant: "dark"
 list: true  # For blog index pages
 ---
 
@@ -86,7 +89,8 @@ project/
 │   └── blog/
 │       ├── index.md   # Blog list page
 │       └── post.md
-├── themes/            # Custom themes (optional)
+├── styles/            # Custom CSS (optional)
+├── templates/         # Custom Sailfish templates (optional)
 ├── Sherwood.toml      # Site configuration
 └── dist/             # Generated site (output)
 ```
@@ -115,4 +119,4 @@ cargo run -- dev
 
 ## License
 
-[Add your license here]
+MIT
