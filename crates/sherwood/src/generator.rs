@@ -74,11 +74,8 @@ impl SiteGenerator {
         }
 
         // Create style manager based on mode and configuration
-        let style_manager = StyleManager::new_with_config(
-            &styles_dir,
-            site_config.css.as_ref(),
-            is_development
-        );
+        let style_manager =
+            StyleManager::new_with_config(&styles_dir, site_config.css.as_ref(), is_development);
 
         Ok(Self {
             input_dir: input_dir.to_path_buf(),

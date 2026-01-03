@@ -37,9 +37,10 @@ impl CssProcessor {
     pub fn from_config(css_config: &CssSection, is_development: bool) -> Self {
         let mut processor = Self {
             minify: css_config.minify.unwrap_or(!is_development),
-            targets: css_config.targets
+            targets: css_config
+                .targets
                 .as_ref()
-                .map(|t| parse_css_targets(t))
+                .map(parse_css_targets)
                 .unwrap_or_else(get_default_browser_targets),
             enable_css_modules: false, // TODO: Add CSS modules support later
             source_maps: css_config.source_maps.unwrap_or(is_development),
@@ -88,37 +89,48 @@ impl CssProcessor {
 
     pub fn process_css_file(&self, input_path: &Path, output_path: &Path) -> Result<()> {
         let css_content = fs::read_to_string(input_path)?;
-        
+
         // Parse CSS with Lightning CSS
         let mut stylesheet = StyleSheet::parse(
             &css_content,
             ParserOptions {
                 filename: input_path.to_string_lossy().to_string(),
                 ..ParserOptions::default()
-            }
-        ).map_err(|e| anyhow::anyhow!("Failed to parse CSS file {}: {}", input_path.display(), e))?;
+            },
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to parse CSS file {}: {}", input_path.display(), e))?;
 
         // Minify if enabled
         if self.minify {
             let minify_options = MinifyOptions {
-                targets: self.targets.clone(),
-                unused_symbols: if self.remove_unused { 
+                targets: self.targets,
+                #[allow(clippy::if_same_then_else)]
+                unused_symbols: if self.remove_unused {
                     HashSet::new() // Remove all unused symbols
-                } else { 
+                } else {
                     HashSet::new() // Default empty set
                 },
             };
-            stylesheet.minify(minify_options)
-                .map_err(|e| anyhow::anyhow!("Failed to minify CSS file {}: {}", input_path.display(), e))?;
+            stylesheet.minify(minify_options).map_err(|e| {
+                anyhow::anyhow!("Failed to minify CSS file {}: {}", input_path.display(), e)
+            })?;
         }
 
         // Print to CSS
-        let result = stylesheet.to_css(PrinterOptions {
-            minify: self.minify,
-            source_map: None, // Will handle source maps separately
-            targets: self.targets.clone(),
-            ..PrinterOptions::default()
-        }).map_err(|e| anyhow::anyhow!("Failed to serialize CSS file {}: {}", input_path.display(), e))?;
+        let result = stylesheet
+            .to_css(PrinterOptions {
+                minify: self.minify,
+                source_map: None, // Will handle source maps separately
+                targets: self.targets,
+                ..PrinterOptions::default()
+            })
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to serialize CSS file {}: {}",
+                    input_path.display(),
+                    e
+                )
+            })?;
 
         ensure_directory_exists(output_path.parent().unwrap_or_else(|| Path::new("")))?;
         fs::write(output_path, &result.code)?;
@@ -126,7 +138,9 @@ impl CssProcessor {
         // TODO: Implement proper source map generation when Lightning CSS API supports it
         // For now, source maps are not generated due to API limitations
         if self.source_maps {
-            eprintln!("⚠️  Source maps requested but not yet implemented in Lightning CSS integration");
+            eprintln!(
+                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
+            );
         }
 
         println!(
@@ -147,33 +161,38 @@ impl CssProcessor {
             ParserOptions {
                 filename: entry_point.to_string_lossy().to_string(),
                 ..ParserOptions::default()
-            }
+            },
         );
 
-        let mut stylesheet = bundler.bundle(entry_point)
-            .map_err(|e| anyhow::anyhow!("Failed to bundle CSS file {}: {}", entry_point.display(), e))?;
+        let mut stylesheet = bundler.bundle(entry_point).map_err(|e| {
+            anyhow::anyhow!("Failed to bundle CSS file {}: {}", entry_point.display(), e)
+        })?;
 
         // Minify if enabled
         if self.minify {
             let minify_options = MinifyOptions {
-                targets: self.targets.clone(),
-                unused_symbols: if self.remove_unused { 
+                targets: self.targets,
+                #[allow(clippy::if_same_then_else)]
+                unused_symbols: if self.remove_unused {
                     HashSet::new() // Remove all unused symbols
-                } else { 
+                } else {
                     HashSet::new() // Default empty set
                 },
             };
-            stylesheet.minify(minify_options)
+            stylesheet
+                .minify(minify_options)
                 .map_err(|e| anyhow::anyhow!("Failed to minify bundled CSS: {}", e))?;
         }
 
         // Print to CSS
-        let result = stylesheet.to_css(PrinterOptions {
-            minify: self.minify,
-            source_map: None, // Will handle source maps separately
-            targets: self.targets.clone(),
-            ..PrinterOptions::default()
-        }).map_err(|e| anyhow::anyhow!("Failed to serialize bundled CSS: {}", e))?;
+        let result = stylesheet
+            .to_css(PrinterOptions {
+                minify: self.minify,
+                source_map: None, // Will handle source maps separately
+                targets: self.targets,
+                ..PrinterOptions::default()
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to serialize bundled CSS: {}", e))?;
 
         let file_name = entry_point
             .file_name()
@@ -188,7 +207,9 @@ impl CssProcessor {
         // TODO: Implement proper source map generation when Lightning CSS API supports it
         // For now, source maps are not generated due to API limitations
         if self.source_maps {
-            eprintln!("⚠️  Source maps requested but not yet implemented in Lightning CSS integration");
+            eprintln!(
+                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
+            );
         }
 
         println!(
@@ -199,8 +220,6 @@ impl CssProcessor {
 
         Ok(output_path)
     }
-
-
 }
 
 impl Default for CssProcessor {
@@ -213,28 +232,28 @@ fn parse_css_targets(css_targets: &CssTargets) -> Targets {
     let mut browsers = Browsers::default();
 
     // Parse individual browser versions
-    if let Some(chrome) = &css_targets.chrome {
-        if let Ok(version) = parse_browser_version(chrome) {
-            browsers.chrome = Some(version);
-        }
+    if let Some(chrome) = &css_targets.chrome
+        && let Ok(version) = parse_browser_version(chrome)
+    {
+        browsers.chrome = Some(version);
     }
 
-    if let Some(firefox) = &css_targets.firefox {
-        if let Ok(version) = parse_browser_version(firefox) {
-            browsers.firefox = Some(version);
-        }
+    if let Some(firefox) = &css_targets.firefox
+        && let Ok(version) = parse_browser_version(firefox)
+    {
+        browsers.firefox = Some(version);
     }
 
-    if let Some(safari) = &css_targets.safari {
-        if let Ok(version) = parse_browser_version(safari) {
-            browsers.safari = Some(version);
-        }
+    if let Some(safari) = &css_targets.safari
+        && let Ok(version) = parse_browser_version(safari)
+    {
+        browsers.safari = Some(version);
     }
 
-    if let Some(edge) = &css_targets.edge {
-        if let Ok(version) = parse_browser_version(edge) {
-            browsers.edge = Some(version);
-        }
+    if let Some(edge) = &css_targets.edge
+        && let Ok(version) = parse_browser_version(edge)
+    {
+        browsers.edge = Some(version);
     }
 
     // TODO: Parse browserslist string if provided
@@ -253,11 +272,19 @@ fn parse_browser_version(version_str: &str) -> Result<u32, std::num::ParseIntErr
     // Parse version like "103" or "103.0" to Lightning CSS format (version << 16)
     let parts: Vec<&str> = version_str.split('.').collect();
     let major: u32 = parts[0].parse()?;
-    
+
     // Lightning CSS uses version in format: (major << 16) | (minor << 8) | patch
-    let minor = if parts.len() > 1 { parts[1].parse().unwrap_or(0) } else { 0 };
-    let patch = if parts.len() > 2 { parts[2].parse().unwrap_or(0) } else { 0 };
-    
+    let minor = if parts.len() > 1 {
+        parts[1].parse().unwrap_or(0)
+    } else {
+        0
+    };
+    let patch = if parts.len() > 2 {
+        parts[2].parse().unwrap_or(0)
+    } else {
+        0
+    };
+
     Ok((major << 16) | (minor << 8) | patch)
 }
 
@@ -294,7 +321,11 @@ impl StyleManager {
         Self::new_with_config(styles_dir, None, true)
     }
 
-    pub fn new_with_config(styles_dir: &Path, css_config: Option<&CssSection>, is_development: bool) -> Self {
+    pub fn new_with_config(
+        styles_dir: &Path,
+        css_config: Option<&CssSection>,
+        is_development: bool,
+    ) -> Self {
         let css_processor = if let Some(config) = css_config {
             CssProcessor::from_config(config, is_development)
         } else {
