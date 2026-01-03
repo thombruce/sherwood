@@ -22,6 +22,7 @@ pub struct CssSection {
     pub source_maps: Option<bool>,
     pub remove_unused: Option<bool>,
     pub nesting: Option<bool>,
+    pub entry_point: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

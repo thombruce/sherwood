@@ -219,7 +219,7 @@ impl SiteGenerator {
     }
 
     fn generate_css(&self) -> Result<()> {
-        let css_path = self.style_manager.generate_css_file(&self.output_dir)?;
+        let css_path = self.style_manager.generate_css_file(&self.output_dir, self.site_config.css.as_ref())?;
         println!("Generated CSS: {}", css_path.display());
         Ok(())
     }

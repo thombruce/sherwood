@@ -4,3 +4,6 @@ title = "Sherwood"
 
 # [templates]
 # page_template = "default.stpl"
+
+[css]
+# entry_point = "main.css"
