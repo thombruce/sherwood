@@ -39,9 +39,10 @@ sherwood/
 │   │   ├── core/           # Core utilities
 │   │   ├── presentation/    # CSS and templates
 │   │   └── generator.rs     # Site generation orchestration
+│   ├── styles/             # Embedded CSS files
+│   ├── templates/           # Embedded templates
 │   └── Cargo.toml
-├── styles/                 # Embedded CSS files
-└── templates/              # Embedded templates
+└── docs/                  # Working Sherwood site (documentation + testing)
 ```
 
 ## Code Style Guidelines
@@ -406,6 +407,32 @@ docs: Update README for new CSS configuration
 - Embedded CSS files for no external dependencies
 - Efficient async I/O with tokio
 - RAII patterns for resource management
+
+### 📁 Testing Directory: `docs/`
+The `docs/` folder contains a **working version of a Sherwood site** that uses the Sherwood library and binaries for testing purposes.
+
+**Key Points:**
+- **Working Site**: `docs/` demonstrates actual Sherwood usage and functionality
+- **Local Development**: Uses `../crates/sherwood` relative path in its `Cargo.toml`
+- **Test Commands**: Run `cargo run --bin dev` or `cargo run --bin generate` from within `docs/` directory
+- **Configuration**: Uses local development crate, not published version
+- **Purpose**: Serves as both documentation and functional test environment
+
+**Usage for Agents:**
+```bash
+# Navigate to docs directory for testing
+cd docs/
+
+# Run development server
+cargo run --bin dev --input content --output dist
+
+# Generate static site
+cargo run --bin generate --input content --output dist
+
+# These commands use the local sherwood crate from ../crates/sherwood
+```
+
+**Note**: This makes `docs/` an ideal location for testing changes, examples, and reproducing issues in a live Sherwood environment.
 
 ### 🚨 CRITICAL RULE: Agents Must NEVER Commit Code
 - **ABSOLUTELY NO COMMITS**: AI agents should only make suggestions, write files, or run commands for the user
