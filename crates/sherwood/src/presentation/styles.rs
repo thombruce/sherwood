@@ -1,11 +1,11 @@
 use crate::config::{CssSection, CssTargets};
 use crate::core::utils::ensure_directory_exists;
+use super::css_processing::{apply_minification, serialize_stylesheet};
 use anyhow::Result;
 use include_dir::{Dir, include_dir};
 use lightningcss::bundler::{Bundler, FileProvider};
-use lightningcss::stylesheet::{MinifyOptions, ParserOptions, PrinterOptions, StyleSheet};
+use lightningcss::stylesheet::{ParserOptions, StyleSheet};
 use lightningcss::targets::{Browsers, Targets};
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -14,12 +14,12 @@ static STYLES: Dir = include_dir!("$CARGO_MANIFEST_DIR/styles");
 
 #[derive(Debug, Clone)]
 pub struct CssProcessor {
-    minify: bool,
-    targets: Targets,
-    enable_css_modules: bool,
-    source_maps: bool,
-    remove_unused: bool,
-    nesting: bool,
+    pub minify: bool,
+    pub targets: Targets,
+    pub enable_css_modules: bool,
+    pub source_maps: bool,
+    pub remove_unused: bool,
+    pub nesting: bool,
 }
 
 impl CssProcessor {
@@ -99,11 +99,11 @@ impl CssProcessor {
         )
         .map_err(|e| anyhow::anyhow!("Failed to parse CSS content from {}: {}", filename, e))?;
 
-        // Apply minification and other processing
-        Self::apply_minification(&mut stylesheet, self)?;
+        // Apply minification and other processing using shared functions
+        apply_minification(&mut stylesheet, self)?;
         
         // Serialize to CSS
-        Self::serialize_stylesheet(&stylesheet, self, filename)
+        serialize_stylesheet(&stylesheet, self, filename)
     }
 
     /// Write processed CSS content to a file
@@ -146,12 +146,12 @@ impl CssProcessor {
             anyhow::anyhow!("Failed to bundle CSS file {}: {}", entry_point.display(), e)
         })?;
 
-        // Apply minification and other processing
-        Self::apply_minification(&mut stylesheet, self)?;
+        // Apply minification and other processing using shared functions
+        apply_minification(&mut stylesheet, self)?;
         
         // Serialize to CSS
         let filename = entry_point.to_string_lossy();
-        let result = Self::serialize_stylesheet(&stylesheet, self, &filename)?;
+        let result = serialize_stylesheet(&stylesheet, self, &filename)?;
 
         // Always output to main.css for consistent behavior
         let output_path = output_dir.join("main.css");
@@ -171,49 +171,7 @@ impl CssProcessor {
     }
 }
 
-// Common CSS processing functions
-impl CssProcessor {
-    /// Apply minification to a stylesheet if enabled
-    fn apply_minification(stylesheet: &mut StyleSheet, processor: &Self) -> Result<()> {
-        if processor.minify {
-            let minify_options = MinifyOptions {
-                targets: processor.targets,
-                #[allow(clippy::if_same_then_else)]
-                unused_symbols: if processor.remove_unused {
-                    HashSet::new() // Remove all unused symbols
-                } else {
-                    HashSet::new() // Default empty set
-                },
-            };
-            stylesheet
-                .minify(minify_options)
-                .map_err(|e| anyhow::anyhow!("Failed to minify CSS: {}", e))?;
-        }
-        Ok(())
-    }
 
-    /// Serialize a stylesheet to CSS string
-    fn serialize_stylesheet(stylesheet: &StyleSheet, processor: &Self, filename: &str) -> Result<String> {
-        let result = stylesheet
-            .to_css(PrinterOptions {
-                minify: processor.minify,
-                source_map: None, // Will handle source maps separately
-                targets: processor.targets,
-                ..PrinterOptions::default()
-            })
-            .map_err(|e| anyhow::anyhow!("Failed to serialize CSS from {}: {}", filename, e))?;
-
-        // TODO: Implement proper source map generation when Lightning CSS API supports it
-        // For now, source maps are not generated due to API limitations
-        if processor.source_maps {
-            eprintln!(
-                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
-            );
-        }
-
-        Ok(result.code)
-    }
-}
 
 impl Default for CssProcessor {
     fn default() -> Self {
@@ -364,49 +322,7 @@ fn resolve_and_validate_entry_point(css_config: Option<&CssSection>) -> String {
     }
 }
 
-// Common CSS processing functions for StyleManager
-impl StyleManager {
-    /// Apply minification to a stylesheet if enabled
-    fn apply_minification_to_stylesheet(stylesheet: &mut StyleSheet, processor: &CssProcessor) -> Result<()> {
-        if processor.minify {
-            let minify_options = MinifyOptions {
-                targets: processor.targets,
-                #[allow(clippy::if_same_then_else)]
-                unused_symbols: if processor.remove_unused {
-                    HashSet::new() // Remove all unused symbols
-                } else {
-                    HashSet::new() // Default empty set
-                },
-            };
-            stylesheet
-                .minify(minify_options)
-                .map_err(|e| anyhow::anyhow!("Failed to minify CSS: {}", e))?;
-        }
-        Ok(())
-    }
 
-    /// Serialize a stylesheet to CSS string
-    fn serialize_stylesheet_to_string(stylesheet: &StyleSheet, processor: &CssProcessor, filename: &str) -> Result<String> {
-        let result = stylesheet
-            .to_css(PrinterOptions {
-                minify: processor.minify,
-                source_map: None, // Will handle source maps separately
-                targets: processor.targets,
-                ..PrinterOptions::default()
-            })
-            .map_err(|e| anyhow::anyhow!("Failed to serialize CSS from {}: {}", filename, e))?;
-
-        // TODO: Implement proper source map generation when Lightning CSS API supports it
-        // For now, source maps are not generated due to API limitations
-        if processor.source_maps {
-            eprintln!(
-                "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
-            );
-        }
-
-        Ok(result.code)
-    }
-}
 
 impl StyleManager {
     pub fn new(styles_dir: &Path) -> Self {
@@ -589,9 +505,9 @@ impl StyleManager {
             // Restore original working directory
             std::env::set_current_dir(original_dir)?;
 
-            // Apply minification and other processing using common functions
-            StyleManager::apply_minification_to_stylesheet(&mut stylesheet, &self.css_processor)?;
-            let result = StyleManager::serialize_stylesheet_to_string(&stylesheet, &self.css_processor, entry_point)?;
+            // Apply minification and other processing using shared functions
+            apply_minification(&mut stylesheet, &self.css_processor)?;
+            let result = serialize_stylesheet(&stylesheet, &self.css_processor, entry_point)?;
 
             fs::write(&main_css_path, &result)?;
 
