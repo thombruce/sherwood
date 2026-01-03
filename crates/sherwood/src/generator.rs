@@ -59,6 +59,7 @@ impl SiteGenerator {
                 templates: Some(TemplateSection {
                     page_template: Some(DEFAULT_PAGE_TEMPLATE.to_string()),
                 }),
+                css: None,
             }
         };
 
