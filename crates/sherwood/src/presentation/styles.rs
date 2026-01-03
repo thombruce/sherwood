@@ -345,15 +345,16 @@ impl StyleManager {
 
         // Validate entry_point if provided
         if let Some(css_config) = css_config
-            && let Some(entry_point) = &css_config.entry_point {
-                // Basic validation: ensure it's a valid filename
-                if entry_point.is_empty() || entry_point.contains('/') || entry_point.contains('\\') {
-                    eprintln!(
-                        "⚠️  Warning: Invalid CSS entry point '{}'. Entry point must be a simple filename. Using default 'main.css'.",
-                        entry_point
-                    );
-                }
+            && let Some(entry_point) = &css_config.entry_point
+        {
+            // Basic validation: ensure it's a valid filename
+            if entry_point.is_empty() || entry_point.contains('/') || entry_point.contains('\\') {
+                eprintln!(
+                    "⚠️  Warning: Invalid CSS entry point '{}'. Entry point must be a simple filename. Using default 'main.css'.",
+                    entry_point
+                );
             }
+        }
 
         Self {
             styles_dir: styles_dir.to_path_buf(),
@@ -377,21 +378,23 @@ impl StyleManager {
     fn resolve_entry_point(&self, css_config: Option<&CssSection>) -> String {
         // Use configured entry_point if provided and valid, otherwise default to "main.css"
         if let Some(css_config) = css_config
-            && let Some(entry_point) = &css_config.entry_point {
-                // Basic validation: ensure it's a valid filename
-                if !entry_point.is_empty() 
-                    && !entry_point.contains('/') 
-                    && !entry_point.contains('\\') 
-                    && entry_point.ends_with(".css") {
-                    return entry_point.clone();
-                } else {
-                    eprintln!(
-                        "⚠️  Warning: Invalid CSS entry point '{}'. Using default 'main.css'.",
-                        entry_point
-                    );
-                }
+            && let Some(entry_point) = &css_config.entry_point
+        {
+            // Basic validation: ensure it's a valid filename
+            if !entry_point.is_empty()
+                && !entry_point.contains('/')
+                && !entry_point.contains('\\')
+                && entry_point.ends_with(".css")
+            {
+                return entry_point.clone();
+            } else {
+                eprintln!(
+                    "⚠️  Warning: Invalid CSS entry point '{}'. Using default 'main.css'.",
+                    entry_point
+                );
             }
-        
+        }
+
         "main.css".to_string()
     }
 
@@ -399,17 +402,19 @@ impl StyleManager {
         if !self.styles_dir.exists() {
             return Ok("(no styles directory)".to_string());
         }
-        
+
         let mut files = Vec::new();
         for entry in fs::read_dir(&self.styles_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "css")
-                && let Some(name) = path.file_name() {
-                    files.push(name.to_string_lossy().to_string());
-                }
+            if path.is_file()
+                && path.extension().is_some_and(|ext| ext == "css")
+                && let Some(name) = path.file_name()
+            {
+                files.push(name.to_string_lossy().to_string());
+            }
         }
-        
+
         if files.is_empty() {
             Ok("(no CSS files found)".to_string())
         } else {
@@ -433,17 +438,21 @@ impl StyleManager {
         }
     }
 
-    pub fn generate_css_file(&self, output_dir: &Path, css_config: Option<&CssSection>) -> Result<PathBuf> {
+    pub fn generate_css_file(
+        &self,
+        output_dir: &Path,
+        css_config: Option<&CssSection>,
+    ) -> Result<PathBuf> {
         let css_dir = output_dir.join("css");
         ensure_directory_exists(&css_dir)?;
 
         let entry_point = self.resolve_entry_point(css_config);
-        
+
         // Check if user explicitly configured an entry_point
         let has_explicit_entry_point = css_config
             .and_then(|config| config.entry_point.as_ref())
             .is_some();
-        
+
         // Try user's styles directory first, fallback to embedded styles
         if self.styles_dir.exists() {
             self.process_user_css_entry_point(&css_dir, &entry_point, css_config)?;
@@ -465,13 +474,13 @@ impl StyleManager {
     }
 
     fn process_user_css_entry_point(
-        &self, 
-        css_dir: &Path, 
+        &self,
+        css_dir: &Path,
         entry_point: &str,
-        _css_config: Option<&CssSection>
+        _css_config: Option<&CssSection>,
     ) -> Result<()> {
         let entry_path = self.styles_dir.join(entry_point);
-        
+
         if entry_path.exists() {
             // Bundle the specified entry point
             self.css_processor.bundle_css_files(&entry_path, css_dir)?;
@@ -487,7 +496,7 @@ impl StyleManager {
                 self.list_available_css_files()?
             ));
         }
-        
+
         Ok(())
     }
 
@@ -587,7 +596,7 @@ impl StyleManager {
 
     fn extract_embedded_css_to_temp(&self, temp_dir: &Path) -> Result<()> {
         ensure_directory_exists(temp_dir)?;
-        
+
         // Extract all embedded CSS files to temporary directory
         for file in STYLES.files() {
             let file_path = file.path();
@@ -601,7 +610,7 @@ impl StyleManager {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
