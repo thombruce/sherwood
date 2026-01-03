@@ -11,6 +11,6 @@ categories = ["web-programming", "development-tools"]
 [workspace]
 
 [dependencies]
-sherwood = "0.3.0"
+sherwood = { path = "../crates/sherwood" }
 clap = { version = "4.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }

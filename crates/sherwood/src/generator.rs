@@ -3,8 +3,8 @@ use crate::content::parser::{MarkdownFile, MarkdownParser};
 use crate::content::renderer::HtmlRenderer;
 use crate::core::utils::{ensure_directory_exists, ensure_parent_exists};
 use crate::presentation::pages::PageGenerator;
+use crate::presentation::styles::StyleManager;
 use crate::presentation::templates::TemplateManager;
-use crate::presentation::themes::ThemeManager;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs;
@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use toml;
 
 // Constants for relative path construction
-const THEMES_DIR_RELATIVE: &str = "../themes";
+const STYLES_DIR_RELATIVE: &str = "../styles";
 const TEMPLATES_DIR_RELATIVE: &str = "../templates";
 const CONFIG_PATH_RELATIVE: &str = "../Sherwood.toml";
 
@@ -26,15 +26,26 @@ const MARKDOWN_LONG_EXT: &str = "markdown";
 pub struct SiteGenerator {
     input_dir: PathBuf,
     output_dir: PathBuf,
-    theme_manager: ThemeManager,
+    style_manager: StyleManager,
     html_renderer: HtmlRenderer,
     page_generator: PageGenerator,
+    #[allow(dead_code)]
     site_config: SiteConfig,
+    #[allow(dead_code)]
+    is_development: bool,
 }
 
 impl SiteGenerator {
     pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
-        let themes_dir = input_dir.join(THEMES_DIR_RELATIVE);
+        Self::new_with_mode(input_dir, output_dir, false)
+    }
+
+    pub fn new_development(input_dir: &Path, output_dir: &Path) -> Result<Self> {
+        Self::new_with_mode(input_dir, output_dir, true)
+    }
+
+    fn new_with_mode(input_dir: &Path, output_dir: &Path, is_development: bool) -> Result<Self> {
+        let styles_dir = input_dir.join(STYLES_DIR_RELATIVE);
         let templates_dir = input_dir.join(TEMPLATES_DIR_RELATIVE);
 
         // Load site configuration
@@ -44,10 +55,11 @@ impl SiteGenerator {
             toml::from_str(&content)?
         } else {
             SiteConfig {
-                site: SiteSection { theme: None },
+                site: SiteSection {},
                 templates: Some(TemplateSection {
                     page_template: Some(DEFAULT_PAGE_TEMPLATE.to_string()),
                 }),
+                css: None,
             }
         };
 
@@ -61,13 +73,18 @@ impl SiteGenerator {
             eprintln!("⚠️  Template validation warnings detected, but continuing...");
         }
 
+        // Create style manager based on mode and configuration
+        let style_manager =
+            StyleManager::new_with_config(&styles_dir, site_config.css.as_ref(), is_development);
+
         Ok(Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
-            theme_manager: ThemeManager::new(&themes_dir),
+            style_manager,
             html_renderer,
             page_generator,
             site_config,
+            is_development,
         })
     }
 
@@ -78,8 +95,8 @@ impl SiteGenerator {
         }
         ensure_directory_exists(&self.output_dir)?;
 
-        // Generate CSS (uses default theme if none configured)
-        self.generate_theme_css()?;
+        // Generate CSS
+        self.generate_css()?;
 
         // Find all markdown files
         let markdown_files = self.find_markdown_files(&self.input_dir)?;
@@ -160,19 +177,6 @@ impl SiteGenerator {
         // Create parent directories if needed
         ensure_parent_exists(&html_path)?;
 
-        // Get theme for this file
-        let theme_name = self.theme_manager.resolve_theme(
-            file.frontmatter.theme.clone(),
-            self.site_config.site.theme.clone(),
-        );
-
-        // Get theme variant for this file
-        let theme_variant = file
-            .frontmatter
-            .theme_variant
-            .clone()
-            .unwrap_or_else(|| "default".to_string());
-
         // Convert markdown to HTML with semantic structure
         let html_content = if file.frontmatter.list.unwrap_or(false) {
             // For list pages, process content around the blog list placeholder
@@ -204,12 +208,9 @@ impl SiteGenerator {
         };
 
         // Generate complete HTML document
-        let full_html = self.page_generator.process_markdown_file(
-            file,
-            &html_content,
-            &theme_name,
-            &theme_variant,
-        )?;
+        let full_html = self
+            .page_generator
+            .process_markdown_file(file, &html_content)?;
 
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
@@ -217,26 +218,21 @@ impl SiteGenerator {
         Ok(())
     }
 
-    fn generate_theme_css(&self) -> Result<()> {
-        // Use configured theme or fall back to default
-        let theme_name = self
-            .theme_manager
-            .resolve_theme(None, self.site_config.site.theme.clone());
-
-        let theme = self.theme_manager.load_theme(&theme_name)?;
+    fn generate_css(&self) -> Result<()> {
         let css_path = self
-            .theme_manager
-            .generate_css_file(&theme, &self.output_dir)?;
-        println!(
-            "Generated CSS: {} (theme: {})",
-            css_path.display(),
-            theme.name
-        );
+            .style_manager
+            .generate_css_file(&self.output_dir, self.site_config.css.as_ref())?;
+        println!("Generated CSS: {}", css_path.display());
         Ok(())
     }
 }
 
 pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {
     let generator = SiteGenerator::new(input_dir, output_dir)?;
+    generator.generate().await
+}
+
+pub async fn generate_site_development(input_dir: &Path, output_dir: &Path) -> Result<()> {
+    let generator = SiteGenerator::new_development(input_dir, output_dir)?;
     generator.generate().await
 }
