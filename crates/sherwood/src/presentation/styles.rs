@@ -1,7 +1,11 @@
+use crate::config::{CssSection, CssTargets};
 use crate::core::utils::ensure_directory_exists;
 use anyhow::Result;
 use include_dir::{Dir, include_dir};
+use lightningcss::bundler::{Bundler, FileProvider};
+use lightningcss::stylesheet::{MinifyOptions, ParserOptions, PrinterOptions, StyleSheet};
 use lightningcss::targets::{Browsers, Targets};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -13,6 +17,9 @@ pub struct CssProcessor {
     minify: bool,
     targets: Targets,
     enable_css_modules: bool,
+    source_maps: bool,
+    remove_unused: bool,
+    nesting: bool,
 }
 
 impl CssProcessor {
@@ -21,7 +28,32 @@ impl CssProcessor {
             minify: true,
             targets: get_default_browser_targets(),
             enable_css_modules: false,
+            source_maps: false,
+            remove_unused: false,
+            nesting: true,
         }
+    }
+
+    pub fn from_config(css_config: &CssSection, is_development: bool) -> Self {
+        let mut processor = Self {
+            minify: css_config.minify.unwrap_or(!is_development),
+            targets: css_config.targets
+                .as_ref()
+                .map(|t| parse_css_targets(t))
+                .unwrap_or_else(get_default_browser_targets),
+            enable_css_modules: false, // TODO: Add CSS modules support later
+            source_maps: css_config.source_maps.unwrap_or(is_development),
+            remove_unused: css_config.remove_unused.unwrap_or(false),
+            nesting: css_config.nesting.unwrap_or(true),
+        };
+
+        // Always disable minification and enable source maps in development
+        if is_development {
+            processor.minify = false;
+            processor.source_maps = true;
+        }
+
+        processor
     }
 
     pub fn with_minify(mut self, minify: bool) -> Self {
@@ -39,15 +71,66 @@ impl CssProcessor {
         self
     }
 
+    pub fn with_source_maps(mut self, enable: bool) -> Self {
+        self.source_maps = enable;
+        self
+    }
+
+    pub fn with_remove_unused(mut self, enable: bool) -> Self {
+        self.remove_unused = enable;
+        self
+    }
+
+    pub fn with_nesting(mut self, enable: bool) -> Self {
+        self.nesting = enable;
+        self
+    }
+
     pub fn process_css_file(&self, input_path: &Path, output_path: &Path) -> Result<()> {
         let css_content = fs::read_to_string(input_path)?;
+        
+        // Parse CSS with Lightning CSS
+        let mut stylesheet = StyleSheet::parse(
+            &css_content,
+            ParserOptions {
+                filename: input_path.to_string_lossy().to_string(),
+                ..ParserOptions::default()
+            }
+        ).map_err(|e| anyhow::anyhow!("Failed to parse CSS file {}: {}", input_path.display(), e))?;
 
-        // For now, just copy the file to maintain compatibility
-        // TODO: Replace with Lightning CSS processing once API is figured out
+        // Minify if enabled
+        if self.minify {
+            let minify_options = MinifyOptions {
+                targets: self.targets.clone(),
+                unused_symbols: if self.remove_unused { 
+                    HashSet::new() // Remove all unused symbols
+                } else { 
+                    HashSet::new() // Default empty set
+                },
+            };
+            stylesheet.minify(minify_options)
+                .map_err(|e| anyhow::anyhow!("Failed to minify CSS file {}: {}", input_path.display(), e))?;
+        }
+
+        // Print to CSS
+        let result = stylesheet.to_css(PrinterOptions {
+            minify: self.minify,
+            source_map: None, // Will handle source maps separately
+            targets: self.targets.clone(),
+            ..PrinterOptions::default()
+        }).map_err(|e| anyhow::anyhow!("Failed to serialize CSS file {}: {}", input_path.display(), e))?;
+
         ensure_directory_exists(output_path.parent().unwrap_or_else(|| Path::new("")))?;
-        fs::write(output_path, css_content)?;
+        fs::write(output_path, &result.code)?;
+
+        // TODO: Implement proper source map generation when Lightning CSS API supports it
+        // For now, source maps are not generated due to API limitations
+        if self.source_maps {
+            eprintln!("⚠️  Source maps requested but not yet implemented in Lightning CSS integration");
+        }
+
         println!(
-            "Copied CSS: {} -> {}",
+            "Processed CSS: {} -> {}",
             input_path.display(),
             output_path.display()
         );
@@ -56,15 +139,41 @@ impl CssProcessor {
     }
 
     pub fn bundle_css_files(&self, entry_point: &Path, output_dir: &Path) -> Result<PathBuf> {
-        // For now, just copy the file and resolve imports manually
-        // TODO: Replace with Lightning CSS bundling once API is figured out
-        let css_content = fs::read_to_string(entry_point)?;
+        // Use Lightning CSS bundler for proper @import resolution
+        let fs_provider = FileProvider::new();
+        let mut bundler = Bundler::new(
+            &fs_provider,
+            None,
+            ParserOptions {
+                filename: entry_point.to_string_lossy().to_string(),
+                ..ParserOptions::default()
+            }
+        );
 
-        // Simple import resolution for @import statements
-        let processed_content = self.resolve_imports(
-            &css_content,
-            entry_point.parent().unwrap_or_else(|| Path::new("")),
-        )?;
+        let mut stylesheet = bundler.bundle(entry_point)
+            .map_err(|e| anyhow::anyhow!("Failed to bundle CSS file {}: {}", entry_point.display(), e))?;
+
+        // Minify if enabled
+        if self.minify {
+            let minify_options = MinifyOptions {
+                targets: self.targets.clone(),
+                unused_symbols: if self.remove_unused { 
+                    HashSet::new() // Remove all unused symbols
+                } else { 
+                    HashSet::new() // Default empty set
+                },
+            };
+            stylesheet.minify(minify_options)
+                .map_err(|e| anyhow::anyhow!("Failed to minify bundled CSS: {}", e))?;
+        }
+
+        // Print to CSS
+        let result = stylesheet.to_css(PrinterOptions {
+            minify: self.minify,
+            source_map: None, // Will handle source maps separately
+            targets: self.targets.clone(),
+            ..PrinterOptions::default()
+        }).map_err(|e| anyhow::anyhow!("Failed to serialize bundled CSS: {}", e))?;
 
         let file_name = entry_point
             .file_name()
@@ -73,7 +182,15 @@ impl CssProcessor {
 
         ensure_directory_exists(output_dir)?;
 
-        fs::write(&output_path, processed_content)?;
+        // Write the bundled CSS
+        fs::write(&output_path, &result.code)?;
+
+        // TODO: Implement proper source map generation when Lightning CSS API supports it
+        // For now, source maps are not generated due to API limitations
+        if self.source_maps {
+            eprintln!("⚠️  Source maps requested but not yet implemented in Lightning CSS integration");
+        }
+
         println!(
             "Bundled CSS: {} -> {}",
             entry_point.display(),
@@ -83,40 +200,65 @@ impl CssProcessor {
         Ok(output_path)
     }
 
-    fn resolve_imports(&self, css_content: &str, base_path: &Path) -> Result<String> {
-        let mut result = String::new();
 
-        for line in css_content.lines() {
-            let trimmed = line.trim();
-
-            if trimmed.starts_with("@import url('") && trimmed.ends_with("');") {
-                // Extract the filename from @import url('filename.css');
-                let start = trimmed.find('(').unwrap_or(0) + 7; // After "@import url('"
-                let end = trimmed.find("');").unwrap_or(trimmed.len());
-                let filename = &trimmed[start..end];
-
-                // Try to read the imported file
-                let import_path = base_path.join(filename);
-                if import_path.exists()
-                    && let Ok(imported_content) = fs::read_to_string(&import_path)
-                {
-                    result.push_str(&imported_content);
-                    result.push('\n');
-                }
-            } else {
-                result.push_str(line);
-                result.push('\n');
-            }
-        }
-
-        Ok(result)
-    }
 }
 
 impl Default for CssProcessor {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn parse_css_targets(css_targets: &CssTargets) -> Targets {
+    let mut browsers = Browsers::default();
+
+    // Parse individual browser versions
+    if let Some(chrome) = &css_targets.chrome {
+        if let Ok(version) = parse_browser_version(chrome) {
+            browsers.chrome = Some(version);
+        }
+    }
+
+    if let Some(firefox) = &css_targets.firefox {
+        if let Ok(version) = parse_browser_version(firefox) {
+            browsers.firefox = Some(version);
+        }
+    }
+
+    if let Some(safari) = &css_targets.safari {
+        if let Ok(version) = parse_browser_version(safari) {
+            browsers.safari = Some(version);
+        }
+    }
+
+    if let Some(edge) = &css_targets.edge {
+        if let Ok(version) = parse_browser_version(edge) {
+            browsers.edge = Some(version);
+        }
+    }
+
+    // TODO: Parse browserslist string if provided
+    // For now, fall back to defaults if browserslist is provided
+    if css_targets.browserslist.is_some() {
+        return get_default_browser_targets();
+    }
+
+    Targets {
+        browsers: Some(browsers),
+        ..Targets::default()
+    }
+}
+
+fn parse_browser_version(version_str: &str) -> Result<u32, std::num::ParseIntError> {
+    // Parse version like "103" or "103.0" to Lightning CSS format (version << 16)
+    let parts: Vec<&str> = version_str.split('.').collect();
+    let major: u32 = parts[0].parse()?;
+    
+    // Lightning CSS uses version in format: (major << 16) | (minor << 8) | patch
+    let minor = if parts.len() > 1 { parts[1].parse().unwrap_or(0) } else { 0 };
+    let patch = if parts.len() > 2 { parts[2].parse().unwrap_or(0) } else { 0 };
+    
+    Ok((major << 16) | (minor << 8) | patch)
 }
 
 fn get_default_browser_targets() -> Targets {
@@ -145,19 +287,29 @@ pub struct StyleManager {
 
 impl StyleManager {
     pub fn new(styles_dir: &Path) -> Self {
-        Self {
-            styles_dir: styles_dir.to_path_buf(),
-            css_processor: CssProcessor::new(),
-            is_development: false,
-        }
+        Self::new_with_config(styles_dir, None, false)
     }
 
     pub fn new_development(styles_dir: &Path) -> Self {
-        let processor = CssProcessor::new().with_minify(false);
+        Self::new_with_config(styles_dir, None, true)
+    }
+
+    pub fn new_with_config(styles_dir: &Path, css_config: Option<&CssSection>, is_development: bool) -> Self {
+        let css_processor = if let Some(config) = css_config {
+            CssProcessor::from_config(config, is_development)
+        } else {
+            let processor = CssProcessor::new();
+            if is_development {
+                processor.with_minify(false).with_source_maps(true)
+            } else {
+                processor
+            }
+        };
+
         Self {
             styles_dir: styles_dir.to_path_buf(),
-            css_processor: processor,
-            is_development: true,
+            css_processor,
+            is_development,
         }
     }
 
@@ -218,7 +370,7 @@ impl StyleManager {
 
     fn process_embedded_css_files(&self, css_dir: &Path) -> Result<()> {
         // Process main.css if it exists (it contains @import statements)
-        if let Some(main_css_file) = STYLES.get_file("styles/main.css") {
+        if let Some(main_css_file) = STYLES.get_file("main.css") {
             let main_css_path = css_dir.join("main.css");
 
             // For embedded main.css, we need to handle the imports manually
@@ -295,13 +447,13 @@ impl StyleManager {
             let trimmed = line.trim();
 
             if trimmed.starts_with("@import url('") && trimmed.ends_with("');") {
-                // Extract the filename from @import url('filename.css');
-                let start = trimmed.find('(').unwrap_or(0) + 7; // After "@import url('"
+                // Extract filename from @import url('filename.css');
+                let start = 13; // After "@import url('"
                 let end = trimmed.find("');").unwrap_or(trimmed.len());
                 let filename = &trimmed[start..end];
 
                 // Get the content from embedded styles
-                if let Some(imported_file) = STYLES.get_file(format!("styles/{}", filename))
+                if let Some(imported_file) = STYLES.get_file(filename)
                     && let Some(content) = imported_file.contents_utf8()
                 {
                     result.push_str(content);

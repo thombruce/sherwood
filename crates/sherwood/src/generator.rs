@@ -73,12 +73,12 @@ impl SiteGenerator {
             eprintln!("⚠️  Template validation warnings detected, but continuing...");
         }
 
-        // Create style manager based on mode
-        let style_manager = if is_development {
-            StyleManager::new_development(&styles_dir)
-        } else {
-            StyleManager::new(&styles_dir)
-        };
+        // Create style manager based on mode and configuration
+        let style_manager = StyleManager::new_with_config(
+            &styles_dir,
+            site_config.css.as_ref(),
+            is_development
+        );
 
         Ok(Self {
             input_dir: input_dir.to_path_buf(),
