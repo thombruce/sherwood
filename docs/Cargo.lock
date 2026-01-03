@@ -766,8 +766,6 @@ dependencies = [
 [[package]]
 name = "sherwood"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61b765e26d8d4db6559ab4d94f3d46af99d29edaf22f0037baa11a7d662f2177"
 dependencies = [
  "anyhow",
  "axum",
