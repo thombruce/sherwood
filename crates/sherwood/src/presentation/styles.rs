@@ -387,8 +387,12 @@ impl StyleManager {
             // Process main.css with bundling to handle @import statements
             self.css_processor
                 .bundle_css_files(&main_css_path, css_dir)?;
+            
+            // Note: Individual CSS files are not generated when main.css exists
+            // because they are bundled into main.css via @import statements.
+            // This prevents duplication and follows proper CSS bundling behavior.
         } else {
-            // Process individual CSS files
+            // Process individual CSS files when no main.css exists
             for entry in fs::read_dir(&self.styles_dir)? {
                 let entry = entry?;
                 let path = entry.path();
@@ -502,28 +506,9 @@ impl StyleManager {
             // Clean up temporary directory
             let _ = fs::remove_dir_all(&temp_dir);
 
-            // Copy other individual CSS files
-            for file in STYLES.files() {
-                let file_path = file.path();
-                if let Some(file_name) = file_path.file_name()
-                    && let Some(extension) = Path::new(file_name)
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                    && extension == "css"
-                    && file_name != "main.css"
-                // Skip main.css as we already processed it
-                {
-                    let file_name_str = file_name.to_string_lossy().to_string();
-                    let dest_path = css_dir.join(&file_name_str);
-                    if let Some(content) = file.contents_utf8() {
-                        let processed_css = self
-                            .css_processor
-                            .process_css_string(content, &file_name_str)?;
-                        self.css_processor
-                            .write_processed_css(&processed_css, &dest_path)?;
-                    }
-                }
-            }
+            // Note: Individual CSS files are not generated when main.css exists
+            // because they are bundled into main.css via @import statements.
+            // This prevents duplication and follows proper CSS bundling behavior.
         } else {
             // Fallback: just copy all embedded CSS files individually
             for file in STYLES.files() {
