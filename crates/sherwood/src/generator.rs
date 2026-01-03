@@ -31,10 +31,20 @@ pub struct SiteGenerator {
     page_generator: PageGenerator,
     #[allow(dead_code)]
     site_config: SiteConfig,
+    #[allow(dead_code)]
+    is_development: bool,
 }
 
 impl SiteGenerator {
     pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
+        Self::new_with_mode(input_dir, output_dir, false)
+    }
+
+    pub fn new_development(input_dir: &Path, output_dir: &Path) -> Result<Self> {
+        Self::new_with_mode(input_dir, output_dir, true)
+    }
+
+    fn new_with_mode(input_dir: &Path, output_dir: &Path, is_development: bool) -> Result<Self> {
         let styles_dir = input_dir.join(STYLES_DIR_RELATIVE);
         let templates_dir = input_dir.join(TEMPLATES_DIR_RELATIVE);
 
@@ -62,13 +72,21 @@ impl SiteGenerator {
             eprintln!("⚠️  Template validation warnings detected, but continuing...");
         }
 
+        // Create style manager based on mode
+        let style_manager = if is_development {
+            StyleManager::new_development(&styles_dir)
+        } else {
+            StyleManager::new(&styles_dir)
+        };
+
         Ok(Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
-            style_manager: StyleManager::new(&styles_dir),
+            style_manager,
             html_renderer,
             page_generator,
             site_config,
+            is_development,
         })
     }
 
@@ -211,5 +229,10 @@ impl SiteGenerator {
 
 pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {
     let generator = SiteGenerator::new(input_dir, output_dir)?;
+    generator.generate().await
+}
+
+pub async fn generate_site_development(input_dir: &Path, output_dir: &Path) -> Result<()> {
+    let generator = SiteGenerator::new_development(input_dir, output_dir)?;
     generator.generate().await
 }

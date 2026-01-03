@@ -9,8 +9,8 @@ use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 
 pub async fn run_dev_server(input_dir: &Path, output_dir: &Path, port: u16) -> Result<()> {
-    println!("Generating site...");
-    super::generate_site(input_dir, output_dir).await?;
+    println!("Generating site in development mode...");
+    super::generate_site_development(input_dir, output_dir).await?;
 
     let output_dir_buf = output_dir.to_path_buf();
     let fallback_handler =
