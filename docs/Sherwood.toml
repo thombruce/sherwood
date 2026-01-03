@@ -4,5 +4,15 @@ title = "Sherwood"
 # [templates]
 # page_template = "default.stpl"
 
-[css]
+# [css]
 # entry_point = "main.css"
+# minify = true
+# source_maps = false
+# remove_unused = false
+# nesting = true
+
+# [css.targets]
+# chrome = "103"
+# firefox = "115"
+# safari = "15"
+# edge = "127"

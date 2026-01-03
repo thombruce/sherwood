@@ -344,8 +344,8 @@ impl StyleManager {
         };
 
         // Validate entry_point if provided
-        if let Some(css_config) = css_config {
-            if let Some(entry_point) = &css_config.entry_point {
+        if let Some(css_config) = css_config
+            && let Some(entry_point) = &css_config.entry_point {
                 // Basic validation: ensure it's a valid filename
                 if entry_point.is_empty() || entry_point.contains('/') || entry_point.contains('\\') {
                     eprintln!(
@@ -354,7 +354,6 @@ impl StyleManager {
                     );
                 }
             }
-        }
 
         Self {
             styles_dir: styles_dir.to_path_buf(),
@@ -377,8 +376,8 @@ impl StyleManager {
 
     fn resolve_entry_point(&self, css_config: Option<&CssSection>) -> String {
         // Use configured entry_point if provided and valid, otherwise default to "main.css"
-        if let Some(css_config) = css_config {
-            if let Some(entry_point) = &css_config.entry_point {
+        if let Some(css_config) = css_config
+            && let Some(entry_point) = &css_config.entry_point {
                 // Basic validation: ensure it's a valid filename
                 if !entry_point.is_empty() 
                     && !entry_point.contains('/') 
@@ -392,7 +391,6 @@ impl StyleManager {
                     );
                 }
             }
-        }
         
         "main.css".to_string()
     }
@@ -406,11 +404,10 @@ impl StyleManager {
         for entry in fs::read_dir(&self.styles_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "css") {
-                if let Some(name) = path.file_name() {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "css")
+                && let Some(name) = path.file_name() {
                     files.push(name.to_string_lossy().to_string());
                 }
-            }
         }
         
         if files.is_empty() {
@@ -424,7 +421,7 @@ impl StyleManager {
         let mut files = Vec::new();
         for file in STYLES.files() {
             if let Some(file_name) = file.path().file_name()
-                && file.path().extension().map_or(false, |ext| ext == "css")
+                && file.path().extension().is_some_and(|ext| ext == "css")
             {
                 files.push(file_name.to_string_lossy().to_string());
             }
@@ -442,10 +439,24 @@ impl StyleManager {
 
         let entry_point = self.resolve_entry_point(css_config);
         
+        // Check if user explicitly configured an entry_point
+        let has_explicit_entry_point = css_config
+            .and_then(|config| config.entry_point.as_ref())
+            .is_some();
+        
         // Try user's styles directory first, fallback to embedded styles
         if self.styles_dir.exists() {
             self.process_user_css_entry_point(&css_dir, &entry_point, css_config)?;
+        } else if has_explicit_entry_point {
+            // User configured entry_point but has no styles directory - error
+            return Err(anyhow::anyhow!(
+                "CSS entry point '{}' is configured but no styles directory exists at '{}'.\n\
+                 Fix: either create the styles directory with the entry point file, or remove the 'entry_point' configuration to use embedded styles.",
+                entry_point,
+                self.styles_dir.display()
+            ));
         } else {
+            // No entry_point configured and no styles directory - use embedded styles
             self.process_embedded_css_entry_point(&css_dir, &entry_point)?;
         }
 
