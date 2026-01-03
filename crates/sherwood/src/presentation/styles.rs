@@ -1,6 +1,6 @@
+use super::css_processing::{apply_minification, serialize_stylesheet};
 use crate::config::{CssSection, CssTargets};
 use crate::core::utils::ensure_directory_exists;
-use super::css_processing::{apply_minification, serialize_stylesheet};
 use anyhow::Result;
 use include_dir::{Dir, include_dir};
 use lightningcss::bundler::{Bundler, FileProvider};
@@ -101,7 +101,7 @@ impl CssProcessor {
 
         // Apply minification and other processing using shared functions
         apply_minification(&mut stylesheet, self)?;
-        
+
         // Serialize to CSS
         serialize_stylesheet(&stylesheet, self, filename)
     }
@@ -148,7 +148,7 @@ impl CssProcessor {
 
         // Apply minification and other processing using shared functions
         apply_minification(&mut stylesheet, self)?;
-        
+
         // Serialize to CSS
         let filename = entry_point.to_string_lossy();
         let result = serialize_stylesheet(&stylesheet, self, &filename)?;
@@ -170,8 +170,6 @@ impl CssProcessor {
         Ok(output_path)
     }
 }
-
-
 
 impl Default for CssProcessor {
     fn default() -> Self {
@@ -276,7 +274,9 @@ impl std::fmt::Display for EntryPointValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EntryPointValidationError::Empty => write!(f, "cannot be empty"),
-            EntryPointValidationError::ContainsPathSeparators => write!(f, "must be a simple filename, not a path"),
+            EntryPointValidationError::ContainsPathSeparators => {
+                write!(f, "must be a simple filename, not a path")
+            }
             EntryPointValidationError::MissingExtension => write!(f, "must have a file extension"),
             EntryPointValidationError::InvalidExtension => write!(f, "must end with .css"),
         }
@@ -287,19 +287,19 @@ fn validate_css_entry_point(entry_point: &str) -> Result<String, EntryPointValid
     if entry_point.is_empty() {
         return Err(EntryPointValidationError::Empty);
     }
-    
+
     if entry_point.contains('/') || entry_point.contains('\\') {
         return Err(EntryPointValidationError::ContainsPathSeparators);
     }
-    
+
     if !entry_point.contains('.') {
         return Err(EntryPointValidationError::MissingExtension);
     }
-    
+
     if !entry_point.ends_with(".css") {
         return Err(EntryPointValidationError::InvalidExtension);
     }
-    
+
     Ok(entry_point.to_string())
 }
 
@@ -321,8 +321,6 @@ fn resolve_and_validate_entry_point(css_config: Option<&CssSection>) -> String {
         "main.css".to_string()
     }
 }
-
-
 
 impl StyleManager {
     pub fn new(styles_dir: &Path) -> Self {
@@ -367,8 +365,6 @@ impl StyleManager {
             is_development,
         }
     }
-
-
 
     fn list_available_css_files(&self) -> Result<String> {
         if !self.styles_dir.exists() {
@@ -445,11 +441,7 @@ impl StyleManager {
         Ok(css_dir.join("main.css"))
     }
 
-    fn process_user_css_entry_point(
-        &self,
-        css_dir: &Path,
-        entry_point: &str,
-    ) -> Result<()> {
+    fn process_user_css_entry_point(&self, css_dir: &Path, entry_point: &str) -> Result<()> {
         let entry_path = self.styles_dir.join(entry_point);
 
         if entry_path.exists() {
