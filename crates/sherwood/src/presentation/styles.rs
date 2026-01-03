@@ -305,6 +305,65 @@ pub struct StyleManager {
     is_development: bool,
 }
 
+// Entry point validation types and functions
+#[derive(Debug)]
+pub enum EntryPointValidationError {
+    Empty,
+    ContainsPathSeparators,
+    MissingExtension,
+    InvalidExtension,
+}
+
+impl std::fmt::Display for EntryPointValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EntryPointValidationError::Empty => write!(f, "cannot be empty"),
+            EntryPointValidationError::ContainsPathSeparators => write!(f, "must be a simple filename, not a path"),
+            EntryPointValidationError::MissingExtension => write!(f, "must have a file extension"),
+            EntryPointValidationError::InvalidExtension => write!(f, "must end with .css"),
+        }
+    }
+}
+
+fn validate_css_entry_point(entry_point: &str) -> Result<String, EntryPointValidationError> {
+    if entry_point.is_empty() {
+        return Err(EntryPointValidationError::Empty);
+    }
+    
+    if entry_point.contains('/') || entry_point.contains('\\') {
+        return Err(EntryPointValidationError::ContainsPathSeparators);
+    }
+    
+    if !entry_point.contains('.') {
+        return Err(EntryPointValidationError::MissingExtension);
+    }
+    
+    if !entry_point.ends_with(".css") {
+        return Err(EntryPointValidationError::InvalidExtension);
+    }
+    
+    Ok(entry_point.to_string())
+}
+
+fn resolve_and_validate_entry_point(css_config: Option<&CssSection>) -> String {
+    if let Some(css_config) = css_config
+        && let Some(entry_point) = &css_config.entry_point
+    {
+        match validate_css_entry_point(entry_point) {
+            Ok(validated) => validated,
+            Err(error) => {
+                eprintln!(
+                    "⚠️  Warning: Invalid CSS entry point '{}': {}. Using default 'main.css'.",
+                    entry_point, error
+                );
+                "main.css".to_string()
+            }
+        }
+    } else {
+        "main.css".to_string()
+    }
+}
+
 // Common CSS processing functions for StyleManager
 impl StyleManager {
     /// Apply minification to a stylesheet if enabled
@@ -374,19 +433,6 @@ impl StyleManager {
             }
         };
 
-        // Validate entry_point if provided
-        if let Some(css_config) = css_config
-            && let Some(entry_point) = &css_config.entry_point
-        {
-            // Basic validation: ensure it's a valid filename
-            if entry_point.is_empty() || entry_point.contains('/') || entry_point.contains('\\') {
-                eprintln!(
-                    "⚠️  Warning: Invalid CSS entry point '{}'. Entry point must be a simple filename. Using default 'main.css'.",
-                    entry_point
-                );
-            }
-        }
-
         Self {
             styles_dir: styles_dir.to_path_buf(),
             css_processor,
@@ -406,28 +452,7 @@ impl StyleManager {
         }
     }
 
-    fn resolve_entry_point(&self, css_config: Option<&CssSection>) -> String {
-        // Use configured entry_point if provided and valid, otherwise default to "main.css"
-        if let Some(css_config) = css_config
-            && let Some(entry_point) = &css_config.entry_point
-        {
-            // Basic validation: ensure it's a valid filename
-            if !entry_point.is_empty()
-                && !entry_point.contains('/')
-                && !entry_point.contains('\\')
-                && entry_point.ends_with(".css")
-            {
-                return entry_point.clone();
-            } else {
-                eprintln!(
-                    "⚠️  Warning: Invalid CSS entry point '{}'. Using default 'main.css'.",
-                    entry_point
-                );
-            }
-        }
 
-        "main.css".to_string()
-    }
 
     fn list_available_css_files(&self) -> Result<String> {
         if !self.styles_dir.exists() {
@@ -477,7 +502,7 @@ impl StyleManager {
         let css_dir = output_dir.join("css");
         ensure_directory_exists(&css_dir)?;
 
-        let entry_point = self.resolve_entry_point(css_config);
+        let entry_point = resolve_and_validate_entry_point(css_config);
 
         // Check if user explicitly configured an entry_point
         let has_explicit_entry_point = css_config
@@ -486,7 +511,7 @@ impl StyleManager {
 
         // Try user's styles directory first, fallback to embedded styles
         if self.styles_dir.exists() {
-            self.process_user_css_entry_point(&css_dir, &entry_point, css_config)?;
+            self.process_user_css_entry_point(&css_dir, &entry_point)?;
         } else if has_explicit_entry_point {
             // User configured entry_point but has no styles directory - error
             return Err(anyhow::anyhow!(
@@ -508,7 +533,6 @@ impl StyleManager {
         &self,
         css_dir: &Path,
         entry_point: &str,
-        _css_config: Option<&CssSection>,
     ) -> Result<()> {
         let entry_path = self.styles_dir.join(entry_point);
 
@@ -517,7 +541,7 @@ impl StyleManager {
             self.css_processor.bundle_css_files(&entry_path, css_dir)?;
             println!("Bundled CSS: {} -> dist/css/main.css", entry_point);
         } else {
-            // Configured entry point not found - error with helpful message
+            // Entry point not found - provide helpful error message
             return Err(anyhow::anyhow!(
                 "CSS entry point '{}' not found in styles directory '{}'.\n\
                  Available files: {}\n\
