@@ -87,18 +87,17 @@ impl CssProcessor {
         self
     }
 
-    pub fn process_css_file(&self, input_path: &Path, output_path: &Path) -> Result<()> {
-        let css_content = fs::read_to_string(input_path)?;
-
+    /// Process CSS content from a string and return the processed CSS string
+    pub fn process_css_string(&self, content: &str, filename: &str) -> Result<String> {
         // Parse CSS with Lightning CSS
         let mut stylesheet = StyleSheet::parse(
-            &css_content,
+            content,
             ParserOptions {
-                filename: input_path.to_string_lossy().to_string(),
+                filename: filename.to_string(),
                 ..ParserOptions::default()
             },
         )
-        .map_err(|e| anyhow::anyhow!("Failed to parse CSS file {}: {}", input_path.display(), e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to parse CSS content from {}: {}", filename, e))?;
 
         // Minify if enabled
         if self.minify {
@@ -111,9 +110,9 @@ impl CssProcessor {
                     HashSet::new() // Default empty set
                 },
             };
-            stylesheet.minify(minify_options).map_err(|e| {
-                anyhow::anyhow!("Failed to minify CSS file {}: {}", input_path.display(), e)
-            })?;
+            stylesheet
+                .minify(minify_options)
+                .map_err(|e| anyhow::anyhow!("Failed to minify CSS from {}: {}", filename, e))?;
         }
 
         // Print to CSS
@@ -124,16 +123,7 @@ impl CssProcessor {
                 targets: self.targets,
                 ..PrinterOptions::default()
             })
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to serialize CSS file {}: {}",
-                    input_path.display(),
-                    e
-                )
-            })?;
-
-        ensure_directory_exists(output_path.parent().unwrap_or_else(|| Path::new("")))?;
-        fs::write(output_path, &result.code)?;
+            .map_err(|e| anyhow::anyhow!("Failed to serialize CSS from {}: {}", filename, e))?;
 
         // TODO: Implement proper source map generation when Lightning CSS API supports it
         // For now, source maps are not generated due to API limitations
@@ -142,6 +132,24 @@ impl CssProcessor {
                 "⚠️  Source maps requested but not yet implemented in Lightning CSS integration"
             );
         }
+
+        Ok(result.code)
+    }
+
+    /// Write processed CSS content to a file
+    pub fn write_processed_css(&self, content: &str, output_path: &Path) -> Result<()> {
+        ensure_directory_exists(output_path.parent().unwrap_or_else(|| Path::new("")))?;
+        fs::write(output_path, content)?;
+        Ok(())
+    }
+
+    /// Process CSS from a file and write to output file (legacy method)
+    pub fn process_css_file(&self, input_path: &Path, output_path: &Path) -> Result<()> {
+        let css_content = fs::read_to_string(input_path)?;
+        let filename = input_path.to_string_lossy().to_string();
+        
+        let processed_content = self.process_css_string(&css_content, &filename)?;
+        self.write_processed_css(&processed_content, output_path)?;
 
         println!(
             "Processed CSS: {} -> {}",
@@ -413,14 +421,9 @@ impl StyleManager {
             // Resolve the @import statements from embedded styles
             let processed_content = self.process_embedded_imports(content)?;
 
-            // Process the final content with Lightning CSS
-            let temp_dir = std::env::temp_dir();
-            let temp_file = temp_dir.join("sherwood_main_temp.css");
-            fs::write(&temp_file, &processed_content)?;
-
-            self.css_processor
-                .process_css_file(&temp_file, &main_css_path)?;
-            fs::remove_file(&temp_file)?; // Clean up temp file
+            // Process the final content with Lightning CSS directly from string
+            let processed_css = self.css_processor.process_css_string(&processed_content, "main.css")?;
+            self.css_processor.write_processed_css(&processed_css, &main_css_path)?;
 
             // Copy other individual CSS files
             for file in STYLES.files() {
@@ -436,11 +439,8 @@ impl StyleManager {
                     let file_name_str = file_name.to_string_lossy().to_string();
                     let dest_path = css_dir.join(&file_name_str);
                     if let Some(content) = file.contents_utf8() {
-                        let temp_file = temp_dir.join(format!("sherwood_{}_temp", file_name_str));
-                        fs::write(&temp_file, content)?;
-                        self.css_processor
-                            .process_css_file(&temp_file, &dest_path)?;
-                        fs::remove_file(&temp_file)?;
+                        let processed_css = self.css_processor.process_css_string(content, &file_name_str)?;
+                        self.css_processor.write_processed_css(&processed_css, &dest_path)?;
                     }
                 }
             }
@@ -457,12 +457,8 @@ impl StyleManager {
                     let file_name_str = file_name.to_string_lossy().to_string();
                     let dest_path = css_dir.join(&file_name_str);
                     if let Some(content) = file.contents_utf8() {
-                        let temp_dir = std::env::temp_dir();
-                        let temp_file = temp_dir.join(format!("sherwood_{}_temp", file_name_str));
-                        fs::write(&temp_file, content)?;
-                        self.css_processor
-                            .process_css_file(&temp_file, &dest_path)?;
-                        fs::remove_file(&temp_file)?;
+                        let processed_css = self.css_processor.process_css_string(content, &file_name_str)?;
+                        self.css_processor.write_processed_css(&processed_css, &dest_path)?;
                     }
                 }
             }
