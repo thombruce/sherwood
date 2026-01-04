@@ -71,7 +71,7 @@ date: "2024-01-15"
 
 ### `list` (boolean)
 
-Marks an index page as a list page that automatically displays all other content in the same directory.
+Marks an index page as a list page that automatically displays all other content in the same directory. The list will be rendered after the page content.
 
 **TOML:**
 ```toml
@@ -170,7 +170,7 @@ title = "Blog"
 
 # Blog
 
-<!-- BLOG_POSTS_LIST -->
+Welcome to my blog! Here you'll find articles about various topics.
 ```
 
 **YAML (Legacy):**
@@ -182,12 +182,12 @@ title: "Blog"
 
 # Blog
 
-<!-- BLOG_POSTS_LIST -->
+Welcome to my blog! Here you'll find articles about various topics.
 ```
 
-## Placeholder
+## List Rendering
 
-For list pages, include the placeholder `<!-- BLOG_POSTS_LIST -->` where you want the automatic content listing to appear.
+For list pages, the content list is automatically rendered after all page content when `list = true` is set in the frontmatter. No special syntax is needed in the markdown content.
 
 ## Format Comparison
 

@@ -45,8 +45,8 @@ struct PageTemplate {
 }
 
 #[derive(TemplateOnce)]
-#[template(path = "blog_post.stpl")]
-struct BlogPostTemplate {
+#[template(path = "content_item.stpl")]
+struct ContentItemTemplate {
     title: String,
     url: String,
     date: Option<String>,
@@ -61,6 +61,7 @@ pub struct TemplateInfo {
     pub is_valid: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct TemplateManager {
     templates_dir: PathBuf,
     available_templates: Vec<String>,
@@ -233,8 +234,8 @@ impl TemplateManager {
                         source: e,
                     })?;
             }
-            "blog_post.stpl" => {
-                let template = BlogPostTemplate {
+            "content_item.stpl" => {
+                let template = ContentItemTemplate {
                     title: "test".to_string(),
                     url: "test".to_string(),
                     date: Some("2024-01-01".to_string()),
@@ -327,7 +328,7 @@ impl TemplateManager {
         Ok(template.render_once()?)
     }
 
-    pub fn render_blog_post(
+    pub fn render_content_item(
         &self,
         title: &str,
         url: &str,
@@ -335,9 +336,9 @@ impl TemplateManager {
         excerpt: Option<&str>,
     ) -> Result<String> {
         // Validate template before rendering
-        self.validate_template("blog_post.stpl")?;
+        self.validate_template("content_item.stpl")?;
 
-        let template = BlogPostTemplate {
+        let template = ContentItemTemplate {
             title: title.to_string(),
             url: url.to_string(),
             date: date.map(|s| s.to_string()),

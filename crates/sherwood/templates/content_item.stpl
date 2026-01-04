@@ -1,4 +1,4 @@
-<article class="blog-post">
+<article class="content-item">
     <h2><a href="/<%= url %>"><%= title %></a></h2>
     <% if let Some(date) = date { %>
         <p class="post-date"><%= date %></p>

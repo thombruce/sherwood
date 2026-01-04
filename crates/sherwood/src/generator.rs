@@ -64,7 +64,7 @@ impl SiteGenerator {
         };
 
         let template_manager = TemplateManager::new(&templates_dir)?;
-        let html_renderer = HtmlRenderer::new(input_dir);
+        let html_renderer = HtmlRenderer::new(input_dir, template_manager.clone());
         let page_generator = PageGenerator::new(template_manager);
 
         // Validate all templates during initialization
@@ -178,33 +178,24 @@ impl SiteGenerator {
         ensure_parent_exists(&html_path)?;
 
         // Convert markdown to HTML with semantic structure
+        let html_content = self
+            .html_renderer
+            .markdown_to_semantic_html(&file.content)?;
+
+        // For list pages, append blog list after all content
         let html_content = if file.frontmatter.list.unwrap_or(false) {
-            // For list pages, process content around the blog list placeholder
-            let parts: Vec<&str> = file.content.split("<!-- BLOG_POSTS_LIST -->").collect();
-            let mut html_parts = Vec::new();
+            let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
+            let blog_list = self
+                .html_renderer
+                .generate_blog_list_content(parent_dir, list_pages)?;
 
-            for (i, part) in parts.iter().enumerate() {
-                // Process markdown content before/after blog list
-                if !part.trim().is_empty() {
-                    let part_html = self.html_renderer.markdown_to_semantic_html(part)?;
-                    html_parts.push(part_html);
-                }
-
-                // Insert blog list between parts (but not after the last part)
-                if i < parts.len() - 1 {
-                    let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
-                    let blog_list = self
-                        .html_renderer
-                        .generate_blog_list_content(parent_dir, list_pages)?;
-                    html_parts.push(blog_list);
-                }
+            if blog_list.trim().is_empty() {
+                html_content
+            } else {
+                format!("{}\n\n{}", html_content, blog_list)
             }
-
-            html_parts.join("\n")
         } else {
-            // For regular pages, process entire content
-            self.html_renderer
-                .markdown_to_semantic_html(&file.content)?
+            html_content
         };
 
         // Generate complete HTML document

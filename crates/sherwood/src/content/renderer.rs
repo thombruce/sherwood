@@ -1,4 +1,5 @@
 use super::parser::MarkdownFile;
+use crate::presentation::templates::TemplateManager;
 use anyhow::Result;
 use pulldown_cmark::{Options, Parser, html};
 use std::collections::HashMap;
@@ -6,12 +7,14 @@ use std::path::{Path, PathBuf};
 
 pub struct HtmlRenderer {
     input_dir: PathBuf,
+    template_manager: TemplateManager,
 }
 
 impl HtmlRenderer {
-    pub fn new(input_dir: &Path) -> Self {
+    pub fn new(input_dir: &Path, template_manager: TemplateManager) -> Self {
         Self {
             input_dir: input_dir.to_path_buf(),
+            template_manager,
         }
     }
 
@@ -69,21 +72,15 @@ impl HtmlRenderer {
                         None
                     };
 
-                    // This would need to be passed in or handled differently
-                    // For now, return a simple format
-                    let blog_post_html = format!(
-                        r#"<article class="blog-post">
-    <h3><a href="/{}">{}</a></h3>
-    {}{}
-</article>"#,
-                        relative_url,
-                        parsed.title,
-                        date.map(|d| format!("<time>{}</time>", d))
-                            .unwrap_or_default(),
-                        excerpt.map(|e| format!("<p>{}</p>", e)).unwrap_or_default()
-                    );
+                    // Use the template to render each content item
+                    let content_item_html = self.template_manager.render_content_item(
+                        &parsed.title,
+                        &relative_url,
+                        date,
+                        excerpt.as_deref(),
+                    )?;
 
-                    list_content.push_str(&blog_post_html);
+                    list_content.push_str(&content_item_html);
                     list_content.push_str("\n\n");
                 }
             }
