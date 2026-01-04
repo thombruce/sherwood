@@ -107,6 +107,61 @@ page_template: "custom.stpl"
 ---
 ```
 
+### `sort_by` (string, optional)
+
+Specifies the field to sort content by when this page is a list page (`list = true`). Only affects the ordering of content in the automatically generated list.
+
+**Available values:**
+- `"date"` - Sort by frontmatter date (default for list pages)
+- `"title"` - Sort by page title  
+- `"filename"` - Sort by filename
+
+**TOML:**
+```toml
++++
+list = true
+title = "Blog"
+sort_by = "date"
++++
+```
+
+**YAML:**
+```yaml
+---
+list: true
+title: "Blog"
+sort_by: "date"
+---
+```
+
+### `sort_order` (string, optional)
+
+Specifies the sort direction when `list = true`. Defaults to `"desc"` for date sorting and `"asc"` for other fields.
+
+**Available values:**
+- `"asc"` - Ascending order (A-Z, oldest first)
+- `"desc"` - Descending order (Z-A, newest first)
+
+**TOML:**
+```toml
++++
+list = true
+title = "Blog"
+sort_by = "date"
+sort_order = "desc"
++++
+```
+
+**YAML:**
+```yaml
+---
+list: true
+title: "Blog"
+sort_by: "date"
+sort_order: "desc"
+---
+```
+
 ## Usage Examples
 
 ### Blog Post
@@ -161,11 +216,39 @@ Here are the available API endpoints...
 
 ### Blog Index
 
-**TOML (Recommended):**
+**Basic list (default date sorting, newest first):**
 ```markdown
 +++
 list = true
 title = "Blog"
++++
+
+# Blog
+
+Welcome to my blog! Here you'll find articles about various topics.
+```
+
+**Blog with custom sorting (newest first):**
+```markdown
++++
+list = true
+title = "Blog"
+sort_by = "date"
+sort_order = "desc"
++++
+
+# Blog
+
+Welcome to my blog! Here you'll find articles about various topics.
+```
+
+**Blog sorted by title alphabetically:**
+```markdown
++++
+list = true
+title = "Blog"
+sort_by = "title"
+sort_order = "asc"
 +++
 
 # Blog
@@ -178,6 +261,8 @@ Welcome to my blog! Here you'll find articles about various topics.
 ---
 list: true
 title: "Blog"
+sort_by: "date"
+sort_order: "desc"
 ---
 
 # Blog
@@ -185,9 +270,63 @@ title: "Blog"
 Welcome to my blog! Here you'll find articles about various topics.
 ```
 
-## List Rendering
+## List Rendering and Sorting
 
-For list pages, the content list is automatically rendered after all page content when `list = true` is set in the frontmatter. No special syntax is needed in the markdown content.
+For list pages, the content list is automatically rendered after all page content when `list = true` is set in the frontmatter. The list can be sorted using the `sort_by` and `sort_order` fields.
+
+### Default Sorting Behavior
+
+- When `list = true` but no sorting options specified: defaults to date descending (newest first)
+- When `sort_by` is specified but no `sort_order`: defaults to ascending for all fields except date
+- Date sorting: files with valid dates come before files without dates
+- Invalid dates fall back to filename sorting within their group
+
+### Supported Date Formats
+
+The date field supports multiple formats for flexible input:
+
+- `2024-01-15` (ISO 8601 format - recommended)
+- `January 15, 2024` (full month name)
+- `Jan 15, 2024` (abbreviated month name)
+- `15/01/2024` (DD/MM/YYYY format)
+- `01/15/2024` (MM/DD/YYYY format)
+
+### Sorting Examples
+
+**Blog with newest posts first:**
+```toml
++++
+list = true
+title = "Blog"
+sort_by = "date"
+sort_order = "desc"
++++
+```
+
+**Documentation alphabetical by title:**
+```toml
++++
+list = true
+title = "Documentation"
+sort_by = "title"
+sort_order = "asc"
++++
+```
+
+**Simple list with default sorting (date, newest first):**
+```toml
++++
+list = true
+title = "Updates"
++++
+```
+
+### Error Handling
+
+- Invalid `sort_by` values: falls back to date sorting with warning
+- Invalid `sort_order` values: falls back to "asc" with warning
+- Unparseable dates: falls back to filename sorting
+- All sorting errors are logged with helpful messages
 
 ## Format Comparison
 
@@ -199,6 +338,17 @@ For list pages, the content list is automatically rendered after all page conten
 | **Strings** | `key = "value"` (quotes required) | `key: value` or `key: "value"` |
 | **Comments** | `# comment` | `# comment` |
 | **Readability** | Simple key-value pairs | More verbose, requires proper indentation |
+
+## Available Fields Summary
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `title` | string | no | Auto-extracted | Page title |
+| `date` | string | no | none | Publication date (multiple formats) |
+| `list` | boolean | no | `false` | Mark as list page |
+| `page_template` | string | no | `default.stpl` | Custom template file |
+| `sort_by` | string | no | `date` (for lists) | Sort field (`date`, `title`, `filename`) |
+| `sort_order` | string | no | `desc` (for date), `asc` (others) | Sort direction (`asc`, `desc`) |
 
 ### Why TOML is Recommended
 

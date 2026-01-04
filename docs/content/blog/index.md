@@ -1,6 +1,8 @@
 +++
 list = true
 title = "Blog"
+sort_by = "date"
+sort_order = "desc"
 +++
 
 # Blog

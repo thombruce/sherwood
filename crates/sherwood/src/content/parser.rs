@@ -2,15 +2,17 @@ use anyhow::Result;
 use serde::Deserialize;
 use std::path::Path;
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct Frontmatter {
     pub title: Option<String>,
     pub date: Option<String>,
     pub list: Option<bool>,
     pub page_template: Option<String>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MarkdownFile {
     pub path: std::path::PathBuf,
     pub content: String,
@@ -387,5 +389,45 @@ Content."#;
         assert_eq!(result.title, "Frontmatter Title");
 
         Ok(())
+    }
+
+    #[test]
+    fn test_sort_fields_parsing() {
+        let content = r#"+++
+title = "Test Title"
+date = "2024-01-15"
+list = true
+sort_by = "date"
+sort_order = "desc"
++++
+
+# Content"#;
+
+        let result = MarkdownParser::parse_frontmatter(content);
+        assert!(result.is_ok());
+
+        let (frontmatter, _) = result.unwrap();
+        assert_eq!(frontmatter.sort_by, Some("date".to_string()));
+        assert_eq!(frontmatter.sort_order, Some("desc".to_string()));
+    }
+
+    #[test]
+    fn test_sort_fields_yaml_parsing() {
+        let content = r#"---
+title: "Test Title"
+date: "2024-01-15"
+list: true
+sort_by: "title"
+sort_order: "asc"
+---
+
+# Content"#;
+
+        let result = MarkdownParser::parse_frontmatter(content);
+        assert!(result.is_ok());
+
+        let (frontmatter, _) = result.unwrap();
+        assert_eq!(frontmatter.sort_by, Some("title".to_string()));
+        assert_eq!(frontmatter.sort_order, Some("asc".to_string()));
     }
 }
