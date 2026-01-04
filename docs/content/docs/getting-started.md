@@ -1,7 +1,7 @@
----
-title: "Getting Started"
-date: "2024-01-10"
----
++++
+title = "Getting Started"
+date = "2024-01-10"
++++
 
 # Getting Started
 

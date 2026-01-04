@@ -1,7 +1,7 @@
----
-title: "Web Development Fundamentals"
-date: "2024-01-20"
----
++++
+title = "Web Development Fundamentals"
+date = "2024-01-20"
++++
 
 # Web Development Fundamentals
 

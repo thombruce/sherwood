@@ -1,7 +1,7 @@
----
-title: Dark Theme Demo
-theme_variant: dark
----
++++
+title = "Dark Theme Demo"
+theme_variant = "dark"
++++
 
 # Dark Theme Demo
 
