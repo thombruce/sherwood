@@ -1,7 +1,7 @@
----
-title: "Getting Started with Rust"
-date: "2024-01-15"
----
++++
+title = "Getting Started with Rust"
+date = "2024-01-15"
++++
 
 # Getting Started with Rust
 

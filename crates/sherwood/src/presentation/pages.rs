@@ -23,7 +23,47 @@ impl PageGenerator {
             .render_page(&file.title, content, css_file.as_deref(), &body_attrs)
     }
 
+    fn get_template_name<'a>(
+        &self,
+        frontmatter: &'a crate::content::parser::Frontmatter,
+    ) -> &'a str {
+        if let Some(template) = &frontmatter.page_template {
+            // Check if the template exists
+            if self.template_exists(template) {
+                return template;
+            } else {
+                eprintln!(
+                    "Warning: Template '{}' not found, using default template",
+                    template
+                );
+            }
+        }
+
+        // Default template
+        "default.stpl"
+    }
+
+    fn template_exists(&self, template_name: &str) -> bool {
+        // First check if it's in the available templates list
+        let available_templates = self.template_manager.get_available_templates();
+        available_templates.contains(&template_name.to_string())
+    }
+
     pub fn process_markdown_file(&self, file: &MarkdownFile, html_content: &str) -> Result<String> {
-        self.generate_html_document_with_template(file, html_content)
+        // Get the appropriate template name based on frontmatter
+        let template_name = self.get_template_name(&file.frontmatter);
+
+        // For now, we still use the default template rendering logic
+        // In the future, this could be extended to dynamically render different templates
+        if template_name == "default.stpl" {
+            self.generate_html_document_with_template(file, html_content)
+        } else {
+            // Log that we're using the default template for now
+            eprintln!(
+                "Note: Template '{}' specified but dynamic template rendering not yet implemented. Using default template.",
+                template_name
+            );
+            self.generate_html_document_with_template(file, html_content)
+        }
     }
 }

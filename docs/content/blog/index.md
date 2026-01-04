@@ -1,7 +1,7 @@
----
-list: true
-title: Blog
----
++++
+list = true
+title = "Blog"
++++
 
 # Blog
 
