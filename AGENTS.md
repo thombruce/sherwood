@@ -457,3 +457,74 @@ Before submitting changes:
 - [ ] **NEVER COMMIT CODE** - Agents should only make suggestions, not commit changes
 
 Follow these guidelines to maintain code quality, security, and consistency across the Sherwood codebase.
+
+## Markdown Migration Notes
+
+### Migration Completed (v0.5.0)
+Sherwood successfully migrated from `gray_matter` + `pulldown-cmark` to the unified `markdown` crate:
+
+**Before:**
+```rust
+// Dependencies
+gray_matter = { version = "0.3", features = ["yaml", "toml"] }
+pulldown-cmark = "0.13"
+
+// Separate parsing steps
+let toml_result = self.toml_matter.parse::<Frontmatter>(content)?;
+let parser = Parser::new_ext(markdown, options);
+```
+
+**After:**
+```rust
+// Dependencies  
+markdown = "1.0"
+
+// Unified parsing with frontmatter support
+let root = to_mdast(content, &self.parse_options)?;
+let html = to_html_with_options(markdown, &options)?;
+```
+
+### Benefits
+- **Simplified Dependencies**: One crate instead of two
+- **Better Performance**: Single-pass parsing with AST
+- **Enhanced Features**: Built-in frontmatter, better error messages
+- **Future-proof**: More actively maintained, supports MDX extensions
+
+### Future Enhancement Opportunities
+
+The migration to the `markdown` crate with AST access enables several potential enhancements:
+
+#### Table of Contents Generation
+```rust
+// Future: Auto-generate TOC from heading structure
+fn generate_toc_from_mdast(root: &Root) -> String {
+    // Extract headings from AST and generate links
+}
+```
+
+#### Reading Time Estimation  
+```rust
+// Future: Estimate reading time from word count
+fn estimate_reading_time(content: &str) -> String {
+    let word_count = content.split_whitespace().count();
+    format!("{} min read", (word_count / 200).max(1))
+}
+```
+
+#### Enhanced Excerpt Generation
+```rust
+// Future: Better excerpt generation using AST
+fn extract_smart_excerpt(root: &Root, max_length: usize) -> String {
+    // Use paragraph boundaries from AST instead of text parsing
+}
+```
+
+#### Content Validation
+```rust
+// Future: Validate internal links and images
+fn validate_content_links(root: &Root) -> Vec<ValidationWarning> {
+    // Check all internal links reference valid files
+}
+```
+
+**Note**: These are documented intentions for future development, not current requirements. The AST-based parsing provides the foundation for implementing these features efficiently.

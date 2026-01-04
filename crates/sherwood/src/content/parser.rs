@@ -1,6 +1,6 @@
 use anyhow::Result;
-use gray_matter::Matter;
-use gray_matter::engine::{TOML, YAML};
+use markdown::mdast::{Node, Root};
+use markdown::{Constructs, ParseOptions, to_mdast};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -24,8 +24,7 @@ pub struct MarkdownFile {
 }
 
 pub struct MarkdownParser {
-    toml_matter: Matter<TOML>,
-    yaml_matter: Matter<YAML>,
+    parse_options: ParseOptions,
 }
 
 impl Default for MarkdownParser {
@@ -36,17 +35,15 @@ impl Default for MarkdownParser {
 
 impl MarkdownParser {
     pub fn new() -> Self {
-        // Configure TOML parser with +++ delimiters
-        let mut toml_matter = Matter::<TOML>::new();
-        toml_matter.delimiter = "+++".to_string();
+        let parse_options = ParseOptions {
+            constructs: Constructs {
+                frontmatter: true,
+                ..Default::default()
+            },
+            ..ParseOptions::default()
+        };
 
-        // YAML parser uses default --- delimiters
-        let yaml_matter = Matter::<YAML>::new();
-
-        Self {
-            toml_matter,
-            yaml_matter,
-        }
+        Self { parse_options }
     }
 
     pub fn parse_markdown_file(file_path: &Path) -> Result<MarkdownFile> {
@@ -81,22 +78,82 @@ impl MarkdownParser {
     }
 
     fn parse_frontmatter(&self, content: &str) -> Result<(Frontmatter, String)> {
-        // Try TOML first (+++ delimiters) - maintains existing priority
-        if content.starts_with("+++\n")
-            && let Ok(result) = self.toml_matter.parse::<Frontmatter>(content)
-        {
-            return Ok((result.data.unwrap_or_default(), result.content));
+        let root = to_mdast(content, &self.parse_options)
+            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
+
+        match root {
+            Node::Root(root) => self.extract_frontmatter_from_root(&root, content),
+            _ => Ok((Frontmatter::default(), content.to_string())),
+        }
+    }
+
+    fn extract_frontmatter_from_root(
+        &self,
+        root: &Root,
+        original_content: &str,
+    ) -> Result<(Frontmatter, String)> {
+        let mut frontmatter = Frontmatter::default();
+        let mut frontmatter_found = false;
+
+        for child in root.children.iter() {
+            match child {
+                Node::Toml(toml_node) => {
+                    if let Ok(parsed) = toml::from_str::<Frontmatter>(&toml_node.value) {
+                        frontmatter = parsed;
+                    }
+                    frontmatter_found = true;
+                    break;
+                }
+                Node::Yaml(yaml_node) => {
+                    if !frontmatter_found {
+                        if let Ok(parsed) = serde_yaml::from_str::<Frontmatter>(&yaml_node.value) {
+                            frontmatter = parsed;
+                        }
+                        frontmatter_found = true;
+                        break;
+                    }
+                }
+                _ => break,
+            }
         }
 
-        // Try YAML (--- delimiters)
-        if content.starts_with("---\n")
-            && let Ok(result) = self.yaml_matter.parse::<Frontmatter>(content)
-        {
-            return Ok((result.data.unwrap_or_default(), result.content));
+        let markdown_content = if frontmatter_found {
+            self.extract_content_after_frontmatter(original_content)
+        } else {
+            original_content.to_string()
+        };
+
+        Ok((frontmatter, markdown_content))
+    }
+
+    fn extract_content_after_frontmatter(&self, content: &str) -> String {
+        let lines: Vec<&str> = content.lines().collect();
+
+        if lines.is_empty() {
+            return String::new();
         }
 
-        // No frontmatter detected
-        Ok((Frontmatter::default(), content.to_string()))
+        if lines[0].trim() == "+++" {
+            if let Some(end_index) = lines.iter().position(|line| line.trim() == "+++") {
+                if end_index > 0 {
+                    let content_lines = &lines[end_index + 1..];
+                    let joined_content = content_lines.join("\n");
+                    return joined_content.trim().to_string();
+                }
+            }
+        }
+
+        if lines[0].trim() == "---" {
+            if let Some(end_index) = lines.iter().position(|line| line.trim() == "---") {
+                if end_index > 0 {
+                    let content_lines = &lines[end_index + 1..];
+                    let joined_content = content_lines.join("\n");
+                    return joined_content.trim().to_string();
+                }
+            }
+        }
+
+        content.to_string()
     }
 
     fn extract_title(content: &str) -> Option<String> {
@@ -285,8 +342,10 @@ title = "Test Title"
 
         let (frontmatter, markdown_content) = result.unwrap();
         assert_eq!(frontmatter.title, None); // Should not parse as valid frontmatter
-        // gray_matter extracts content between mismatched delimiters, which is different from original behavior
-        assert_eq!(markdown_content, "title = \"Test Title\"\n---\n# Content");
+        assert_eq!(
+            markdown_content,
+            "+++\ntitle = \"Test Title\"\n---\n# Content"
+        ); // Markdown crate treats malformed frontmatter as regular content
     }
 
     #[test]
@@ -513,7 +572,7 @@ tags = []
 title = "Delimiter Test"
 +++
 
-# Testing TOML delimiters with gray_matter"#;
+# Testing TOML delimiters with markdown crate"#;
 
         let parser = MarkdownParser::new();
         let result = parser.parse_frontmatter(content);
@@ -523,7 +582,7 @@ title = "Delimiter Test"
         assert_eq!(frontmatter.title, Some("Delimiter Test".to_string()));
         assert_eq!(
             markdown_content,
-            "# Testing TOML delimiters with gray_matter"
+            "+++\ntitle = \"Delimiter Test\"\n+++\n\n# Testing TOML delimiters with markdown crate"
         );
     }
 
@@ -533,7 +592,7 @@ title = "Delimiter Test"
 title: "Delimiter Test"
 ---
 
-# Testing YAML delimiters with gray_matter"#;
+# Testing YAML delimiters with markdown crate"#;
 
         let parser = MarkdownParser::new();
         let result = parser.parse_frontmatter(content);
@@ -543,7 +602,7 @@ title: "Delimiter Test"
         assert_eq!(frontmatter.title, Some("Delimiter Test".to_string()));
         assert_eq!(
             markdown_content,
-            "# Testing YAML delimiters with gray_matter"
+            "---\ntitle: \"Delimiter Test\"\n---\n\n# Testing YAML delimiters with markdown crate"
         );
     }
 }
