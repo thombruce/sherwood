@@ -1,7 +1,9 @@
 use crate::config::{SiteConfig, SiteSection, TemplateSection};
-use crate::content::parser::{MarkdownFile, MarkdownParser};
+use crate::content::parser::MarkdownFile;
 use crate::content::renderer::HtmlRenderer;
+use crate::content::universal_parser::UniversalContentParser;
 use crate::core::utils::{ensure_directory_exists, ensure_parent_exists};
+use crate::plugins::PluginRegistry;
 use crate::presentation::pages::PageGenerator;
 use crate::presentation::styles::StyleManager;
 use crate::presentation::templates::TemplateManager;
@@ -19,16 +21,13 @@ const CONFIG_PATH_RELATIVE: &str = "../Sherwood.toml";
 // Constants for template names
 const DEFAULT_PAGE_TEMPLATE: &str = "default.stpl";
 
-// Constants for file extensions
-const MARKDOWN_EXT: &str = "md";
-const MARKDOWN_LONG_EXT: &str = "markdown";
-
 pub struct SiteGenerator {
     input_dir: PathBuf,
     output_dir: PathBuf,
     style_manager: StyleManager,
     html_renderer: HtmlRenderer,
     page_generator: PageGenerator,
+    content_parser: UniversalContentParser,
     #[allow(dead_code)]
     site_config: SiteConfig,
     #[allow(dead_code)]
@@ -44,7 +43,32 @@ impl SiteGenerator {
         Self::new_with_mode(input_dir, output_dir, true)
     }
 
+    pub fn new_with_plugins(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: PluginRegistry,
+    ) -> Result<Self> {
+        Self::new_with_mode_and_plugins(input_dir, output_dir, false, Some(plugin_registry))
+    }
+
+    pub fn new_development_with_plugins(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: PluginRegistry,
+    ) -> Result<Self> {
+        Self::new_with_mode_and_plugins(input_dir, output_dir, true, Some(plugin_registry))
+    }
+
     fn new_with_mode(input_dir: &Path, output_dir: &Path, is_development: bool) -> Result<Self> {
+        Self::new_with_mode_and_plugins(input_dir, output_dir, is_development, None)
+    }
+
+    fn new_with_mode_and_plugins(
+        input_dir: &Path,
+        output_dir: &Path,
+        is_development: bool,
+        plugin_registry: Option<PluginRegistry>,
+    ) -> Result<Self> {
         let styles_dir = input_dir.join(STYLES_DIR_RELATIVE);
         let templates_dir = input_dir.join(TEMPLATES_DIR_RELATIVE);
 
@@ -77,12 +101,16 @@ impl SiteGenerator {
         let style_manager =
             StyleManager::new_with_config(&styles_dir, site_config.css.as_ref(), is_development);
 
+        // Create content parser with optional plugins
+        let content_parser = UniversalContentParser::new(plugin_registry);
+
         Ok(Self {
             input_dir: input_dir.to_path_buf(),
             output_dir: output_dir.to_path_buf(),
             style_manager,
             html_renderer,
             page_generator,
+            content_parser,
             site_config,
             is_development,
         })
@@ -98,18 +126,18 @@ impl SiteGenerator {
         // Generate CSS
         self.generate_css()?;
 
-        // Find all markdown files
-        let markdown_files = self.find_markdown_files(&self.input_dir)?;
+        // Find all content files
+        let content_files = self.find_content_files(&self.input_dir)?;
 
-        if markdown_files.is_empty() {
-            println!("No markdown files found in {}", self.input_dir.display());
+        if content_files.is_empty() {
+            println!("No content files found in {}", self.input_dir.display());
             return Ok(());
         }
 
-        // Parse all markdown files to extract metadata
+        // Parse all content files to extract metadata
         let mut parsed_files = Vec::new();
-        for file_path in markdown_files {
-            let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+        for file_path in content_files {
+            let parsed = self.content_parser.parse_file(&file_path)?;
             parsed_files.push(parsed);
         }
 
@@ -135,9 +163,10 @@ impl SiteGenerator {
         Ok(())
     }
 
-    fn find_markdown_files(&self, dir: &Path) -> Result<Vec<PathBuf>> {
+    fn find_content_files(&self, dir: &Path) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
         let mut dirs_to_visit = Vec::new();
+        let supported_extensions = self.content_parser.supported_extensions();
 
         if !dir.exists() {
             println!("Content directory {} does not exist", dir.display());
@@ -154,7 +183,7 @@ impl SiteGenerator {
                 if path.is_dir() {
                     dirs_to_visit.push(path);
                 } else if let Some(extension) = path.extension()
-                    && (extension == MARKDOWN_EXT || extension == MARKDOWN_LONG_EXT)
+                    && supported_extensions.contains(&extension.to_string_lossy().to_string())
                 {
                     files.push(path);
                 }
@@ -225,5 +254,31 @@ pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {
 
 pub async fn generate_site_development(input_dir: &Path, output_dir: &Path) -> Result<()> {
     let generator = SiteGenerator::new_development(input_dir, output_dir)?;
+    generator.generate().await
+}
+
+pub async fn generate_site_with_plugins(
+    input_dir: &Path,
+    output_dir: &Path,
+    plugin_registry: Option<PluginRegistry>,
+) -> Result<()> {
+    let generator = if let Some(registry) = plugin_registry {
+        SiteGenerator::new_with_plugins(input_dir, output_dir, registry)?
+    } else {
+        SiteGenerator::new(input_dir, output_dir)?
+    };
+    generator.generate().await
+}
+
+pub async fn generate_site_development_with_plugins(
+    input_dir: &Path,
+    output_dir: &Path,
+    plugin_registry: Option<PluginRegistry>,
+) -> Result<()> {
+    let generator = if let Some(registry) = plugin_registry {
+        SiteGenerator::new_development_with_plugins(input_dir, output_dir, registry)?
+    } else {
+        SiteGenerator::new_development(input_dir, output_dir)?
+    };
     generator.generate().await
 }

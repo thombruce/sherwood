@@ -1,0 +1,6 @@
+{
+  "title": "JSON Content Page",
+  "date": "2024-01-05",
+  "description": "This is a JSON content file example",
+  "content": "# JSON Content\n\nThis is the main content of JSON file.\n\n## Subheading\n\nMore content here in markdown format."
+}

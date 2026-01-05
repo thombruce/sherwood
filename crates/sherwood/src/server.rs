@@ -1,3 +1,4 @@
+use crate::plugins::PluginRegistry;
 use anyhow::Result;
 use axum::{
     Router,
@@ -11,6 +12,32 @@ use tower_http::cors::CorsLayer;
 pub async fn run_dev_server(input_dir: &Path, output_dir: &Path, port: u16) -> Result<()> {
     println!("Generating site in development mode...");
     super::generate_site_development(input_dir, output_dir).await?;
+
+    let output_dir_buf = output_dir.to_path_buf();
+    let fallback_handler =
+        move |uri: Uri| async move { handle_fallback(uri, output_dir_buf.clone()).await };
+
+    let app = Router::new()
+        .fallback(fallback_handler)
+        .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
+
+    let addr = format!("127.0.0.1:{}", port);
+    println!("Development server running at http://{}", addr);
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+pub async fn run_dev_server_with_plugins(
+    input_dir: &Path,
+    output_dir: &Path,
+    port: u16,
+    plugin_registry: Option<PluginRegistry>,
+) -> Result<()> {
+    println!("Generating site in development mode...");
+    super::generate_site_development_with_plugins(input_dir, output_dir, plugin_registry).await?;
 
     let output_dir_buf = output_dir.to_path_buf();
     let fallback_handler =

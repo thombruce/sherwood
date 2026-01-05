@@ -1,10 +1,13 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+use crate::plugins::PluginRegistry;
+
 /// A configurable CLI for Sherwood static site generator
 pub struct SherwoodCli {
     name: String,
     about: String,
+    plugin_registry: Option<PluginRegistry>,
 }
 
 impl SherwoodCli {
@@ -13,12 +16,19 @@ impl SherwoodCli {
         Self {
             name: name.to_string(),
             about: about.to_string(),
+            plugin_registry: None,
         }
     }
 
     /// Create a new Sherwood CLI with default name and description
     pub fn with_defaults() -> Self {
         Self::new("sherwood", "A static site generator for Markdown content")
+    }
+
+    /// Add custom content parsers to the CLI
+    pub fn with_plugins(mut self, registry: PluginRegistry) -> Self {
+        self.plugin_registry = Some(registry);
+        self
     }
 
     /// Run the CLI and handle the parsed command
@@ -37,7 +47,8 @@ impl SherwoodCli {
                 let output = self.get_arg(&args, "-o", "--output", "dist");
                 let input_path = PathBuf::from(input);
                 let output_path = PathBuf::from(output);
-                crate::generate_site(&input_path, &output_path).await
+                crate::generate_site_with_plugins(&input_path, &output_path, self.plugin_registry)
+                    .await
             }
             "dev" => {
                 let input = self.get_arg(&args, "-i", "--input", "content");
@@ -48,7 +59,13 @@ impl SherwoodCli {
                 let port_num = port
                     .parse::<u16>()
                     .map_err(|_| anyhow::anyhow!("Invalid port number: {}", port))?;
-                crate::run_dev_server(&input_path, &output_path, port_num).await
+                crate::run_dev_server_with_plugins(
+                    &input_path,
+                    &output_path,
+                    port_num,
+                    self.plugin_registry,
+                )
+                .await
             }
             "--help" | "-h" => {
                 self.print_help();
