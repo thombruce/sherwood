@@ -12,9 +12,6 @@
 .sherwood/release/*
 ## ...but include the Sherwood ssg binary
 !.sherwood/release/ssg
-## TODO: Remove:
-!.sherwood/release/dev
-!.sherwood/release/generate
 
 # OS
 .DS_Store
