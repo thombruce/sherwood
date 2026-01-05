@@ -1,6 +1,6 @@
 use anyhow::Result;
 use markdown::mdast::{Node, Root};
-use markdown::{to_mdast, Constructs, ParseOptions};
+use markdown::{Constructs, ParseOptions, to_mdast};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -200,12 +200,12 @@ impl MarkdownParser {
     fn extract_title_from_ast(root: &Node) -> Option<String> {
         if let Node::Root(root_node) = root {
             for child in &root_node.children {
-                if let Node::Heading(heading) = child {
-                    if heading.depth == 1 {
-                        let title_text = Self::extract_text_from_nodes(&heading.children);
-                        if !title_text.trim().is_empty() {
-                            return Some(title_text.trim().to_string());
-                        }
+                if let Node::Heading(heading) = child
+                    && heading.depth == 1
+                {
+                    let title_text = Self::extract_text_from_nodes(&heading.children);
+                    if !title_text.trim().is_empty() {
+                        return Some(title_text.trim().to_string());
                     }
                 }
             }
