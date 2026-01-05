@@ -1,9 +1,6 @@
 #[tokio::main]
 async fn main() {
-    let cli = sherwood::SherwoodCli::new(
-        "ssg",
-        "A static site generator for Markdown content"
-    );
+    let cli = sherwood::SherwoodCli::with_defaults();
 
     if let Err(e) = cli.run().await {
         eprintln!("Error: {}", e);
