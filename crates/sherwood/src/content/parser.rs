@@ -1,6 +1,6 @@
 use anyhow::Result;
 use markdown::mdast::{Node, Root};
-use markdown::{to_mdast, Constructs, ParseOptions};
+use markdown::{Constructs, ParseOptions, to_mdast};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -95,6 +95,7 @@ impl MarkdownParser {
         let mut frontmatter = Frontmatter::default();
         let mut frontmatter_end_byte = None;
 
+        #[allow(clippy::never_loop)]
         for child in root.children.iter() {
             match child {
                 Node::Toml(toml_node) => {
