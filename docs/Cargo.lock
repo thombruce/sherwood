@@ -416,7 +416,6 @@ dependencies = [
 name = "docs"
 version = "0.1.0"
 dependencies = [
- "clap",
  "sherwood",
  "tokio",
 ]

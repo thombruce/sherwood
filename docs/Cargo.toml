@@ -16,5 +16,4 @@ path = "src/main.rs"
 
 [dependencies]
 sherwood = { path = "../crates/sherwood" }
-clap = { version = "4.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }
