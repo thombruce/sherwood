@@ -1,0 +1,59 @@
+API Documentation: Authentication Endpoints
+
+This document describes the authentication API endpoints for our web service.
+
+## Login Endpoint
+
+POST /api/auth/login
+
+### Request Body
+```json
+{
+  "username": "string",
+  "password": "string"
+}
+```
+
+### Response
+```json
+{
+  "token": "jwt_token_string",
+  "expires_in": 3600
+}
+```
+
+## Logout Endpoint
+
+POST /api/auth/logout
+
+### Headers
+Authorization: Bearer {token}
+
+## Token Validation
+
+GET /api/auth/validate
+
+### Headers
+Authorization: Bearer {token}
+
+### Response
+```json
+{
+  "valid": true,
+  "user_id": 123
+}
+```
+
+## Error Handling
+
+All endpoints return appropriate HTTP status codes:
+- 200: Success
+- 401: Unauthorized
+- 400: Bad Request
+- 500: Server Error
+
+## Security Notes
+
+- Tokens expire after 1 hour
+- Passwords must be hashed using bcrypt
+- Rate limiting applies: 5 requests per minute per IP

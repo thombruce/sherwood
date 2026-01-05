@@ -1,5 +1,5 @@
 mod parsers;
-use parsers::{JsonContentParser, TomlContentParser};
+use parsers::{JsonContentParser, TomlContentParser, TextContentParser};
 use sherwood::plugins::PluginRegistry;
 
 #[tokio::main]
@@ -7,6 +7,7 @@ async fn main() {
     let plugin_registry = PluginRegistry::new()
         .register("toml", TomlContentParser::new(), "toml")
         .register("json", JsonContentParser::new(), "json")
+        .register("text", TextContentParser::new(), "txt")
         .map_extensions(&[("conf", "toml"), ("config", "toml"), ("schema", "json")]);
 
     let cli = sherwood::SherwoodCli::new("ssg", "A static site generator for Markdown content")
