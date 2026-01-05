@@ -10,6 +10,10 @@ categories = ["web-programming", "development-tools"]
 
 [workspace]
 
+[[bin]]
+name = "ssg"
+path = "src/main.rs"
+
 [dependencies]
 sherwood = { path = "../crates/sherwood" }
 clap = { version = "4.0", features = ["derive"] }

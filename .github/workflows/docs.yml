@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Generate docs site
-        run: cd docs && ./.sherwood/release/generate
+        run: cd docs && ./.sherwood/release/ssg generate
 
       - name: Add custom domain
         run: echo "sherwood.thombruce.com" > docs/dist/CNAME

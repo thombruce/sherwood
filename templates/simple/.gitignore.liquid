@@ -1,0 +1,24 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Sherwood
+/dist/
+## Exclude .sherwood release dir
+.sherwood/
+!.sherwood/
+.sherwood/*
+!.sherwood/release/
+.sherwood/release/*
+## ...but include the Sherwood ssg binary
+!.sherwood/release/ssg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

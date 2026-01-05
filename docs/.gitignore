@@ -10,7 +10,9 @@
 .sherwood/*
 !.sherwood/release/
 .sherwood/release/*
-## ...but include the sherwood dev and generate binaries
+## ...but include the Sherwood ssg binary
+!.sherwood/release/ssg
+## TODO: Remove:
 !.sherwood/release/dev
 !.sherwood/release/generate
 
