@@ -13,7 +13,7 @@ categories = ["web-programming", "development-tools"]
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
-pulldown-cmark = "0.13"
+markdown = "1.0"
 tokio = { version = "1.0", features = ["full"] }
 axum = "0.8"
 tower = "0.5"
@@ -27,3 +27,4 @@ thiserror = "1.0"
 tempfile = "3.8"
 lightningcss = { version = "1.0.0-alpha.68", features = ["bundler"] }
 chrono = { version = "0.4", features = ["serde"] }
+

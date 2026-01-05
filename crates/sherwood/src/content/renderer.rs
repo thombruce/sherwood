@@ -2,7 +2,7 @@ use super::parser::MarkdownFile;
 use crate::presentation::templates::TemplateManager;
 use anyhow::Result;
 use chrono::NaiveDate;
-use pulldown_cmark::{Options, Parser, html};
+use markdown::{Options, to_html_with_options};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -145,17 +145,19 @@ impl HtmlRenderer {
     }
 
     pub fn markdown_to_semantic_html(&self, markdown: &str) -> Result<String> {
-        let mut options = Options::empty();
-        options.insert(Options::ENABLE_STRIKETHROUGH);
-        options.insert(Options::ENABLE_TABLES);
-        options.insert(Options::ENABLE_FOOTNOTES);
+        let options = Options::gfm(); // GFM includes strikethrough, tables, footnotes
 
-        let parser = Parser::new_ext(markdown, options);
-        let mut html_output = String::new();
-        html::push_html(&mut html_output, parser);
+        let html_output = to_html_with_options(markdown, &options)
+            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
 
         Ok(self.enhance_semantics(&html_output))
     }
+
+    // TODO: Implement direct AST-to-HTML rendering when markdown-rs supports it
+    // Future enhancement: Use AST directly for HTML generation instead of:
+    // 1. AST parsing → content extraction → markdown string → HTML parsing
+    // This would eliminate the double parsing and provide more efficient rendering
+    // Track progress: https://github.com/wooorm/markdown-rs/issues
 
     pub fn generate_blog_list_content(
         &self,
@@ -210,9 +212,7 @@ impl HtmlRenderer {
             // Extract first paragraph as excerpt
             let excerpt = if !self.extract_first_paragraph(&parsed.content).is_empty() {
                 let first_paragraph = self.extract_first_paragraph(&parsed.content);
-                let parser = Parser::new(&first_paragraph);
-                let mut excerpt_html = String::new();
-                html::push_html(&mut excerpt_html, parser);
+                let excerpt_html = self.markdown_to_semantic_html(&first_paragraph)?;
                 Some(excerpt_html)
             } else {
                 None
