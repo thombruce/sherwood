@@ -1,6 +1,6 @@
 use anyhow::Result;
 use markdown::mdast::{Node, Root};
-use markdown::{Constructs, ParseOptions, to_mdast};
+use markdown::{to_mdast, Constructs, ParseOptions};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -53,14 +53,21 @@ impl MarkdownParser {
     }
 
     fn parse_content(&self, content: &str, file_path: &Path) -> Result<MarkdownFile> {
-        // Parse frontmatter and extract content
-        let (frontmatter, markdown_content) = self.parse_frontmatter(content)?;
+        // Parse AST once for both frontmatter and title extraction
+        let root = to_mdast(content, &self.parse_options)
+            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
 
-        // Extract title from frontmatter, first h1, or filename
+        // Extract frontmatter and clean content using AST
+        let (frontmatter, markdown_content) = match &root {
+            Node::Root(root_node) => self.extract_frontmatter_from_root(root_node, content),
+            _ => Ok((Frontmatter::default(), content.to_string())),
+        }?;
+
+        // Extract title from frontmatter, first h1 from AST, or filename
         let title = frontmatter
             .title
             .clone()
-            .or_else(|| Self::extract_title(&markdown_content))
+            .or_else(|| Self::extract_title_from_ast(&root))
             .unwrap_or_else(|| {
                 file_path
                     .file_stem()
@@ -75,16 +82,6 @@ impl MarkdownParser {
             frontmatter,
             title,
         })
-    }
-
-    fn parse_frontmatter(&self, content: &str) -> Result<(Frontmatter, String)> {
-        let root = to_mdast(content, &self.parse_options)
-            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
-
-        match root {
-            Node::Root(root) => self.extract_frontmatter_from_root(&root, content),
-            _ => Ok((Frontmatter::default(), content.to_string())),
-        }
     }
 
     fn extract_frontmatter_from_root(
@@ -130,6 +127,17 @@ impl MarkdownParser {
         Ok((frontmatter, markdown_content))
     }
 
+    #[allow(dead_code)]
+    fn parse_frontmatter(&self, content: &str) -> Result<(Frontmatter, String)> {
+        let root = to_mdast(content, &self.parse_options)
+            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
+
+        match root {
+            Node::Root(root) => self.extract_frontmatter_from_root(&root, content),
+            _ => Ok((Frontmatter::default(), content.to_string())),
+        }
+    }
+
     fn extract_content_using_ast_position(
         &self,
         original_content: &str,
@@ -161,11 +169,45 @@ impl MarkdownParser {
         }
     }
 
-    fn extract_title(content: &str) -> Option<String> {
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if let Some(stripped) = trimmed.strip_prefix("# ") {
-                return Some(stripped.trim().to_string());
+    /// Extract plain text content from AST nodes recursively
+    fn extract_text_from_nodes(nodes: &[Node]) -> String {
+        nodes
+            .iter()
+            .map(|node| match node {
+                Node::Text(text) => text.value.clone(),
+                Node::Emphasis(emphasis) => Self::extract_text_from_nodes(&emphasis.children),
+                Node::Strong(strong) => Self::extract_text_from_nodes(&strong.children),
+                Node::InlineCode(code) => code.value.clone(),
+                Node::Delete(delete) => Self::extract_text_from_nodes(&delete.children),
+                Node::Link(link) => Self::extract_text_from_nodes(&link.children),
+                Node::Image(image) => {
+                    // Use alt text for images in headings
+                    image.alt.clone()
+                }
+                Node::InlineMath(math) => math.value.clone(),
+                // MDX nodes
+                Node::MdxTextExpression(_) | Node::MdxJsxTextElement(_) => {
+                    // For MDX content, we'll extract text if possible or skip
+                    String::new()
+                }
+                _ => String::new(),
+            })
+            .collect::<Vec<String>>()
+            .join("")
+    }
+
+    /// Extract title from AST by finding the first H1 heading
+    fn extract_title_from_ast(root: &Node) -> Option<String> {
+        if let Node::Root(root_node) = root {
+            for child in &root_node.children {
+                if let Node::Heading(heading) = child {
+                    if heading.depth == 1 {
+                        let title_text = Self::extract_text_from_nodes(&heading.children);
+                        if !title_text.trim().is_empty() {
+                            return Some(title_text.trim().to_string());
+                        }
+                    }
+                }
             }
         }
         None
@@ -653,5 +695,243 @@ More content here."#;
         assert_eq!(markdown_lines[0], "# Main Content");
         assert!(markdown_content.contains("## Subsection"));
         assert!(markdown_content.contains("More content here."));
+    }
+
+    #[test]
+    fn test_ast_title_extraction_simple() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"# Simple Title
+
+This content has a simple H1 title."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        assert_eq!(result.title, "Simple Title");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_with_emphasis() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"# Title with *emphasis* and **bold**
+
+This content has a complex H1 title."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        assert_eq!(result.title, "Title with emphasis and bold");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_with_inline_code() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"# Title with `code` and more text
+
+This content has inline code in the title."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        assert_eq!(result.title, "Title with code and more text");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_with_link() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"# Title with [a link](https://example.com) text
+
+This content has a link in the title."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        assert_eq!(result.title, "Title with a link text");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_complex_formatting() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"# Title with *italic*, **bold**, `code`, and [links](https://example.com)
+
+This content has all types of inline formatting."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        assert_eq!(result.title, "Title with italic, bold, code, and links");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_ignores_h2_and_below() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"## H2 Title
+### H3 Title
+
+This content has no H1 title."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Should fall back to filename since no H1 found
+        assert_eq!(result.title, "test");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_first_h1_only() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"# First Title
+# Second Title
+
+This content has multiple H1 titles."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Should extract the first H1 only
+        assert_eq!(result.title, "First Title");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_with_frontmatter_priority() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"+++
+title = "Frontmatter Title"
++++
+
+# H1 Title
+
+This content has both frontmatter and H1 title."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Frontmatter title should take priority
+        assert_eq!(result.title, "Frontmatter Title");
+        assert_eq!(
+            result.frontmatter.title,
+            Some("Frontmatter Title".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_empty_heading() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"#
+
+This content has an empty H1 heading."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Should fall back to filename since H1 is empty
+        assert_eq!(result.title, "test");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_title_extraction_whitespace_only() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = "#
+   
+This content has a whitespace-only H1 heading.";
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Should fall back to filename since H1 contains only whitespace
+        assert_eq!(result.title, "test");
+        assert_eq!(result.frontmatter.title, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_vs_string_parsing_compatibility() -> Result<()> {
+        let temp_dir = tempdir()?;
+
+        // Test cases that should work the same for both methods
+        let test_cases = vec![
+            ("simple", "# Simple Title\nContent here.", "Simple Title"),
+            (
+                "with-space",
+                "# Title with space\nContent here.",
+                "Title with space",
+            ),
+            (
+                "with-punctuation",
+                "# Title, with punctuation!\nContent here.",
+                "Title, with punctuation!",
+            ),
+        ];
+
+        for (filename, content, expected_title) in test_cases {
+            let file_path = temp_dir.path().join(format!("{}.md", filename));
+            fs::write(&file_path, content)?;
+
+            let result = MarkdownParser::parse_markdown_file(&file_path)?;
+            assert_eq!(
+                result.title, expected_title,
+                "Failed for case: {}",
+                filename
+            );
+        }
+
+        Ok(())
     }
 }
