@@ -206,10 +206,8 @@ impl SiteGenerator {
         // Create parent directories if needed
         ensure_parent_exists(&html_path)?;
 
-        // Convert markdown to HTML with semantic structure
-        let html_content = self
-            .html_renderer
-            .markdown_to_semantic_html(&file.content)?;
+        // Process content intelligently (HTML passes through, markdown gets converted)
+        let html_content = self.html_renderer.process_content(&file.content)?;
 
         // For list pages, append blog list after all content
         let html_content = if file.frontmatter.list.unwrap_or(false) {

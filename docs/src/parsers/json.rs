@@ -1,4 +1,5 @@
 use anyhow::Result;
+use sherwood::content::markdown_util::MarkdownProcessor;
 use sherwood::content::parser::Frontmatter;
 use sherwood::plugins::{ContentParser, ParsedContent};
 use std::collections::HashMap;
@@ -76,14 +77,27 @@ impl ContentParser for JsonContentParser {
             metadata.insert("author".to_string(), author.to_string());
         }
 
+        // Handle content: support both markdown and HTML
+        let html_content =
+            if let Some(content_field) = parsed.get("content").and_then(|v| v.as_str()) {
+                if content_field.trim().starts_with('<')
+                    && (content_field.contains("</") || content_field.contains("/>"))
+                {
+                    // Content is already HTML
+                    content_field.to_string()
+                } else {
+                    // Convert markdown to HTML
+                    MarkdownProcessor::process(content_field)?
+                }
+            } else {
+                // No content field, generate empty HTML
+                String::new()
+            };
+
         Ok(ParsedContent {
             title,
             frontmatter,
-            content: parsed
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
+            content: html_content, // Now always HTML
             metadata,
         })
     }

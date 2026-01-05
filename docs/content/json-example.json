@@ -1,6 +1,6 @@
 {
-  "title": "JSON Content Page",
+  "title": "JSON Markdown Page",
   "date": "2024-01-05",
-  "description": "This is a JSON content file example",
-  "content": "# JSON Content\n\nThis is the main content of JSON file.\n\n## Subheading\n\nMore content here in markdown format."
+  "description": "This JSON file demonstrates markdown-to-HTML conversion",
+  "content": "# JSON Markdown Content\n\nThis content is **written in markdown** within the JSON file.\n\n## Features\n\n- Automatic markdown-to-HTML conversion\n- Semantic HTML generation\n- Backward compatibility maintained\n\nThe parser detects this is markdown and converts it to HTML automatically."
 }

@@ -1,0 +1,6 @@
+{
+  "title": "JSON HTML Content Page",
+  "date": "2024-01-05",
+  "description": "This JSON file contains direct HTML content",
+  "content": "<h1>Direct HTML Content</h1><p>This is <strong>pre-rendered HTML</strong> from JSON.</p><p>No markdown processing needed - this content goes directly to the template.</p>"
+}

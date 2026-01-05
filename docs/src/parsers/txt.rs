@@ -1,4 +1,5 @@
 use anyhow::Result;
+use sherwood::content::markdown_util::MarkdownProcessor;
 use sherwood::content::parser::Frontmatter;
 use sherwood::plugins::{ContentParser, ParsedContent};
 use std::collections::HashMap;
@@ -29,10 +30,13 @@ impl ContentParser for TextContentParser {
         // Title will be derived from filename by existing logic
         let frontmatter = Frontmatter::default(); // Empty frontmatter
 
+        // Convert entire text content to HTML
+        let html_content = MarkdownProcessor::process(content)?;
+
         Ok(ParsedContent {
             title: String::new(), // Will be overridden by filename fallback
             frontmatter,
-            content: content.to_string(), // Preserve exactly
+            content: html_content, // Convert text to HTML
             metadata: HashMap::new(),
         })
     }

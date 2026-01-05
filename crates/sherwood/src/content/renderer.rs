@@ -144,6 +144,18 @@ impl HtmlRenderer {
         None
     }
 
+    /// Process content intelligently - HTML passes through, markdown gets converted
+    pub fn process_content(&self, content: &str) -> Result<String> {
+        // Simple HTML detection - if it looks like HTML, treat as HTML
+        if self.looks_like_html(content) {
+            self.validate_basic_html(content)?;
+            Ok(content.to_string())
+        } else {
+            // Fallback to markdown processing for backward compatibility
+            self.markdown_to_semantic_html(content)
+        }
+    }
+
     pub fn markdown_to_semantic_html(&self, markdown: &str) -> Result<String> {
         let options = Options::gfm(); // GFM includes strikethrough, tables, footnotes
 
@@ -151,6 +163,30 @@ impl HtmlRenderer {
             .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
 
         Ok(self.enhance_semantics(&html_output))
+    }
+
+    /// Basic heuristic to detect if content is already HTML
+    fn looks_like_html(&self, content: &str) -> bool {
+        let trimmed = content.trim_start();
+        trimmed.starts_with('<') && (trimmed.contains("</") || trimmed.contains("/>"))
+    }
+
+    /// Basic HTML validation - check for balanced tags and safe elements
+    fn validate_basic_html(&self, html: &str) -> Result<()> {
+        // Simple validation: check for dangerous elements
+        let dangerous = ["<script", "<iframe", "<object", "<embed", "<form"];
+        let lower_html = html.to_lowercase();
+
+        for danger in &dangerous {
+            if lower_html.contains(danger) {
+                return Err(anyhow::anyhow!(
+                    "HTML contains potentially unsafe element: {}",
+                    danger
+                ));
+            }
+        }
+
+        Ok(())
     }
 
     // TODO: Implement direct AST-to-HTML rendering when markdown-rs supports it
@@ -212,7 +248,7 @@ impl HtmlRenderer {
             // Extract first paragraph as excerpt
             let excerpt = if !self.extract_first_paragraph(&parsed.content).is_empty() {
                 let first_paragraph = self.extract_first_paragraph(&parsed.content);
-                let excerpt_html = self.markdown_to_semantic_html(&first_paragraph)?;
+                let excerpt_html = self.process_content(&first_paragraph)?;
                 Some(excerpt_html)
             } else {
                 None
@@ -692,5 +728,97 @@ sort_order = "desc"
         assert!(first_index < third_index); // First Post should come before Third Post
 
         Ok(())
+    }
+
+    #[test]
+    fn test_html_content_passthrough() {
+        let renderer = create_test_html_renderer();
+        let html = "<h1>Test</h1><p>Content</p>";
+        let result = renderer.process_content(html).unwrap();
+        assert_eq!(result, html);
+    }
+
+    #[test]
+    fn test_markdown_content_conversion() {
+        let renderer = create_test_html_renderer();
+        let markdown = "# Test\n\nContent here";
+        let result = renderer.process_content(markdown).unwrap();
+        assert!(result.contains("<h1>Test</h1>"));
+        assert!(result.contains("<p>Content here</p>"));
+    }
+
+    #[test]
+    fn test_unsafe_html_rejection() {
+        let renderer = create_test_html_renderer();
+        let unsafe_html = "<h1>Test</h1><script>alert('xss')</script>";
+        let result = renderer.process_content(unsafe_html);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unsafe element"));
+    }
+
+    #[test]
+    fn test_html_detection_heuristic() {
+        let renderer = create_test_html_renderer();
+
+        // Should detect as HTML
+        assert!(renderer.looks_like_html("<h1>Test</h1>"));
+        assert!(renderer.looks_like_html("<p>Paragraph</p>"));
+        assert!(renderer.looks_like_html("<br/>"));
+        assert!(renderer.looks_like_html("   <div>Content</div>")); // with leading whitespace
+
+        // Should not detect as HTML
+        assert!(!renderer.looks_like_html("# Markdown heading"));
+        assert!(!renderer.looks_like_html("Just plain text"));
+        assert!(!renderer.looks_like_html("<unclosed tag")); // no closing tag or self-closing
+    }
+
+    #[test]
+    fn test_empty_content_handling() {
+        let renderer = create_test_html_renderer();
+
+        // Empty string should not be detected as HTML
+        assert!(!renderer.looks_like_html(""));
+
+        // But should process without error
+        let result = renderer.process_content("").unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_html_validation_dangerous_elements() {
+        let renderer = create_test_html_renderer();
+
+        let dangerous_cases = [
+            "<script>alert('xss')</script>",
+            "<iframe src='evil.com'></iframe>",
+            "<object data='malicious.swf'></object>",
+            "<embed src='dangerous content'>",
+            "<form action='steal-data.com'></form>",
+        ];
+
+        for dangerous_html in &dangerous_cases {
+            let result = renderer.validate_basic_html(dangerous_html);
+            assert!(result.is_err(), "Should reject: {}", dangerous_html);
+        }
+    }
+
+    #[test]
+    fn test_html_validation_safe_elements() {
+        let renderer = create_test_html_renderer();
+
+        let safe_cases = [
+            "<h1>Safe heading</h1>",
+            "<p>Safe paragraph</p>",
+            "<div>Safe div</div>",
+            "<span>Safe span</span>",
+            "<ul><li>Safe list item</li></ul>",
+            "<a href='safe.com'>Safe link</a>",
+            "<img src='safe.jpg' alt='Safe image' />",
+        ];
+
+        for safe_html in &safe_cases {
+            let result = renderer.validate_basic_html(safe_html);
+            assert!(result.is_ok(), "Should allow: {}", safe_html);
+        }
     }
 }

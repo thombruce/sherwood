@@ -1,0 +1,4 @@
+title = "TOML HTML Content Page"
+date = "2024-01-05"
+description = "This TOML file contains direct HTML content"
+content = "<div class=\"special-content\"><h2>HTML from TOML</h2><p>This content is <em>directly</em> written as HTML in the TOML file.</p><p>It includes custom classes and structure.</p></div>"
