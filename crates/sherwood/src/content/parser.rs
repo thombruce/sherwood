@@ -1,6 +1,6 @@
 use anyhow::Result;
 use markdown::mdast::{Node, Root};
-use markdown::{Constructs, ParseOptions, to_mdast};
+use markdown::{to_mdast, Constructs, ParseOptions};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -93,7 +93,7 @@ impl MarkdownParser {
         original_content: &str,
     ) -> Result<(Frontmatter, String)> {
         let mut frontmatter = Frontmatter::default();
-        let mut frontmatter_found = false;
+        let mut frontmatter_end_byte = None;
 
         for child in root.children.iter() {
             match child {
@@ -101,59 +101,63 @@ impl MarkdownParser {
                     if let Ok(parsed) = toml::from_str::<Frontmatter>(&toml_node.value) {
                         frontmatter = parsed;
                     }
-                    frontmatter_found = true;
+
+                    // Get position information for content extraction
+                    if let Some(position) = &toml_node.position {
+                        frontmatter_end_byte = Some(position.end.offset);
+                    }
                     break;
                 }
                 Node::Yaml(yaml_node) => {
-                    if !frontmatter_found {
-                        if let Ok(parsed) = serde_yaml::from_str::<Frontmatter>(&yaml_node.value) {
-                            frontmatter = parsed;
-                        }
-                        frontmatter_found = true;
-                        break;
+                    if let Ok(parsed) = serde_yaml::from_str::<Frontmatter>(&yaml_node.value) {
+                        frontmatter = parsed;
                     }
+
+                    if let Some(position) = &yaml_node.position {
+                        frontmatter_end_byte = Some(position.end.offset);
+                    }
+                    break;
                 }
                 _ => break,
             }
         }
 
-        let markdown_content = if frontmatter_found {
-            self.extract_content_after_frontmatter(original_content)
-        } else {
-            original_content.to_string()
-        };
+        // Use AST position information for clean content extraction
+        let markdown_content =
+            self.extract_content_using_ast_position(original_content, frontmatter_end_byte);
 
         Ok((frontmatter, markdown_content))
     }
 
-    fn extract_content_after_frontmatter(&self, content: &str) -> String {
-        let lines: Vec<&str> = content.lines().collect();
+    fn extract_content_using_ast_position(
+        &self,
+        original_content: &str,
+        frontmatter_end_byte: Option<usize>,
+    ) -> String {
+        match frontmatter_end_byte {
+            Some(end_byte) => {
+                // Convert byte offset to char offset safely
+                let content_bytes = original_content.as_bytes();
 
-        if lines.is_empty() {
-            return String::new();
-        }
-
-        if lines[0].trim() == "+++" {
-            if let Some(end_index) = lines.iter().position(|line| line.trim() == "+++") {
-                if end_index > 0 {
-                    let content_lines = &lines[end_index + 1..];
-                    let joined_content = content_lines.join("\n");
-                    return joined_content.trim().to_string();
+                if end_byte >= content_bytes.len() {
+                    // Frontmatter extends to end of content, return empty
+                    return String::new();
                 }
+
+                // Find the content after frontmatter
+                let remaining_bytes = &content_bytes[end_byte..];
+
+                // Convert back to string and clean up leading whitespace
+                let content_str = String::from_utf8_lossy(remaining_bytes);
+
+                // Trim leading newlines and whitespace
+                content_str.trim_start().to_string()
+            }
+            None => {
+                // No frontmatter found, return original content
+                original_content.to_string()
             }
         }
-
-        if lines[0].trim() == "---" {
-            if let Some(end_index) = lines.iter().position(|line| line.trim() == "---") {
-                if end_index > 0 {
-                    let content_lines = &lines[end_index + 1..];
-                    let joined_content = content_lines.join("\n");
-                    return joined_content.trim().to_string();
-                }
-            }
-        }
-
-        content.to_string()
     }
 
     fn extract_title(content: &str) -> Option<String> {
@@ -580,9 +584,11 @@ title = "Delimiter Test"
 
         let (frontmatter, markdown_content) = result.unwrap();
         assert_eq!(frontmatter.title, Some("Delimiter Test".to_string()));
+
+        // Verify frontmatter is completely removed from markdown content
         assert_eq!(
-            markdown_content,
-            "+++\ntitle = \"Delimiter Test\"\n+++\n\n# Testing TOML delimiters with markdown crate"
+            markdown_content.trim(),
+            "# Testing TOML delimiters with markdown crate"
         );
     }
 
@@ -600,9 +606,51 @@ title: "Delimiter Test"
 
         let (frontmatter, markdown_content) = result.unwrap();
         assert_eq!(frontmatter.title, Some("Delimiter Test".to_string()));
+
+        // Verify frontmatter is completely removed from markdown content
         assert_eq!(
-            markdown_content,
-            "---\ntitle: \"Delimiter Test\"\n---\n\n# Testing YAML delimiters with markdown crate"
+            markdown_content.trim(),
+            "# Testing YAML delimiters with markdown crate"
         );
+    }
+
+    #[test]
+    fn test_ast_guided_frontmatter_extraction() {
+        let parser = MarkdownParser::new();
+
+        let content = r#"+++
+title = "Test Article"
+date = "2023-01-01"
+tags = ["test", "extraction"]
++++
+
+# Main Content
+
+This is the main content of the article.
+
+## Subsection
+
+More content here."#;
+
+        let (frontmatter, markdown_content) = parser.parse_frontmatter(content).unwrap();
+
+        // Verify frontmatter is parsed correctly
+        assert_eq!(frontmatter.title, Some("Test Article".to_string()));
+        assert_eq!(frontmatter.date, Some("2023-01-01".to_string()));
+        assert_eq!(
+            frontmatter.tags,
+            Some(vec!["test".to_string(), "extraction".to_string()])
+        );
+
+        // Verify frontmatter is completely removed from markdown content
+        assert!(!markdown_content.contains("title = \"Test Article\""));
+        assert!(!markdown_content.contains("date = \"2023-01-01\""));
+        assert!(!markdown_content.contains("+++"));
+
+        // Verify content structure is preserved
+        let markdown_lines: Vec<&str> = markdown_content.trim().lines().collect();
+        assert_eq!(markdown_lines[0], "# Main Content");
+        assert!(markdown_content.contains("## Subsection"));
+        assert!(markdown_content.contains("More content here."));
     }
 }
