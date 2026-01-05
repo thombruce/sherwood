@@ -153,6 +153,12 @@ impl HtmlRenderer {
         Ok(self.enhance_semantics(&html_output))
     }
 
+    // TODO: Implement direct AST-to-HTML rendering when markdown-rs supports it
+    // Future enhancement: Use AST directly for HTML generation instead of:
+    // 1. AST parsing → content extraction → markdown string → HTML parsing
+    // This would eliminate the double parsing and provide more efficient rendering
+    // Track progress: https://github.com/wooorm/markdown-rs/issues
+
     pub fn generate_blog_list_content(
         &self,
         dir: &Path,
