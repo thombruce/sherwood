@@ -1,4 +1,4 @@
-use super::templates::TemplateManager;
+use super::templates::{ListData, TemplateManager};
 use crate::content::parser::MarkdownFile;
 use anyhow::Result;
 
@@ -65,5 +65,24 @@ impl PageGenerator {
             );
             self.generate_html_document_with_template(file, html_content)
         }
+    }
+
+    pub fn process_markdown_file_with_list(
+        &self,
+        file: &MarkdownFile,
+        html_content: &str,
+        list_data: Option<ListData>,
+    ) -> Result<String> {
+        let title = file.frontmatter.title.as_deref().unwrap_or(&file.title);
+        let css_file = Some("/css/main.css".to_string());
+        let body_attrs = String::new();
+
+        self.template_manager.render_page_with_list(
+            title,
+            html_content,
+            css_file.as_deref(),
+            &body_attrs,
+            list_data,
+        )
     }
 }

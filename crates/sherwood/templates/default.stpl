@@ -11,6 +11,22 @@
 <body<%= body_attrs %>>
     <main>
         <%- content %>
+        
+        <% if let Some(list) = list_data { %>
+            <div class="content-list">
+                <% for item in list.items { %>
+                    <article class="content-item<% if item.date.is_some() { %> blog-post<% } %>">
+                        <h2><a href="/<%= item.url %>"><%= item.title %></a></h2>
+                        <% if let Some(date) = item.date { %>
+                            <p class="post-date"><%= date %></p>
+                        <% } %>
+                        <% if let Some(excerpt) = item.excerpt { %>
+                            <p class="post-excerpt"><%- excerpt %></p>
+                        <% } %>
+                    </article>
+                <% } %>
+            </div>
+        <% } %>
     </main>
 </body>
 </html>

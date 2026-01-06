@@ -203,26 +203,20 @@ impl SiteGenerator {
         // Process content intelligently (HTML passes through, markdown gets converted)
         let html_content = self.html_renderer.process_content(&file.content)?;
 
-        // For list pages, append blog list after all content
-        let html_content = if file.frontmatter.list.unwrap_or(false) {
-            let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
-            let blog_list = self
-                .html_renderer
-                .generate_blog_list_content(parent_dir, list_pages)?;
-
-            if blog_list.trim().is_empty() {
-                html_content
-            } else {
-                format!("{}\n\n{}", html_content, blog_list)
-            }
-        } else {
-            html_content
-        };
-
         // Generate complete HTML document
-        let full_html = self
-            .page_generator
-            .process_markdown_file(file, &html_content)?;
+        let full_html = if file.frontmatter.list.unwrap_or(false) {
+            let parent_dir = relative_path.parent().unwrap_or_else(|| Path::new(""));
+            let list_data = Some(
+                self.html_renderer
+                    .generate_list_data(parent_dir, list_pages)?,
+            );
+
+            self.page_generator
+                .process_markdown_file_with_list(file, &html_content, list_data)?
+        } else {
+            self.page_generator
+                .process_markdown_file(file, &html_content)?
+        };
 
         fs::write(&html_path, full_html)?;
         println!("Generated: {}", html_path.display());
