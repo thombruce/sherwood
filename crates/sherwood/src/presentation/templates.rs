@@ -64,10 +64,7 @@ struct PageTemplate {
 #[derive(TemplateOnce)]
 #[template(path = "content_item.stpl")]
 struct ContentItemTemplate {
-    title: String,
-    url: String,
-    date: Option<String>,
-    excerpt: Option<String>,
+    item: ListItemData,
 }
 
 #[derive(Debug)]
@@ -211,23 +208,6 @@ impl TemplateManager {
         template
             .render_once()
             .map_err(|e| anyhow::anyhow!("Template render error: {}", e))
-    }
-
-    pub fn render_content_item(
-        &self,
-        title: &str,
-        url: &str,
-        date: Option<&str>,
-        excerpt: Option<&str>,
-    ) -> Result<String> {
-        let template = ContentItemTemplate {
-            title: title.to_string(),
-            url: url.to_string(),
-            date: date.map(|s| s.to_string()),
-            excerpt: excerpt.map(|s| s.to_string()),
-        };
-
-        Ok(template.render_once()?)
     }
 
     pub fn get_template_path(&self, template_name: &str) -> PathBuf {

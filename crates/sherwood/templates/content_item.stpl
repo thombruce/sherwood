@@ -1,9 +1,9 @@
-<article class="content-item<% if date.is_some() { %> blog-post<% } %>">
-    <h2><a href="/<%= url %>"><%= title %></a></h2>
-    <% if let Some(date) = date { %>
+<article class="content-item<% if item.date.is_some() { %> blog-post<% } %>">
+    <h2><a href="/<%= item.url %>"><%= item.title %></a></h2>
+    <% if let Some(date) = item.date { %>
         <p class="post-date"><%= date %></p>
     <% } %>
-    <% if let Some(excerpt) = excerpt { %>
+    <% if let Some(excerpt) = item.excerpt { %>
         <p class="post-excerpt"><%- excerpt %></p>
     <% } %>
 </article>
