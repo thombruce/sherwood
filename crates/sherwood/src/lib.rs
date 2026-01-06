@@ -3,6 +3,7 @@ pub mod config;
 pub mod content;
 pub mod core;
 pub mod generator;
+pub mod partials;
 pub mod plugins;
 pub mod presentation;
 pub mod server;
@@ -13,6 +14,7 @@ pub use generator::{
     generate_site, generate_site_development, generate_site_development_with_plugins,
     generate_site_with_plugins,
 };
+pub use partials::ContentItem;
 pub use plugins::{ContentParser, ParsedContent, PluginRegistry};
 pub use presentation::styles::StyleManager;
 pub use presentation::templates::TemplateManager;

@@ -1,6 +1,6 @@
 # Template Composition with ContentItem
 
-Sherwood now provides a clean, ergonomic API for template composition through the `crate::partials::ContentItem` struct.
+Sherwood now provides a clean, ergonomic API for template composition through the `crate::ContentItem` struct.
 
 ## Usage in Custom Templates
 
@@ -9,7 +9,7 @@ Sherwood now provides a clean, ergonomic API for template composition through th
 <!-- In your custom template at docs/templates/my_list.stpl -->
 <div class="my-custom-list">
     <% for item in items { %>
-        <%+ ContentItem::from(item) %>
+        <%+ crate::ContentItem::from(item) %>
     <% } %>
 </div>
 ```
