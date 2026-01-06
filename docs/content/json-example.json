@@ -1,6 +1,7 @@
 {
   "title": "JSON Markdown Page",
   "date": "2024-01-05",
+  "excerpt": "JSON content files support both markdown and HTML with automatic excerpt extraction.",
   "description": "This JSON file demonstrates markdown-to-HTML conversion",
-  "content": "# JSON Markdown Content\n\nThis content is **written in markdown** within the JSON file.\n\n## Features\n\n- Automatic markdown-to-HTML conversion\n- Semantic HTML generation\n- Backward compatibility maintained\n\nThe parser detects this is markdown and converts it to HTML automatically."
+  "content": "# JSON Markdown Content\n\nThis content is **written in markdown** within a JSON file.\n\n## Features\n\n- Automatic markdown-to-HTML conversion\n- Semantic HTML generation\n- Backward compatibility maintained\n\nThe parser detects this is markdown and converts it to HTML automatically."
 }

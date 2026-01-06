@@ -218,14 +218,8 @@ impl HtmlRenderer {
                 .with_extension("");
             let relative_url = relative_url_path.to_string_lossy();
 
-            // Extract first paragraph as excerpt
-            let excerpt = if !self.extract_first_paragraph(&parsed.content).is_empty() {
-                let first_paragraph = self.extract_first_paragraph(&parsed.content);
-                // Content is already HTML, so use it directly
-                Some(first_paragraph)
-            } else {
-                None
-            };
+            // Use excerpt from frontmatter if present
+            let excerpt = parsed.frontmatter.excerpt.as_deref();
 
             // Use the template to render each content item
             let content_item_html = self.template_manager.render_content_item(
@@ -245,35 +239,6 @@ impl HtmlRenderer {
         } else {
             Ok(list_content)
         }
-    }
-
-    pub fn extract_first_paragraph(&self, content: &str) -> String {
-        #[allow(clippy::collapsible_if)]
-        // Extract first paragraph from HTML content
-        // Look for <p> tags or treat content without <p> as single paragraph
-        if let Some(start) = content.find("<p>") {
-            if let Some(end) = content[start..].find("</p>") {
-                return content[start..start + end + 4].to_string(); // Include closing tag
-            }
-        }
-
-        // If no <p> tags found, check if it's plain text or single paragraph HTML
-        let trimmed = content.trim();
-        if !trimmed.is_empty() && !trimmed.starts_with("<") {
-            // Plain text - return as is
-            return trimmed.to_string();
-        }
-
-        // For other HTML, try to extract first meaningful text block
-        // Simple heuristic: look for first block-level element or return first line
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with("<!--") {
-                return trimmed.to_string();
-            }
-        }
-
-        String::new()
     }
 }
 
@@ -728,5 +693,121 @@ sort_order = "desc"
             let result = renderer.validate_basic_html(safe_html);
             assert!(result.is_ok(), "Should allow: {}", safe_html);
         }
+    }
+
+    #[test]
+    fn test_renderer_uses_frontmatter_excerpt() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file with excerpt in frontmatter
+        let frontmatter = r#"+++
+title = "Test Post"
+excerpt = "Custom excerpt from frontmatter"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!(
+            "{}\n\n# Test Post\n\nFirst paragraph.\n\nSecond paragraph.",
+            frontmatter
+        );
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify that the parser set the excerpt correctly
+        assert_eq!(
+            parsed.frontmatter.excerpt,
+            Some("Custom excerpt from frontmatter".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_renderer_with_extracted_excerpt() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file without excerpt in frontmatter (should be extracted)
+        let frontmatter = r#"+++
+title = "Test Post"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!(
+            "{}\n\n# Test Post\n\nThis excerpt should be extracted.\n\nSecond paragraph.",
+            frontmatter
+        );
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify that the parser extracted the excerpt
+        assert_eq!(
+            parsed.frontmatter.excerpt,
+            Some("This excerpt should be extracted.".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_renderer_with_no_excerpt() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file without excerpt and with no paragraphs (no excerpt possible)
+        let frontmatter = r#"+++
+title = "Test Post"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!("{}\n\n# Just a heading", frontmatter);
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify that no excerpt was extracted
+        assert_eq!(parsed.frontmatter.excerpt, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_renderer_excerpt_priority_frontmatter() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file with excerpt in frontmatter AND content that could be extracted
+        let frontmatter = r#"+++
+title = "Test Post"
+excerpt = "Priority excerpt"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!(
+            "{}\n\n# Test Post\n\nThis should NOT be extracted.\n\nSecond paragraph.",
+            frontmatter
+        );
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify frontmatter excerpt takes priority
+        assert_eq!(
+            parsed.frontmatter.excerpt,
+            Some("Priority excerpt".to_string())
+        );
+
+        Ok(())
     }
 }

@@ -458,6 +458,71 @@ Before submitting changes:
 
 Follow these guidelines to maintain code quality, security, and consistency across the Sherwood codebase.
 
+## Excerpt Support (v0.6.0)
+
+Sherwood now supports excerpt extraction through frontmatter, providing both manual and automatic excerpt generation:
+
+#### Frontmatter Field
+The `excerpt` field can be specified in frontmatter:
+```toml
++++
+title = "My Article"
+excerpt = "Custom summary for blog listings"
+date = "2024-01-15"
++++
+```
+
+#### Automatic Excerpt Extraction
+When no excerpt is provided, Sherwood automatically extracts the first paragraph from content:
+- Strips all formatting (bold, italic, links, code, etc.)
+- Uses AST for accurate paragraph detection
+- Falls back gracefully when no paragraphs exist
+
+#### Parser Support
+All parsers support excerpt handling:
+- **Markdown**: AST-based extraction with formatting stripping
+- **JSON**: Manual excerpt + auto-extraction from content field
+- **TOML**: Manual excerpt + auto-extraction from content field
+
+#### Implementation Priority
+1. **Frontmatter excerpt** (highest priority)
+2. **Parser-extracted excerpt** (fallback)
+3. **No excerpt** (if neither available)
+
+#### Usage in Templates
+Excerpts are passed to templates as `frontmatter.excerpt`:
+- Available in blog listings and content summaries
+- Rendered as plain text (no HTML formatting)
+- None when no excerpt available
+
+#### Excerpt Extraction Logic
+
+**Markdown Parser:**
+```rust
+// AST-based extraction from first paragraph
+fn extract_excerpt_from_markdown(&self, markdown: &str) -> Option<String> {
+    let root = to_mdast(markdown, &self.parse_options).ok()?;
+    self.extract_first_paragraph_from_ast(&root)
+}
+```
+
+**Custom Parsers:**
+```rust
+// For markdown content
+frontmatter.excerpt = markdown_parser.extract_excerpt_from_markdown(content);
+
+// For plain text/HTML content  
+frontmatter.excerpt = MarkdownParser::extract_excerpt_from_plain_text(content);
+```
+
+#### Testing Coverage
+- Frontmatter excerpt parsing (TOML/YAML)
+- Auto-extraction from markdown content
+- Formatting stripping (bold, italic, links, code)
+- Plain text extraction from non-markdown content
+- Fallback behavior when no content/paragraphs exist
+- Priority handling (frontmatter > extracted)
+
 ## Markdown Migration Notes
 
 ### Migration Completed (v0.5.0)
@@ -513,7 +578,7 @@ fn estimate_reading_time(content: &str) -> String {
 
 #### Enhanced Excerpt Generation
 ```rust
-// Future: Better excerpt generation using AST
+// Now implemented: Smart excerpt extraction using AST
 fn extract_smart_excerpt(root: &Root, max_length: usize) -> String {
     // Use paragraph boundaries from AST instead of text parsing
 }

@@ -155,6 +155,41 @@ sort_order = "desc"
 **YAML:**
 ```yaml
 ---
+list = true
+title = "Blog"
+sort_by = "date"
+sort_order = "desc"
+---
+```
+
+### `excerpt` (string, optional)
+
+Provides a custom excerpt for the content. If not specified, Sherwood will automatically extract the first paragraph as a plain text excerpt. The excerpt is used in blog listings and other content summaries.
+
+**Auto-Extraction:**
+When no excerpt is provided, Sherwood extracts the first paragraph from the content and strips all formatting (bold, italic, links, code, etc.) to create a plain text excerpt.
+
+**TOML:**
+```toml
++++
+title = "My Blog Post"
+excerpt = "A custom summary that appears in blog listings"
+date = "2024-01-15"
++++
+```
+
+**YAML:**
+```yaml
+---
+title: "My Blog Post"
+excerpt: "A custom summary that appears in blog listings"
+date: "2024-01-15"
+---
+```
+
+**YAML:**
+```yaml
+---
 list: true
 title: "Blog"
 sort_by: "date"
@@ -166,7 +201,20 @@ sort_order: "desc"
 
 ### Blog Post
 
-**TOML (Recommended):**
+**With custom excerpt:**
+```markdown
++++
+title = "Understanding Rust Ownership"
+date = "2024-01-20"
+excerpt = "Learn how Rust's ownership system ensures memory safety without garbage collection."
++++
+
+# Understanding Rust Ownership
+
+Rust's ownership system is one of its most distinctive features...
+```
+
+**With auto-extraction (no excerpt field):**
 ```markdown
 +++
 title = "Understanding Rust Ownership"
@@ -175,7 +223,7 @@ date = "2024-01-20"
 
 # Understanding Rust Ownership
 
-Rust's ownership system is one of its most distinctive features...
+Rust's ownership system is one of its most distinctive features. This first paragraph will be automatically extracted as the excerpt for blog listings.
 ```
 
 **YAML (Legacy):**
@@ -183,6 +231,7 @@ Rust's ownership system is one of its most distinctive features...
 ---
 title: "Understanding Rust Ownership"
 date: "2024-01-20"
+excerpt: "Learn how Rust's ownership system ensures memory safety without garbage collection."
 ---
 
 # Understanding Rust Ownership
@@ -349,6 +398,7 @@ title = "Updates"
 | `page_template` | string | no | `default.stpl` | Custom template file |
 | `sort_by` | string | no | `date` (for lists) | Sort field (`date`, `title`, `filename`) |
 | `sort_order` | string | no | `desc` (for date), `asc` (others) | Sort direction (`asc`, `desc`) |
+| `excerpt` | string | no | Auto-extracted | Custom excerpt for content listings |
 
 ### Why TOML is Recommended
 
