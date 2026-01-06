@@ -15,5 +15,5 @@ pub use generator::{
 };
 pub use plugins::{ContentParser, ParsedContent, PluginRegistry};
 pub use presentation::styles::StyleManager;
-pub use presentation::templates::{TemplateManager, validate_templates};
+pub use presentation::templates::TemplateManager;
 pub use server::{run_dev_server, run_dev_server_with_plugins};

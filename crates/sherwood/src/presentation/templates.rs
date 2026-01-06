@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use include_dir::{Dir, include_dir};
 use sailfish::{TemplateOnce, runtime::RenderError};
 use std::fs;
@@ -58,7 +58,6 @@ pub struct TemplateInfo {
     pub name: String,
     pub path: PathBuf,
     pub size: usize,
-    pub is_valid: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -131,155 +130,9 @@ impl TemplateManager {
                     name: name.clone(),
                     path: path.clone(),
                     size,
-                    is_valid: self.validate_template(name).is_ok(),
                 }
             })
             .collect()
-    }
-
-    /// Validate a specific template
-    pub fn validate_template(&self, template_name: &str) -> Result<()> {
-        // Check if template exists
-        if !self
-            .available_templates
-            .contains(&template_name.to_string())
-        {
-            return Err(TemplateError::TemplateNotFound {
-                template_name: template_name.to_string(),
-            }
-            .into());
-        }
-
-        // Try to read the template content
-        let template_content = self.get_template_content(template_name)?;
-
-        // Basic validation checks
-        self.validate_template_syntax(template_name, &template_content)?;
-
-        // Try to compile the template (this is a more thorough validation)
-        self.validate_template_compilation(template_name)?;
-
-        Ok(())
-    }
-
-    /// Get template content from filesystem or embedded templates
-    fn get_template_content(&self, template_name: &str) -> Result<String> {
-        // Try filesystem first
-        let fs_path = self.templates_dir.join(template_name);
-        if fs_path.exists() {
-            return Ok(fs::read_to_string(&fs_path)?);
-        }
-
-        // Fall back to embedded templates
-        if let Some(embedded_file) = TEMPLATES.get_file(template_name) {
-            return Ok(embedded_file
-                .contents_utf8()
-                .ok_or_else(|| TemplateError::InvalidTemplate {
-                    template_name: template_name.to_string(),
-                    details: "Template contains invalid UTF-8".to_string(),
-                })?
-                .to_string());
-        }
-
-        Err(TemplateError::TemplateNotFound {
-            template_name: template_name.to_string(),
-        }
-        .into())
-    }
-
-    /// Basic template syntax validation
-    fn validate_template_syntax(&self, template_name: &str, content: &str) -> Result<()> {
-        // Check for balanced template delimiters
-        let open_count = content.matches("<%").count();
-        let close_count = content.matches("%>").count();
-
-        if open_count != close_count {
-            return Err(TemplateError::ValidationFailed {
-                template_name: template_name.to_string(),
-                reason: format!(
-                    "Unbalanced template delimiters: {} opening, {} closing",
-                    open_count, close_count
-                ),
-            }
-            .into());
-        }
-
-        // Check for obvious syntax errors
-        if content.matches("<%").any(|m| m.ends_with("%>")) {
-            return Err(TemplateError::ValidationFailed {
-                template_name: template_name.to_string(),
-                reason: "Empty template blocks found".to_string(),
-            }
-            .into());
-        }
-
-        Ok(())
-    }
-
-    /// Validate template by attempting compilation
-    fn validate_template_compilation(&self, template_name: &str) -> Result<()> {
-        // For the known templates, we can test compilation
-        match template_name {
-            "default.stpl" => {
-                let template = PageTemplate {
-                    title: "test".to_string(),
-                    content: "test".to_string(),
-                    css_file: Some("/test.css".to_string()),
-                    body_attrs: "test".to_string(),
-                };
-                template
-                    .render_once()
-                    .map_err(|e| TemplateError::CompilationError {
-                        template_name: template_name.to_string(),
-                        source: e,
-                    })?;
-            }
-            "content_item.stpl" => {
-                let template = ContentItemTemplate {
-                    title: "test".to_string(),
-                    url: "test".to_string(),
-                    date: Some("2024-01-01".to_string()),
-                    excerpt: Some("test".to_string()),
-                };
-                template
-                    .render_once()
-                    .map_err(|e| TemplateError::CompilationError {
-                        template_name: template_name.to_string(),
-                        source: e,
-                    })?;
-            }
-            _ => {
-                // For unknown templates, just check if they exist
-                // We could potentially implement generic template validation here
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate all available templates
-    pub fn validate_all_templates(&self) -> Result<Vec<String>> {
-        let mut errors = Vec::new();
-
-        for template_name in &self.available_templates {
-            if let Err(e) = self.validate_template(template_name) {
-                errors.push(format!("Template '{}': {}", template_name, e));
-            }
-        }
-
-        if errors.is_empty() {
-            println!(
-                "✅ All {} templates validated successfully",
-                self.available_templates.len()
-            );
-            Ok(errors)
-        } else {
-            println!("❌ Found {} template validation errors:", errors.len());
-            for error in &errors {
-                println!("  - {}", error);
-            }
-            Ok(errors)
-        }
     }
 
     /// Get list of available template names
@@ -296,11 +149,7 @@ impl TemplateManager {
         let info = self.get_template_info();
 
         for template_info in info {
-            let status = if template_info.is_valid { "✅" } else { "❌" };
-            println!(
-                "  {} {} ({} bytes)",
-                status, template_info.name, template_info.size
-            );
+            println!(" {} ({} bytes)", template_info.name, template_info.size);
         }
 
         if self.available_templates.is_empty() {
@@ -315,9 +164,6 @@ impl TemplateManager {
         css_file: Option<&str>,
         body_attrs: &str,
     ) -> Result<String> {
-        // Validate template before rendering
-        self.validate_template("default.stpl")?;
-
         let template = PageTemplate {
             title: title.to_string(),
             content: content.to_string(),
@@ -335,9 +181,6 @@ impl TemplateManager {
         date: Option<&str>,
         excerpt: Option<&str>,
     ) -> Result<String> {
-        // Validate template before rendering
-        self.validate_template("content_item.stpl")?;
-
         let template = ContentItemTemplate {
             title: title.to_string(),
             url: url.to_string(),
@@ -393,42 +236,4 @@ pub fn get_available_templates() -> Vec<String> {
                 .to_string()
         })
         .collect()
-}
-
-/// Validate templates in the specified directory
-pub fn validate_templates(templates_dir: &Option<PathBuf>, verbose: bool) -> Result<()> {
-    let templates_path = match templates_dir {
-        Some(path) => path.clone(),
-        None => {
-            // Default to ../templates relative to current directory
-            std::env::current_dir()
-                .unwrap_or_default()
-                .join("../templates")
-        }
-    };
-
-    match TemplateManager::new(&templates_path) {
-        Ok(template_manager) => {
-            if verbose {
-                template_manager.debug_print_templates();
-            }
-
-            let errors = template_manager.validate_all_templates()?;
-            if errors.is_empty() {
-                println!("🎉 All templates are valid!");
-                Ok(())
-            } else {
-                Err(anyhow!(
-                    "Template validation failed with {} errors",
-                    errors.len()
-                ))
-            }
-        }
-        Err(e) => {
-            if verbose {
-                eprintln!("❌ Failed to initialize template manager: {}", e);
-            }
-            Err(e)
-        }
-    }
 }

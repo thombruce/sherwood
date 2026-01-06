@@ -25,14 +25,6 @@ enum Commands {
         #[arg(short, long, default_value = "3000")]
         port: u16,
     },
-    Validate {
-        /// Templates directory to validate (defaults to ../templates relative to content)
-        #[arg(short, long)]
-        templates: Option<PathBuf>,
-        /// Show detailed template information
-        #[arg(long)]
-        verbose: bool,
-    },
 }
 
 #[tokio::main]
@@ -53,12 +45,6 @@ async fn main() {
         } => {
             if let Err(e) = sherwood::run_dev_server(&input, &output, port).await {
                 eprintln!("Error running dev server: {}", e);
-                std::process::exit(1);
-            }
-        }
-        Commands::Validate { templates, verbose } => {
-            if let Err(e) = sherwood::validate_templates(&templates, verbose) {
-                eprintln!("Error validating templates: {}", e);
                 std::process::exit(1);
             }
         }

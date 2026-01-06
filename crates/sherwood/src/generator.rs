@@ -91,12 +91,6 @@ impl SiteGenerator {
         let html_renderer = HtmlRenderer::new(input_dir, template_manager.clone());
         let page_generator = PageGenerator::new(template_manager);
 
-        // Validate all templates during initialization
-        let validation_errors = page_generator.template_manager.validate_all_templates()?;
-        if !validation_errors.is_empty() {
-            eprintln!("⚠️  Template validation warnings detected, but continuing...");
-        }
-
         // Create style manager based on mode and configuration
         let style_manager =
             StyleManager::new_with_config(&styles_dir, site_config.css.as_ref(), is_development);
