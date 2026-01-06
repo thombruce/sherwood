@@ -39,9 +39,10 @@ impl BreadcrumbGenerator {
     pub fn generate_breadcrumb(&self, file: &MarkdownFile) -> Result<Option<BreadcrumbData>> {
         // Check if breadcrumbs are enabled
         if let Some(config) = &self.config
-            && config.enabled == Some(false) {
-                return Ok(None);
-            }
+            && config.enabled == Some(false)
+        {
+            return Ok(None);
+        }
 
         // Get the relative path from input directory
         let relative_path = match file.path.strip_prefix(&self.input_dir) {
@@ -134,9 +135,10 @@ impl BreadcrumbGenerator {
         if index_path.exists() {
             // Parse the index file to extract title
             if let Ok(markdown_file) = MarkdownParser::parse_markdown_file(&index_path)
-                && !markdown_file.title.is_empty() {
-                    return Ok(markdown_file.title);
-                }
+                && !markdown_file.title.is_empty()
+            {
+                return Ok(markdown_file.title);
+            }
         }
 
         // Fallback to directory name with title case
