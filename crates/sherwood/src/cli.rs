@@ -35,24 +35,21 @@ enum Commands {
 
 /// A configurable CLI for Sherwood static site generator
 pub struct SherwoodCli {
-    name: String,
-    about: String,
     plugin_registry: Option<PluginRegistry>,
 }
 
+impl Default for SherwoodCli {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SherwoodCli {
-    /// Create a new Sherwood CLI with custom name and description
-    pub fn new(name: &str, about: &str) -> Self {
+    /// Create a new Sherwood CLI
+    pub fn new() -> Self {
         Self {
-            name: name.to_string(),
-            about: about.to_string(),
             plugin_registry: None,
         }
-    }
-
-    /// Create a new Sherwood CLI with default name and description
-    pub fn with_defaults() -> Self {
-        Self::new("sherwood", "A static site generator for Markdown content")
     }
 
     /// Add custom content parsers to the CLI
@@ -65,32 +62,6 @@ impl SherwoodCli {
     pub async fn run(self) -> Result<()> {
         // Parse command line arguments using clap
         let args = CliArgs::parse();
-
-        // Print custom name and help if needed (maintain compatibility with custom CLI names)
-        if std::env::args().any(|arg| arg == "--help" || arg == "-h") {
-            println!("{} {}", self.name, env!("CARGO_PKG_VERSION"));
-            println!("{}", self.about);
-            println!();
-            println!("Usage: {} [COMMAND] [OPTIONS]", self.name);
-            println!();
-            println!("Commands:");
-            println!("  generate    Generate a static site from Markdown content");
-            println!("  dev         Start a development server for a Sherwood static site");
-            println!();
-            println!("Options:");
-            println!(
-                "  -i, --input <DIR>     Input directory containing Markdown files [default: content]"
-            );
-            println!("  -o, --output <DIR>    Output directory for generated site [default: dist]");
-            println!("  -p, --port <PORT>     Port for development server [default: 3000]");
-            println!("  -h, --help            Print help");
-            println!();
-            println!("Examples:");
-            println!("  {} generate", self.name);
-            println!("  {} generate -i content -o dist", self.name);
-            println!("  {} dev -p 8080", self.name);
-            return Ok(());
-        }
 
         match args.command {
             Commands::Generate => {
