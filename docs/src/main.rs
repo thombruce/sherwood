@@ -1,52 +1,19 @@
-use clap::{Parser, Subcommand};
-use std::path::PathBuf;
-
-#[derive(Parser)]
-#[command(name = "ssg")]
-#[command(about = "A static site generator for Markdown content")]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    Generate {
-        #[arg(short, long, default_value = "content")]
-        input: PathBuf,
-        #[arg(short, long, default_value = "dist")]
-        output: PathBuf,
-    },
-    Dev {
-        #[arg(short, long, default_value = "content")]
-        input: PathBuf,
-        #[arg(short, long, default_value = "dist")]
-        output: PathBuf,
-        #[arg(short, long, default_value = "3000")]
-        port: u16,
-    },
-}
+mod parsers;
+use parsers::{JsonContentParser, TextContentParser, TomlContentParser};
+use sherwood::plugins::PluginRegistry;
 
 #[tokio::main]
 async fn main() {
-    let cli = Cli::parse();
+    let plugin_registry = PluginRegistry::new()
+        .register("toml", TomlContentParser::new(), "toml")
+        .register("json", JsonContentParser::new(), "json")
+        .register("text", TextContentParser::new(), "txt")
+        .map_extensions(&[("conf", "toml"), ("config", "toml"), ("schema", "json")]);
 
-    match cli.command {
-        Commands::Generate { input, output } => {
-            if let Err(e) = sherwood::generate_site(&input, &output).await {
-                eprintln!("Error generating site: {}", e);
-                std::process::exit(1);
-            }
-        }
-        Commands::Dev {
-            input,
-            output,
-            port,
-        } => {
-            if let Err(e) = sherwood::run_dev_server(&input, &output, port).await {
-                eprintln!("Error running dev server: {}", e);
-                std::process::exit(1);
-            }
-        }
+    let cli = sherwood::SherwoodCli::new().with_plugins(plugin_registry);
+
+    if let Err(e) = cli.run().await {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
     }
 }

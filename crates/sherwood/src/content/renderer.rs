@@ -2,7 +2,6 @@ use super::parser::MarkdownFile;
 use crate::presentation::templates::TemplateManager;
 use anyhow::Result;
 use chrono::NaiveDate;
-use markdown::{Options, to_html_with_options};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -144,20 +143,30 @@ impl HtmlRenderer {
         None
     }
 
-    pub fn markdown_to_semantic_html(&self, markdown: &str) -> Result<String> {
-        let options = Options::gfm(); // GFM includes strikethrough, tables, footnotes
-
-        let html_output = to_html_with_options(markdown, &options)
-            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
-
-        Ok(self.enhance_semantics(&html_output))
+    /// Process content - all content is assumed to be HTML-ready
+    pub fn process_content(&self, content: &str) -> Result<String> {
+        // Validate all HTML content for security
+        self.validate_basic_html(content)?;
+        Ok(content.to_string())
     }
 
-    // TODO: Implement direct AST-to-HTML rendering when markdown-rs supports it
-    // Future enhancement: Use AST directly for HTML generation instead of:
-    // 1. AST parsing → content extraction → markdown string → HTML parsing
-    // This would eliminate the double parsing and provide more efficient rendering
-    // Track progress: https://github.com/wooorm/markdown-rs/issues
+    /// Basic HTML validation - check for balanced tags and safe elements
+    fn validate_basic_html(&self, html: &str) -> Result<()> {
+        // Simple validation: check for dangerous elements
+        let dangerous = ["<script", "<iframe", "<object", "<embed", "<form"];
+        let lower_html = html.to_lowercase();
+
+        for danger in &dangerous {
+            if lower_html.contains(danger) {
+                return Err(anyhow::anyhow!(
+                    "HTML contains potentially unsafe element: {}",
+                    danger
+                ));
+            }
+        }
+
+        Ok(())
+    }
 
     pub fn generate_blog_list_content(
         &self,
@@ -209,21 +218,15 @@ impl HtmlRenderer {
                 .with_extension("");
             let relative_url = relative_url_path.to_string_lossy();
 
-            // Extract first paragraph as excerpt
-            let excerpt = if !self.extract_first_paragraph(&parsed.content).is_empty() {
-                let first_paragraph = self.extract_first_paragraph(&parsed.content);
-                let excerpt_html = self.markdown_to_semantic_html(&first_paragraph)?;
-                Some(excerpt_html)
-            } else {
-                None
-            };
+            // Use excerpt from frontmatter if present
+            let excerpt = parsed.frontmatter.excerpt.as_deref();
 
             // Use the template to render each content item
             let content_item_html = self.template_manager.render_content_item(
                 &parsed.title,
                 &relative_url,
                 date,
-                excerpt.as_deref(),
+                excerpt,
             )?;
 
             list_content.push_str(&content_item_html);
@@ -237,72 +240,6 @@ impl HtmlRenderer {
             Ok(list_content)
         }
     }
-
-    pub fn extract_first_paragraph(&self, content: &str) -> String {
-        let mut in_code_block = false;
-        let mut lines_since_heading = 0;
-
-        for line in content.lines() {
-            let trimmed = line.trim();
-
-            // Skip code blocks
-            if trimmed.starts_with("```") {
-                in_code_block = !in_code_block;
-                continue;
-            }
-            if in_code_block {
-                continue;
-            }
-
-            // Skip headings and empty lines right after headings
-            if trimmed.starts_with('#') {
-                lines_since_heading = 0;
-                continue;
-            }
-            if lines_since_heading < 1 {
-                lines_since_heading += 1;
-                continue;
-            }
-
-            // Skip empty lines
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            // Found a paragraph, return it
-            return trimmed.to_string();
-        }
-
-        String::new()
-    }
-
-    fn enhance_semantics(&self, html: &str) -> String {
-        let mut enhanced = html.to_string();
-
-        // Wrap paragraphs in semantic sections if they seem like articles
-        enhanced = wrap_articles(&enhanced);
-
-        // Add semantic structure to lists
-        enhanced = enhance_lists(&enhanced);
-
-        enhanced
-    }
-}
-
-fn wrap_articles(html: &str) -> String {
-    // Simple heuristic: if content has multiple headings, wrap in article tags
-    let heading_count = html.matches("<h").count();
-    if heading_count > 1 {
-        format!("<article>\n{}\n</article>", html)
-    } else {
-        html.to_string()
-    }
-}
-
-fn enhance_lists(html: &str) -> String {
-    // Convert plain lists to more semantic versions when appropriate
-    html.replace("<ul>", "<ul class=\"content-list\">")
-        .replace("<ol>", "<ol class=\"numbered-list\">")
 }
 
 #[cfg(test)]
@@ -690,6 +627,186 @@ sort_order = "desc"
 
         assert!(second_index < first_index); // Second Post should come before First Post
         assert!(first_index < third_index); // First Post should come before Third Post
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_html_content_passthrough() {
+        let renderer = create_test_html_renderer();
+        let html = "<h1>Test</h1><p>Content here</p>";
+        let result = renderer.process_content(html).unwrap();
+        assert_eq!(result, html); // HTML should pass through unchanged
+    }
+
+    #[test]
+    fn test_unsafe_html_rejection() {
+        let renderer = create_test_html_renderer();
+        let unsafe_html = "<h1>Test</h1><script>alert('xss')</script>";
+        let result = renderer.process_content(unsafe_html);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unsafe element"));
+    }
+
+    #[test]
+    fn test_empty_content_handling() {
+        let renderer = create_test_html_renderer();
+
+        // Should process empty string without error
+        let result = renderer.process_content("").unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_html_validation_dangerous_elements() {
+        let renderer = create_test_html_renderer();
+
+        let dangerous_cases = [
+            "<script>alert('xss')</script>",
+            "<iframe src='evil.com'></iframe>",
+            "<object data='malicious.swf'></object>",
+            "<embed src='dangerous content'>",
+            "<form action='steal-data.com'></form>",
+        ];
+
+        for dangerous_html in &dangerous_cases {
+            let result = renderer.validate_basic_html(dangerous_html);
+            assert!(result.is_err(), "Should reject: {}", dangerous_html);
+        }
+    }
+
+    #[test]
+    fn test_html_validation_safe_elements() {
+        let renderer = create_test_html_renderer();
+
+        let safe_cases = [
+            "<h1>Safe heading</h1>",
+            "<p>Safe paragraph</p>",
+            "<div>Safe div</div>",
+            "<span>Safe span</span>",
+            "<ul><li>Safe list item</li></ul>",
+            "<a href='safe.com'>Safe link</a>",
+            "<img src='safe.jpg' alt='Safe image' />",
+        ];
+
+        for safe_html in &safe_cases {
+            let result = renderer.validate_basic_html(safe_html);
+            assert!(result.is_ok(), "Should allow: {}", safe_html);
+        }
+    }
+
+    #[test]
+    fn test_renderer_uses_frontmatter_excerpt() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file with excerpt in frontmatter
+        let frontmatter = r#"+++
+title = "Test Post"
+excerpt = "Custom excerpt from frontmatter"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!(
+            "{}\n\n# Test Post\n\nFirst paragraph.\n\nSecond paragraph.",
+            frontmatter
+        );
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify that the parser set the excerpt correctly
+        assert_eq!(
+            parsed.frontmatter.excerpt,
+            Some("Custom excerpt from frontmatter".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_renderer_with_extracted_excerpt() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file without excerpt in frontmatter (should be extracted)
+        let frontmatter = r#"+++
+title = "Test Post"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!(
+            "{}\n\n# Test Post\n\nThis excerpt should be extracted.\n\nSecond paragraph.",
+            frontmatter
+        );
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify that the parser extracted the excerpt
+        assert_eq!(
+            parsed.frontmatter.excerpt,
+            Some("This excerpt should be extracted.".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_renderer_with_no_excerpt() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file without excerpt and with no paragraphs (no excerpt possible)
+        let frontmatter = r#"+++
+title = "Test Post"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!("{}\n\n# Just a heading", frontmatter);
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify that no excerpt was extracted
+        assert_eq!(parsed.frontmatter.excerpt, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_renderer_excerpt_priority_frontmatter() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let template_manager = TemplateManager::new(temp_dir.path())?;
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+
+        // Create test file with excerpt in frontmatter AND content that could be extracted
+        let frontmatter = r#"+++
+title = "Test Post"
+excerpt = "Priority excerpt"
+date = "2024-01-15"
++++"#;
+
+        let file_path = temp_dir.path().join("test.md");
+        let content = format!(
+            "{}\n\n# Test Post\n\nThis should NOT be extracted.\n\nSecond paragraph.",
+            frontmatter
+        );
+        fs::write(&file_path, content)?;
+
+        let parsed = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        // Verify frontmatter excerpt takes priority
+        assert_eq!(
+            parsed.frontmatter.excerpt,
+            Some("Priority excerpt".to_string())
+        );
 
         Ok(())
     }

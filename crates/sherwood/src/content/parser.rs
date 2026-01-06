@@ -1,6 +1,6 @@
 use anyhow::Result;
 use markdown::mdast::{Node, Root};
-use markdown::{Constructs, ParseOptions, to_mdast};
+use markdown::{Constructs, Options, ParseOptions, to_html_with_options, to_mdast};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -13,6 +13,7 @@ pub struct Frontmatter {
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub excerpt: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,9 +77,18 @@ impl MarkdownParser {
                     .to_string()
             });
 
+        // Extract excerpt if not present in frontmatter
+        let mut frontmatter = frontmatter;
+        if frontmatter.excerpt.is_none() {
+            frontmatter.excerpt = self.extract_excerpt_from_markdown(&markdown_content);
+        }
+
+        // Convert markdown content to HTML immediately
+        let html_content = self.convert_markdown_to_html(&markdown_content)?;
+
         Ok(MarkdownFile {
             path: file_path.to_path_buf(),
-            content: markdown_content,
+            content: html_content, // Now always HTML
             frontmatter,
             title,
         })
@@ -169,6 +179,29 @@ impl MarkdownParser {
         }
     }
 
+    /// Convert markdown string to HTML with semantic enhancements
+    fn convert_markdown_to_html(&self, markdown: &str) -> Result<String> {
+        let options = Options::gfm(); // GFM includes strikethrough, tables, footnotes
+
+        let html_output = to_html_with_options(markdown, &options)
+            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
+
+        Ok(self.enhance_semantics(&html_output))
+    }
+
+    /// Apply semantic enhancements to HTML content (moved from renderer)
+    fn enhance_semantics(&self, html: &str) -> String {
+        let mut enhanced = html.to_string();
+
+        // Wrap paragraphs in semantic sections if they seem like articles
+        enhanced = wrap_articles(&enhanced);
+
+        // Add semantic structure to lists
+        enhanced = enhance_lists(&enhanced);
+
+        enhanced
+    }
+
     /// Extract plain text content from AST nodes recursively
     fn extract_text_from_nodes(nodes: &[Node]) -> String {
         nodes
@@ -196,6 +229,41 @@ impl MarkdownParser {
             .join("")
     }
 
+    /// Extract plain text excerpt from markdown AST (first paragraph)
+    /// Strips all formatting, returns full paragraph text
+    pub fn extract_excerpt_from_markdown(&self, markdown: &str) -> Option<String> {
+        let root = to_mdast(markdown, &self.parse_options).ok()?;
+        self.extract_first_paragraph_from_ast(&root)
+    }
+
+    /// Extract first paragraph text from AST, stripping formatting
+    fn extract_first_paragraph_from_ast(&self, root: &Node) -> Option<String> {
+        if let Node::Root(root_node) = root {
+            for child in &root_node.children {
+                if let Node::Paragraph(para) = child {
+                    let text = Self::extract_text_from_nodes(&para.children);
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        return Some(trimmed.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Extract plain text excerpt from content (for non-markdown parsers)
+    /// Splits by double newlines to find first paragraph
+    pub fn extract_excerpt_from_plain_text(content: &str) -> Option<String> {
+        // Split by double newlines to find first paragraph
+        let first_para = content.split("\n\n").next()?.trim();
+        if !first_para.is_empty() {
+            Some(first_para.to_string())
+        } else {
+            None
+        }
+    }
+
     /// Extract title from AST by finding the first H1 heading
     fn extract_title_from_ast(root: &Node) -> Option<String> {
         if let Node::Root(root_node) = root {
@@ -212,6 +280,22 @@ impl MarkdownParser {
         }
         None
     }
+}
+
+fn wrap_articles(html: &str) -> String {
+    // Simple heuristic: if content has multiple headings, wrap in article tags
+    let heading_count = html.matches("<h").count();
+    if heading_count > 1 {
+        format!("<article>\n{}\n</article>", html)
+    } else {
+        html.to_string()
+    }
+}
+
+fn enhance_lists(html: &str) -> String {
+    // Convert plain lists to more semantic versions when appropriate
+    html.replace("<ul>", "<ul class=\"content-list\">")
+        .replace("<ol>", "<ol class=\"numbered-list\">")
 }
 
 #[cfg(test)]
@@ -435,7 +519,9 @@ This is a test file."#;
         assert_eq!(result.title, "File Test");
         assert_eq!(result.frontmatter.title, Some("File Test".to_string()));
         assert_eq!(result.frontmatter.date, Some("2024-01-20".to_string()));
-        assert!(result.content.contains("# Test File"));
+        // Now content is HTML, not markdown
+        assert!(result.content.contains("<h1>Test File</h1>"));
+        assert!(result.content.contains("<p>This is a test file.</p>"));
         assert_eq!(result.path, file_path);
 
         Ok(())
@@ -447,7 +533,7 @@ This is a test file."#;
         let file_path = temp_dir.path().join("test.md");
 
         let content = r#"
-# Extracted Title
+# Simple Title
 
 This content has no frontmatter title."#;
 
@@ -455,8 +541,10 @@ This content has no frontmatter title."#;
 
         let result = MarkdownParser::parse_markdown_file(&file_path)?;
 
-        assert_eq!(result.title, "Extracted Title");
+        assert_eq!(result.title, "Simple Title");
         assert_eq!(result.frontmatter.title, None);
+        // Content should be HTML now
+        assert!(result.content.contains("<h1>Simple Title</h1>"));
 
         Ok(())
     }
@@ -933,5 +1021,213 @@ This content has a whitespace-only H1 heading.";
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_excerpt_in_frontmatter() {
+        let content = r#"+++
+title = "Test"
+excerpt = "This is a custom excerpt"
++++
+
+# Content
+
+More content here."#;
+
+        let parser = MarkdownParser::new();
+        let result = parser.parse_frontmatter(content).unwrap();
+        assert_eq!(
+            result.0.excerpt,
+            Some("This is a custom excerpt".to_string())
+        );
+    }
+
+    #[test]
+    fn test_excerpt_extraction_from_markdown() {
+        let content = r#"
+# Title
+
+This is the first paragraph with **bold** and *italic* text.
+
+This is the second paragraph."#;
+
+        let parser = MarkdownParser::new();
+        let excerpt = parser.extract_excerpt_from_markdown(content);
+        assert_eq!(
+            excerpt,
+            Some("This is the first paragraph with bold and italic text.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_excerpt_extraction_empty_content() {
+        let content = "";
+        let parser = MarkdownParser::new();
+        let excerpt = parser.extract_excerpt_from_markdown(content);
+        assert_eq!(excerpt, None);
+    }
+
+    #[test]
+    fn test_excerpt_extraction_no_paragraphs() {
+        let content = "# Just a heading";
+        let parser = MarkdownParser::new();
+        let excerpt = parser.extract_excerpt_from_markdown(content);
+        assert_eq!(excerpt, None);
+    }
+
+    #[test]
+    fn test_excerpt_extraction_with_code() {
+        let content = r#"
+# Title
+
+This paragraph has `inline code` and **bold** text.
+
+More content."#;
+
+        let parser = MarkdownParser::new();
+        let excerpt = parser.extract_excerpt_from_markdown(content);
+        assert_eq!(
+            excerpt,
+            Some("This paragraph has inline code and bold text.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_excerpt_extraction_with_links() {
+        let content = r#"
+# Title
+
+This paragraph has a [link](https://example.com) and more text.
+
+More content."#;
+
+        let parser = MarkdownParser::new();
+        let excerpt = parser.extract_excerpt_from_markdown(content);
+        assert_eq!(
+            excerpt,
+            Some("This paragraph has a link and more text.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_excerpt_extraction_complex_markdown() {
+        let content = r#"
+# Title
+
+This paragraph has **bold**, *italic*, `code`, and [links](https://example.com) all mixed together.
+
+Second paragraph here."#;
+
+        let parser = MarkdownParser::new();
+        let excerpt = parser.extract_excerpt_from_markdown(content);
+        assert_eq!(
+            excerpt,
+            Some(
+                "This paragraph has bold, italic, code, and links all mixed together.".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn test_excerpt_parsing_with_frontmatter() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"+++
+title = "Test Title"
++++
+
+# First Title
+
+This is the first paragraph that should be extracted as an excerpt.
+
+This is the second paragraph."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        assert_eq!(
+            result.frontmatter.excerpt,
+            Some("This is the first paragraph that should be extracted as an excerpt.".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_excerpt_priority_frontmatter_over_extraction() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let file_path = temp_dir.path().join("test.md");
+
+        let content = r#"+++
+title = "Test Title"
+excerpt = "Custom excerpt from frontmatter"
++++
+
+# First Title
+
+This is the first paragraph that should NOT be extracted because frontmatter has an excerpt.
+
+This is the second paragraph."#;
+
+        fs::write(&file_path, content)?;
+
+        let result = MarkdownParser::parse_markdown_file(&file_path)?;
+
+        assert_eq!(
+            result.frontmatter.excerpt,
+            Some("Custom excerpt from frontmatter".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_excerpt_in_yaml_frontmatter() {
+        let content = r#"---
+title: "Test"
+excerpt: "YAML excerpt"
+---
+
+# Content
+
+More content here."#;
+
+        let parser = MarkdownParser::new();
+        let result = parser.parse_frontmatter(content).unwrap();
+        assert_eq!(result.0.excerpt, Some("YAML excerpt".to_string()));
+    }
+
+    #[test]
+    fn test_plain_text_excerpt_extraction() {
+        assert_eq!(
+            MarkdownParser::extract_excerpt_from_plain_text(
+                "First paragraph.\n\nSecond paragraph."
+            ),
+            Some("First paragraph.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_plain_text_excerpt_single_paragraph() {
+        let content = "Just one paragraph without double newlines.";
+        assert_eq!(
+            MarkdownParser::extract_excerpt_from_plain_text(content),
+            Some("Just one paragraph without double newlines.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_plain_text_excerpt_empty() {
+        assert_eq!(MarkdownParser::extract_excerpt_from_plain_text(""), None);
+    }
+
+    #[test]
+    fn test_plain_text_excerpt_whitespace_only() {
+        assert_eq!(
+            MarkdownParser::extract_excerpt_from_plain_text("   \n\n   "),
+            None
+        );
     }
 }
