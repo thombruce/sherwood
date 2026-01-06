@@ -15,7 +15,7 @@
         <% if let Some(list) = list_data { %>
             <div class="content-list">
                 <% for item in list.items { %>
-                    <%+ crate::presentation::templates::ContentItemTemplate { item: item.clone() } %>
+                    <%+ crate::presentation::ContentItem::from(item.clone()) %>
                 <% } %>
             </div>
         <% } %>

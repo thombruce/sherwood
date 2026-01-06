@@ -61,12 +61,6 @@ struct PageTemplate {
     list_data: Option<ListData>,
 }
 
-#[derive(TemplateOnce)]
-#[template(path = "content_item.stpl")]
-struct ContentItemTemplate {
-    item: ListItemData,
-}
-
 #[derive(Debug)]
 pub struct TemplateInfo {
     pub name: String,
