@@ -699,7 +699,7 @@ sort_order = "desc"
     fn test_renderer_uses_frontmatter_excerpt() -> Result<()> {
         let temp_dir = tempdir()?;
         let template_manager = TemplateManager::new(temp_dir.path())?;
-        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
 
         // Create test file with excerpt in frontmatter
         let frontmatter = r#"+++
@@ -730,7 +730,7 @@ date = "2024-01-15"
     fn test_renderer_with_extracted_excerpt() -> Result<()> {
         let temp_dir = tempdir()?;
         let template_manager = TemplateManager::new(temp_dir.path())?;
-        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
 
         // Create test file without excerpt in frontmatter (should be extracted)
         let frontmatter = r#"+++
@@ -760,7 +760,7 @@ date = "2024-01-15"
     fn test_renderer_with_no_excerpt() -> Result<()> {
         let temp_dir = tempdir()?;
         let template_manager = TemplateManager::new(temp_dir.path())?;
-        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
 
         // Create test file without excerpt and with no paragraphs (no excerpt possible)
         let frontmatter = r#"+++
@@ -784,7 +784,7 @@ date = "2024-01-15"
     fn test_renderer_excerpt_priority_frontmatter() -> Result<()> {
         let temp_dir = tempdir()?;
         let template_manager = TemplateManager::new(temp_dir.path())?;
-        let renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
+        let _renderer = HtmlRenderer::new(temp_dir.path(), template_manager);
 
         // Create test file with excerpt in frontmatter AND content that could be extracted
         let frontmatter = r#"+++
