@@ -248,21 +248,21 @@ impl HtmlRenderer {
     }
 
     pub fn extract_first_paragraph(&self, content: &str) -> String {
-    #[allow(clippy::collapsible_if)]
-    // Extract first paragraph from HTML content
-    // Look for <p> tags or treat content without <p> as single paragraph
-    if let Some(start) = content.find("<p>") {
-        if let Some(end) = content[start..].find("</p>") {
-            return content[start..start + end + 4].to_string(); // Include closing tag
+        #[allow(clippy::collapsible_if)]
+        // Extract first paragraph from HTML content
+        // Look for <p> tags or treat content without <p> as single paragraph
+        if let Some(start) = content.find("<p>") {
+            if let Some(end) = content[start..].find("</p>") {
+                return content[start..start + end + 4].to_string(); // Include closing tag
+            }
         }
-    }
 
-    // If no <p> tags found, check if it's plain text or single paragraph HTML
-    let trimmed = content.trim();
-    if !trimmed.is_empty() && !trimmed.starts_with("<") {
-        // Plain text - return as is
-        return trimmed.to_string();
-    }
+        // If no <p> tags found, check if it's plain text or single paragraph HTML
+        let trimmed = content.trim();
+        if !trimmed.is_empty() && !trimmed.starts_with("<") {
+            // Plain text - return as is
+            return trimmed.to_string();
+        }
 
         // For other HTML, try to extract first meaningful text block
         // Simple heuristic: look for first block-level element or return first line
