@@ -2,7 +2,6 @@ use super::parser::MarkdownFile;
 use crate::presentation::templates::TemplateManager;
 use anyhow::Result;
 use chrono::NaiveDate;
-use markdown::{Options, to_html_with_options};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -144,31 +143,11 @@ impl HtmlRenderer {
         None
     }
 
-    /// Process content intelligently - HTML passes through, markdown gets converted
+    /// Process content - all content is assumed to be HTML-ready
     pub fn process_content(&self, content: &str) -> Result<String> {
-        // Simple HTML detection - if it looks like HTML, treat as HTML
-        if self.looks_like_html(content) {
-            self.validate_basic_html(content)?;
-            Ok(content.to_string())
-        } else {
-            // Fallback to markdown processing for backward compatibility
-            self.markdown_to_semantic_html(content)
-        }
-    }
-
-    pub fn markdown_to_semantic_html(&self, markdown: &str) -> Result<String> {
-        let options = Options::gfm(); // GFM includes strikethrough, tables, footnotes
-
-        let html_output = to_html_with_options(markdown, &options)
-            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
-
-        Ok(self.enhance_semantics(&html_output))
-    }
-
-    /// Basic heuristic to detect if content is already HTML
-    fn looks_like_html(&self, content: &str) -> bool {
-        let trimmed = content.trim_start();
-        trimmed.starts_with('<') && (trimmed.contains("</") || trimmed.contains("/>"))
+        // Validate all HTML content for security
+        self.validate_basic_html(content)?;
+        Ok(content.to_string())
     }
 
     /// Basic HTML validation - check for balanced tags and safe elements
@@ -188,12 +167,6 @@ impl HtmlRenderer {
 
         Ok(())
     }
-
-    // TODO: Implement direct AST-to-HTML rendering when markdown-rs supports it
-    // Future enhancement: Use AST directly for HTML generation instead of:
-    // 1. AST parsing → content extraction → markdown string → HTML parsing
-    // This would eliminate the double parsing and provide more efficient rendering
-    // Track progress: https://github.com/wooorm/markdown-rs/issues
 
     pub fn generate_blog_list_content(
         &self,
@@ -248,8 +221,8 @@ impl HtmlRenderer {
             // Extract first paragraph as excerpt
             let excerpt = if !self.extract_first_paragraph(&parsed.content).is_empty() {
                 let first_paragraph = self.extract_first_paragraph(&parsed.content);
-                let excerpt_html = self.process_content(&first_paragraph)?;
-                Some(excerpt_html)
+                // Content is already HTML, so use it directly
+                Some(first_paragraph)
             } else {
                 None
             };
@@ -275,70 +248,33 @@ impl HtmlRenderer {
     }
 
     pub fn extract_first_paragraph(&self, content: &str) -> String {
-        let mut in_code_block = false;
-        let mut lines_since_heading = 0;
+    #[allow(clippy::collapsible_if)]
+    // Extract first paragraph from HTML content
+    // Look for <p> tags or treat content without <p> as single paragraph
+    if let Some(start) = content.find("<p>") {
+        if let Some(end) = content[start..].find("</p>") {
+            return content[start..start + end + 4].to_string(); // Include closing tag
+        }
+    }
 
+    // If no <p> tags found, check if it's plain text or single paragraph HTML
+    let trimmed = content.trim();
+    if !trimmed.is_empty() && !trimmed.starts_with("<") {
+        // Plain text - return as is
+        return trimmed.to_string();
+    }
+
+        // For other HTML, try to extract first meaningful text block
+        // Simple heuristic: look for first block-level element or return first line
         for line in content.lines() {
             let trimmed = line.trim();
-
-            // Skip code blocks
-            if trimmed.starts_with("```") {
-                in_code_block = !in_code_block;
-                continue;
+            if !trimmed.is_empty() && !trimmed.starts_with("<!--") {
+                return trimmed.to_string();
             }
-            if in_code_block {
-                continue;
-            }
-
-            // Skip headings and empty lines right after headings
-            if trimmed.starts_with('#') {
-                lines_since_heading = 0;
-                continue;
-            }
-            if lines_since_heading < 1 {
-                lines_since_heading += 1;
-                continue;
-            }
-
-            // Skip empty lines
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            // Found a paragraph, return it
-            return trimmed.to_string();
         }
 
         String::new()
     }
-
-    fn enhance_semantics(&self, html: &str) -> String {
-        let mut enhanced = html.to_string();
-
-        // Wrap paragraphs in semantic sections if they seem like articles
-        enhanced = wrap_articles(&enhanced);
-
-        // Add semantic structure to lists
-        enhanced = enhance_lists(&enhanced);
-
-        enhanced
-    }
-}
-
-fn wrap_articles(html: &str) -> String {
-    // Simple heuristic: if content has multiple headings, wrap in article tags
-    let heading_count = html.matches("<h").count();
-    if heading_count > 1 {
-        format!("<article>\n{}\n</article>", html)
-    } else {
-        html.to_string()
-    }
-}
-
-fn enhance_lists(html: &str) -> String {
-    // Convert plain lists to more semantic versions when appropriate
-    html.replace("<ul>", "<ul class=\"content-list\">")
-        .replace("<ol>", "<ol class=\"numbered-list\">")
 }
 
 #[cfg(test)]
@@ -733,18 +669,9 @@ sort_order = "desc"
     #[test]
     fn test_html_content_passthrough() {
         let renderer = create_test_html_renderer();
-        let html = "<h1>Test</h1><p>Content</p>";
+        let html = "<h1>Test</h1><p>Content here</p>";
         let result = renderer.process_content(html).unwrap();
-        assert_eq!(result, html);
-    }
-
-    #[test]
-    fn test_markdown_content_conversion() {
-        let renderer = create_test_html_renderer();
-        let markdown = "# Test\n\nContent here";
-        let result = renderer.process_content(markdown).unwrap();
-        assert!(result.contains("<h1>Test</h1>"));
-        assert!(result.contains("<p>Content here</p>"));
+        assert_eq!(result, html); // HTML should pass through unchanged
     }
 
     #[test]
@@ -757,29 +684,10 @@ sort_order = "desc"
     }
 
     #[test]
-    fn test_html_detection_heuristic() {
-        let renderer = create_test_html_renderer();
-
-        // Should detect as HTML
-        assert!(renderer.looks_like_html("<h1>Test</h1>"));
-        assert!(renderer.looks_like_html("<p>Paragraph</p>"));
-        assert!(renderer.looks_like_html("<br/>"));
-        assert!(renderer.looks_like_html("   <div>Content</div>")); // with leading whitespace
-
-        // Should not detect as HTML
-        assert!(!renderer.looks_like_html("# Markdown heading"));
-        assert!(!renderer.looks_like_html("Just plain text"));
-        assert!(!renderer.looks_like_html("<unclosed tag")); // no closing tag or self-closing
-    }
-
-    #[test]
     fn test_empty_content_handling() {
         let renderer = create_test_html_renderer();
 
-        // Empty string should not be detected as HTML
-        assert!(!renderer.looks_like_html(""));
-
-        // But should process without error
+        // Should process empty string without error
         let result = renderer.process_content("").unwrap();
         assert_eq!(result, "");
     }

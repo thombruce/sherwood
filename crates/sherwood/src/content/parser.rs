@@ -1,6 +1,6 @@
 use anyhow::Result;
 use markdown::mdast::{Node, Root};
-use markdown::{Constructs, ParseOptions, to_mdast};
+use markdown::{Constructs, Options, ParseOptions, to_html_with_options, to_mdast};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -76,9 +76,12 @@ impl MarkdownParser {
                     .to_string()
             });
 
+        // Convert markdown content to HTML immediately
+        let html_content = self.convert_markdown_to_html(&markdown_content)?;
+
         Ok(MarkdownFile {
             path: file_path.to_path_buf(),
-            content: markdown_content,
+            content: html_content, // Now always HTML
             frontmatter,
             title,
         })
@@ -169,6 +172,29 @@ impl MarkdownParser {
         }
     }
 
+    /// Convert markdown string to HTML with semantic enhancements
+    fn convert_markdown_to_html(&self, markdown: &str) -> Result<String> {
+        let options = Options::gfm(); // GFM includes strikethrough, tables, footnotes
+
+        let html_output = to_html_with_options(markdown, &options)
+            .map_err(|e| anyhow::anyhow!("Failed to parse markdown: {}", e))?;
+
+        Ok(self.enhance_semantics(&html_output))
+    }
+
+    /// Apply semantic enhancements to HTML content (moved from renderer)
+    fn enhance_semantics(&self, html: &str) -> String {
+        let mut enhanced = html.to_string();
+
+        // Wrap paragraphs in semantic sections if they seem like articles
+        enhanced = wrap_articles(&enhanced);
+
+        // Add semantic structure to lists
+        enhanced = enhance_lists(&enhanced);
+
+        enhanced
+    }
+
     /// Extract plain text content from AST nodes recursively
     fn extract_text_from_nodes(nodes: &[Node]) -> String {
         nodes
@@ -212,6 +238,22 @@ impl MarkdownParser {
         }
         None
     }
+}
+
+fn wrap_articles(html: &str) -> String {
+    // Simple heuristic: if content has multiple headings, wrap in article tags
+    let heading_count = html.matches("<h").count();
+    if heading_count > 1 {
+        format!("<article>\n{}\n</article>", html)
+    } else {
+        html.to_string()
+    }
+}
+
+fn enhance_lists(html: &str) -> String {
+    // Convert plain lists to more semantic versions when appropriate
+    html.replace("<ul>", "<ul class=\"content-list\">")
+        .replace("<ol>", "<ol class=\"numbered-list\">")
 }
 
 #[cfg(test)]
@@ -435,7 +477,9 @@ This is a test file."#;
         assert_eq!(result.title, "File Test");
         assert_eq!(result.frontmatter.title, Some("File Test".to_string()));
         assert_eq!(result.frontmatter.date, Some("2024-01-20".to_string()));
-        assert!(result.content.contains("# Test File"));
+        // Now content is HTML, not markdown
+        assert!(result.content.contains("<h1>Test File</h1>"));
+        assert!(result.content.contains("<p>This is a test file.</p>"));
         assert_eq!(result.path, file_path);
 
         Ok(())
@@ -447,7 +491,7 @@ This is a test file."#;
         let file_path = temp_dir.path().join("test.md");
 
         let content = r#"
-# Extracted Title
+# Simple Title
 
 This content has no frontmatter title."#;
 
@@ -455,8 +499,10 @@ This content has no frontmatter title."#;
 
         let result = MarkdownParser::parse_markdown_file(&file_path)?;
 
-        assert_eq!(result.title, "Extracted Title");
+        assert_eq!(result.title, "Simple Title");
         assert_eq!(result.frontmatter.title, None);
+        // Content should be HTML now
+        assert!(result.content.contains("<h1>Simple Title</h1>"));
 
         Ok(())
     }
