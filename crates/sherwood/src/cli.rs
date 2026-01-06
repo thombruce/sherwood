@@ -31,6 +31,8 @@ enum Commands {
         #[arg(short = 'p', long = "port", default_value = "3000")]
         port: u16,
     },
+    // TODO: Re-add validate. How useful is it to us to validate templates?
+    // Alternatively: Address dead code.
 }
 
 /// A configurable CLI for Sherwood static site generator
