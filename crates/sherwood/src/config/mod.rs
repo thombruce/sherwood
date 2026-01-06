@@ -5,6 +5,7 @@ pub struct SiteConfig {
     pub site: SiteSection,
     pub templates: Option<TemplateSection>,
     pub css: Option<CssSection>,
+    pub breadcrumb: Option<BreadcrumbSection>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -32,4 +33,10 @@ pub struct CssTargets {
     pub safari: Option<String>,
     pub edge: Option<String>,
     pub browserslist: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BreadcrumbSection {
+    pub max_items: Option<usize>,
+    pub enabled: Option<bool>,
 }

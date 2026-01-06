@@ -10,6 +10,10 @@
 </head>
 <body<%= body_attrs %>>
     <main>
+        <% if let Some(breadcrumbs) = breadcrumb_data { %>
+            <%+ crate::partials::Breadcrumb::new(breadcrumbs) %>
+        <% } %>
+        
         <%- content %>
         
         <% if let Some(list) = list_data { %>

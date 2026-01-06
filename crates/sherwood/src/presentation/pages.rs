@@ -1,14 +1,29 @@
 use super::templates::{ListData, TemplateManager};
 use crate::content::parser::MarkdownFile;
+use crate::partials::BreadcrumbGenerator;
 use anyhow::Result;
 
 pub struct PageGenerator {
     pub template_manager: TemplateManager,
+    pub breadcrumb_generator: Option<BreadcrumbGenerator>,
 }
 
 impl PageGenerator {
     pub fn new(template_manager: TemplateManager) -> Self {
-        Self { template_manager }
+        Self {
+            template_manager,
+            breadcrumb_generator: None,
+        }
+    }
+
+    pub fn new_with_breadcrumb(
+        template_manager: TemplateManager,
+        breadcrumb_generator: Option<BreadcrumbGenerator>,
+    ) -> Self {
+        Self {
+            template_manager,
+            breadcrumb_generator,
+        }
     }
 
     pub fn generate_html_document_with_template(
@@ -19,8 +34,20 @@ impl PageGenerator {
         let css_file = Some("/css/main.css".to_string());
         let body_attrs = String::new();
 
-        self.template_manager
-            .render_page(&file.title, content, css_file.as_deref(), &body_attrs)
+        // Generate breadcrumb if generator is available
+        let breadcrumb_data = if let Some(ref generator) = self.breadcrumb_generator {
+            generator.generate_breadcrumb(file)?
+        } else {
+            None
+        };
+
+        self.template_manager.render_page_with_breadcrumb(
+            &file.title,
+            content,
+            css_file.as_deref(),
+            &body_attrs,
+            breadcrumb_data,
+        )
     }
 
     fn get_template_name<'a>(
@@ -77,12 +104,20 @@ impl PageGenerator {
         let css_file = Some("/css/main.css".to_string());
         let body_attrs = String::new();
 
-        self.template_manager.render_page_with_list(
+        // Generate breadcrumb if generator is available
+        let breadcrumb_data = if let Some(ref generator) = self.breadcrumb_generator {
+            generator.generate_breadcrumb(file)?
+        } else {
+            None
+        };
+
+        self.template_manager.render_page_with_list_and_breadcrumb(
             title,
             html_content,
             css_file.as_deref(),
             &body_attrs,
             list_data,
+            breadcrumb_data,
         )
     }
 }

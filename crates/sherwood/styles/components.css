@@ -107,3 +107,43 @@ article {
 .numbered-list {
   padding-left: 1.5rem;
 }
+
+/* Breadcrumb navigation */
+.breadcrumb {
+  margin-bottom: 2rem;
+  padding: 1rem 0;
+}
+
+.breadcrumb-list {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.breadcrumb-item {
+  color: var(--color-secondary);
+  font-size: 0.9rem;
+}
+
+.breadcrumb-item:not(:last-child)::after {
+  content: "›";
+  margin: 0 0.5rem;
+  color: var(--color-muted);
+}
+
+.breadcrumb-item.current {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.breadcrumb-item a {
+  color: var(--color-secondary);
+  text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}

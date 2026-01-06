@@ -3,6 +3,7 @@ use crate::content::parser::MarkdownFile;
 use crate::content::renderer::HtmlRenderer;
 use crate::content::universal_parser::UniversalContentParser;
 use crate::core::utils::{ensure_directory_exists, ensure_parent_exists};
+use crate::partials::BreadcrumbGenerator;
 use crate::plugins::PluginRegistry;
 use crate::presentation::pages::PageGenerator;
 use crate::presentation::styles::StyleManager;
@@ -84,12 +85,21 @@ impl SiteGenerator {
                     page_template: Some(DEFAULT_PAGE_TEMPLATE.to_string()),
                 }),
                 css: None,
+                breadcrumb: None,
             }
         };
 
         let template_manager = TemplateManager::new(&templates_dir)?;
         let html_renderer = HtmlRenderer::new(input_dir, template_manager.clone());
-        let page_generator = PageGenerator::new(template_manager);
+
+        // Create breadcrumb generator if configured
+        let breadcrumb_generator = site_config
+            .breadcrumb
+            .as_ref()
+            .map(|config| BreadcrumbGenerator::new(input_dir, Some(config.clone())));
+
+        let page_generator =
+            PageGenerator::new_with_breadcrumb(template_manager, breadcrumb_generator);
 
         // Create style manager based on mode and configuration
         let style_manager =

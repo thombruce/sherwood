@@ -44,6 +44,18 @@ pub struct ListItemData {
     pub excerpt: Option<String>,
 }
 
+#[derive(Serialize, Clone)]
+pub struct BreadcrumbItem {
+    pub title: String,
+    pub url: String,
+    pub is_current: bool,
+}
+
+#[derive(Serialize, Clone)]
+pub struct BreadcrumbData {
+    pub items: Vec<BreadcrumbItem>,
+}
+
 #[derive(Serialize)]
 pub struct ListData {
     pub items: Vec<ListItemData>,
@@ -59,6 +71,7 @@ struct PageTemplate {
     css_file: Option<String>,
     body_attrs: String,
     list_data: Option<ListData>,
+    breadcrumb_data: Option<BreadcrumbData>,
 }
 
 #[derive(Debug)]
@@ -178,6 +191,7 @@ impl TemplateManager {
             css_file: css_file.map(|s| s.to_string()),
             body_attrs: body_attrs.to_string(),
             list_data: None,
+            breadcrumb_data: None,
         };
 
         Ok(template.render_once()?)
@@ -197,6 +211,52 @@ impl TemplateManager {
             css_file: css_file.map(|s| s.to_string()),
             body_attrs: body_attrs.to_string(),
             list_data,
+            breadcrumb_data: None,
+        };
+
+        template
+            .render_once()
+            .map_err(|e| anyhow::anyhow!("Template render error: {}", e))
+    }
+
+    pub fn render_page_with_breadcrumb(
+        &self,
+        title: &str,
+        content: &str,
+        css_file: Option<&str>,
+        body_attrs: &str,
+        breadcrumb_data: Option<BreadcrumbData>,
+    ) -> Result<String> {
+        let template = PageTemplate {
+            title: title.to_string(),
+            content: content.to_string(),
+            css_file: css_file.map(|s| s.to_string()),
+            body_attrs: body_attrs.to_string(),
+            list_data: None,
+            breadcrumb_data,
+        };
+
+        template
+            .render_once()
+            .map_err(|e| anyhow::anyhow!("Template render error: {}", e))
+    }
+
+    pub fn render_page_with_list_and_breadcrumb(
+        &self,
+        title: &str,
+        content: &str,
+        css_file: Option<&str>,
+        body_attrs: &str,
+        list_data: Option<ListData>,
+        breadcrumb_data: Option<BreadcrumbData>,
+    ) -> Result<String> {
+        let template = PageTemplate {
+            title: title.to_string(),
+            content: content.to_string(),
+            css_file: css_file.map(|s| s.to_string()),
+            body_attrs: body_attrs.to_string(),
+            list_data,
+            breadcrumb_data,
         };
 
         template
