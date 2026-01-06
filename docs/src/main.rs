@@ -1,5 +1,5 @@
 mod parsers;
-use parsers::{JsonContentParser, TomlContentParser, TextContentParser};
+use parsers::{JsonContentParser, TextContentParser, TomlContentParser};
 use sherwood::plugins::PluginRegistry;
 
 #[tokio::main]

@@ -226,7 +226,7 @@ impl HtmlRenderer {
                 &parsed.title,
                 &relative_url,
                 date,
-                excerpt.as_deref(),
+                excerpt,
             )?;
 
             list_content.push_str(&content_item_html);
