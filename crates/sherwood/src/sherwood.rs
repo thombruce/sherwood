@@ -34,17 +34,17 @@ enum Commands {
 }
 
 /// A configurable CLI for Sherwood static site generator
-pub struct SherwoodCli {
+pub struct Sherwood {
     plugin_registry: Option<PluginRegistry>,
 }
 
-impl Default for SherwoodCli {
+impl Default for Sherwood {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SherwoodCli {
+impl Sherwood {
     /// Create a new Sherwood CLI
     pub fn new() -> Self {
         Self {

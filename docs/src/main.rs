@@ -10,7 +10,7 @@ async fn main() {
         .register("text", TextContentParser::new(), "txt")
         .map_extensions(&[("conf", "toml"), ("config", "toml"), ("schema", "json")]);
 
-    let cli = sherwood::SherwoodCli::new().with_plugins(plugin_registry);
+    let cli = sherwood::Sherwood::new().with_plugins(plugin_registry);
 
     if let Err(e) = cli.run().await {
         eprintln!("Error: {}", e);
