@@ -108,7 +108,9 @@ impl BreadcrumbGenerator {
             .as_ref()
             .and_then(|c| c.max_items)
             .unwrap_or(usize::MAX);
-        if breadcrumb_items.len() > max_items {
+        
+        // Only apply truncation if we have enough items for the logic to work
+        if breadcrumb_items.len() > max_items && max_items >= 3 {
             // Keep first item (Home), add ellipsis, keep last (max_items - 2) items
             let last_items = breadcrumb_items.split_off(breadcrumb_items.len() - (max_items - 2));
             breadcrumb_items.truncate(1); // Keep only Home
