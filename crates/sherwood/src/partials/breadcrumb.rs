@@ -110,7 +110,7 @@ impl BreadcrumbGenerator {
             .unwrap_or(usize::MAX);
         if breadcrumb_items.len() > max_items {
             // Keep first item (Home), add ellipsis, keep last (max_items - 2) items
-            let last_items = breadcrumb_items.split_off(breadcrumb_items.len() - (max_items - 1));
+            let last_items = breadcrumb_items.split_off(breadcrumb_items.len() - (max_items - 2));
             breadcrumb_items.truncate(1); // Keep only Home
 
             // Add ellipsis
