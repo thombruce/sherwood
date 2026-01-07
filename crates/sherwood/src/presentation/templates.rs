@@ -1,6 +1,7 @@
 use anyhow::Result;
 use include_dir::{Dir, include_dir};
 use sailfish::{TemplateOnce, runtime::RenderError};
+use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -35,6 +36,33 @@ pub enum TemplateError {
 // Embed templates directory at compile time
 static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
+#[derive(Serialize, Clone)]
+pub struct ListItemData {
+    pub title: String,
+    pub url: String,
+    pub date: Option<String>,
+    pub excerpt: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct BreadcrumbItem {
+    pub title: String,
+    pub url: String,
+    pub is_current: bool,
+}
+
+#[derive(Serialize, Clone)]
+pub struct BreadcrumbData {
+    pub items: Vec<BreadcrumbItem>,
+}
+
+#[derive(Serialize)]
+pub struct ListData {
+    pub items: Vec<ListItemData>,
+    pub sort_config: crate::content::renderer::SortConfig,
+    pub total_count: usize,
+}
+
 #[derive(TemplateOnce)]
 #[template(path = "default.stpl")]
 struct PageTemplate {
@@ -42,15 +70,8 @@ struct PageTemplate {
     content: String,
     css_file: Option<String>,
     body_attrs: String,
-}
-
-#[derive(TemplateOnce)]
-#[template(path = "content_item.stpl")]
-struct ContentItemTemplate {
-    title: String,
-    url: String,
-    date: Option<String>,
-    excerpt: Option<String>,
+    list_data: Option<ListData>,
+    breadcrumb_data: Option<BreadcrumbData>,
 }
 
 #[derive(Debug)]
@@ -169,26 +190,78 @@ impl TemplateManager {
             content: content.to_string(),
             css_file: css_file.map(|s| s.to_string()),
             body_attrs: body_attrs.to_string(),
+            list_data: None,
+            breadcrumb_data: None,
         };
 
         Ok(template.render_once()?)
     }
 
-    pub fn render_content_item(
+    pub fn render_page_with_list(
         &self,
         title: &str,
-        url: &str,
-        date: Option<&str>,
-        excerpt: Option<&str>,
+        content: &str,
+        css_file: Option<&str>,
+        body_attrs: &str,
+        list_data: Option<ListData>,
     ) -> Result<String> {
-        let template = ContentItemTemplate {
+        let template = PageTemplate {
             title: title.to_string(),
-            url: url.to_string(),
-            date: date.map(|s| s.to_string()),
-            excerpt: excerpt.map(|s| s.to_string()),
+            content: content.to_string(),
+            css_file: css_file.map(|s| s.to_string()),
+            body_attrs: body_attrs.to_string(),
+            list_data,
+            breadcrumb_data: None,
         };
 
-        Ok(template.render_once()?)
+        template
+            .render_once()
+            .map_err(|e| anyhow::anyhow!("Template render error: {}", e))
+    }
+
+    pub fn render_page_with_breadcrumb(
+        &self,
+        title: &str,
+        content: &str,
+        css_file: Option<&str>,
+        body_attrs: &str,
+        breadcrumb_data: Option<BreadcrumbData>,
+    ) -> Result<String> {
+        let template = PageTemplate {
+            title: title.to_string(),
+            content: content.to_string(),
+            css_file: css_file.map(|s| s.to_string()),
+            body_attrs: body_attrs.to_string(),
+            list_data: None,
+            breadcrumb_data,
+        };
+
+        template
+            .render_once()
+            .map_err(|e| anyhow::anyhow!("Template render error: {}", e))
+    }
+
+    pub fn render_page_with_list_and_breadcrumb(
+        &self,
+        title: &str,
+        content: &str,
+        css_file: Option<&str>,
+        body_attrs: &str,
+        list_data: Option<ListData>,
+        breadcrumb_data: Option<BreadcrumbData>,
+    ) -> Result<String> {
+        let template = PageTemplate {
+            title: title.to_string(),
+            content: content.to_string(),
+            css_file: css_file.map(|s| s.to_string()),
+            body_attrs: body_attrs.to_string(),
+            list_data,
+            breadcrumb_data,
+        };
+
+        template
+            .render_once()
+            .map_err(|e| anyhow::anyhow!("Template render error: {}", e))
     }
 
     pub fn get_template_path(&self, template_name: &str) -> PathBuf {

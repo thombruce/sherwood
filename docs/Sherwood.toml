@@ -16,3 +16,7 @@ title = "Sherwood"
 # firefox = "115"
 # safari = "15"
 # edge = "127"
+
+[breadcrumb]
+max_items = 5
+enabled = true

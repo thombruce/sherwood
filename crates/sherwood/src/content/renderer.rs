@@ -1,15 +1,16 @@
 use super::parser::MarkdownFile;
-use crate::presentation::templates::TemplateManager;
+use crate::presentation::templates::{ListData, ListItemData, TemplateManager};
 use anyhow::Result;
 use chrono::NaiveDate;
+use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug)]
-struct SortConfig {
-    field: String,
-    order: String,
+#[derive(Debug, Serialize)]
+pub struct SortConfig {
+    pub field: String,
+    pub order: String,
 }
 
 impl SortConfig {
@@ -46,14 +47,12 @@ impl SortConfig {
 
 pub struct HtmlRenderer {
     input_dir: PathBuf,
-    template_manager: TemplateManager,
 }
 
 impl HtmlRenderer {
-    pub fn new(input_dir: &Path, template_manager: TemplateManager) -> Self {
+    pub fn new(input_dir: &Path, _template_manager: TemplateManager) -> Self {
         Self {
             input_dir: input_dir.to_path_buf(),
-            template_manager,
         }
     }
 
@@ -168,11 +167,11 @@ impl HtmlRenderer {
         Ok(())
     }
 
-    pub fn generate_blog_list_content(
+    pub fn generate_list_data(
         &self,
         dir: &Path,
         list_pages: &HashMap<PathBuf, &MarkdownFile>,
-    ) -> Result<String> {
+    ) -> Result<ListData> {
         // Find the list page for this directory to get sort configuration
         let sort_config = list_pages
             .get(dir)
@@ -206,39 +205,33 @@ impl HtmlRenderer {
         // Sort the collected files
         self.sort_markdown_files(&mut markdown_files, &sort_config);
 
-        // Generate HTML content
-        let mut list_content = String::new();
-        for parsed in markdown_files {
-            // Generate post list entry using template
-            let date = parsed.frontmatter.date.as_deref();
-            let relative_url_path = parsed
-                .path
-                .strip_prefix(&self.input_dir)
-                .unwrap_or(&parsed.path)
-                .with_extension("");
-            let relative_url = relative_url_path.to_string_lossy();
+        // Convert to ListItemData
+        let items: Vec<ListItemData> = markdown_files
+            .into_iter()
+            .map(|parsed| {
+                let relative_url_path = parsed
+                    .path
+                    .strip_prefix(&self.input_dir)
+                    .unwrap_or(&parsed.path)
+                    .with_extension("");
+                let relative_url = relative_url_path.to_string_lossy();
 
-            // Use excerpt from frontmatter if present
-            let excerpt = parsed.frontmatter.excerpt.as_deref();
+                ListItemData {
+                    title: parsed.title.clone(),
+                    url: relative_url.to_string(),
+                    date: parsed.frontmatter.date.clone(),
+                    excerpt: parsed.frontmatter.excerpt.clone(),
+                }
+            })
+            .collect();
 
-            // Use the template to render each content item
-            let content_item_html = self.template_manager.render_content_item(
-                &parsed.title,
-                &relative_url,
-                date,
-                excerpt,
-            )?;
+        let total_count = items.len();
 
-            list_content.push_str(&content_item_html);
-            list_content.push_str("\n\n");
-        }
-
-        // If no list content was found, return empty string
-        if list_content.is_empty() {
-            Ok("<!-- No posts found -->".to_string())
-        } else {
-            Ok(list_content)
-        }
+        Ok(ListData {
+            items,
+            sort_config,
+            total_count,
+        })
     }
 }
 
@@ -612,21 +605,21 @@ sort_order = "desc"
         let mut list_pages = HashMap::new();
         list_pages.insert(PathBuf::from(""), &parsed_list);
 
-        // Generate blog list
-        let result = renderer.generate_blog_list_content(Path::new(""), &list_pages)?;
+        // Generate list data
+        let list_data = renderer.generate_list_data(Path::new(""), &list_pages)?;
+
+        // Verify that we have the expected number of items
+        assert_eq!(list_data.items.len(), 3);
+        assert_eq!(list_data.total_count, 3);
 
         // Verify that posts are in correct order (newest first)
-        assert!(result.contains("Second Post"));
-        assert!(result.contains("First Post"));
-        assert!(result.contains("Third Post"));
+        assert!(list_data.items[0].title.contains("Second Post"));
+        assert!(list_data.items[1].title.contains("First Post"));
+        assert!(list_data.items[2].title.contains("Third Post"));
 
-        // Check that the order in the result matches expected (newest to oldest)
-        let second_index = result.find("Second Post").unwrap_or(0);
-        let first_index = result.find("First Post").unwrap_or(0);
-        let third_index = result.find("Third Post").unwrap_or(0);
-
-        assert!(second_index < first_index); // Second Post should come before First Post
-        assert!(first_index < third_index); // First Post should come before Third Post
+        // Verify sort configuration
+        assert_eq!(list_data.sort_config.field, "date");
+        assert_eq!(list_data.sort_config.order, "desc");
 
         Ok(())
     }

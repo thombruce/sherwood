@@ -1,0 +1,15 @@
+<nav class="breadcrumb">
+  <ol class="breadcrumb-list">
+    <% for item in items { %>
+      <li class="breadcrumb-item<% if item.is_current { %> current<% } %>">
+        <% if item.is_current { %>
+          <span><%= item.title %></span>
+        <% } else if !item.url.is_empty() && item.title != "..." { %>
+          <a href="/<%= item.url %>"><%= item.title %></a>
+        <% } else { %>
+          <span><%= item.title %></span>
+        <% } %>
+      </li>
+    <% } %>
+  </ol>
+</nav>

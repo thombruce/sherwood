@@ -10,7 +10,19 @@
 </head>
 <body<%= body_attrs %>>
     <main>
+        <% if let Some(breadcrumbs) = breadcrumb_data { %>
+            <%+ crate::partials::Breadcrumb::new(breadcrumbs) %>
+        <% } %>
+        
         <%- content %>
+        
+        <% if let Some(list) = list_data { %>
+            <div class="content-list">
+                <% for item in list.items { %>
+                    <%+ crate::partials::ContentItem::from(item.clone()) %>
+                <% } %>
+            </div>
+        <% } %>
     </main>
 </body>
 </html>
