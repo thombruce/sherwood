@@ -1,6 +1,7 @@
 +++
 title = "CLI Commands"
 date = "2024-01-19"
+page_template = "docs.stpl"
 +++
 
 # CLI Commands

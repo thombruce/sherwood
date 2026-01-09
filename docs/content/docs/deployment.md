@@ -1,6 +1,7 @@
 +++
 title = "Deployment Guide"
 date = "2024-01-18"
+page_template = "docs.stpl"
 +++
 
 # Deployment Guide

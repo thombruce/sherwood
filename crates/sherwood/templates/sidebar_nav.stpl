@@ -1,0 +1,14 @@
+<nav class="docs-nav">
+    <h3><%= sidebar_nav.current_path %></h3>
+    <ul class="docs-nav-list">
+    <% for item in sidebar_nav.items { %>
+        <li class="docs-nav-item<% if item.is_current { %> current<% } %><% if item.is_section { %> section<% } %>">
+            <% if item.is_section { %>
+                <strong><%= item.title %></strong>
+            <% } else { %>
+                <a href="/<%= item.url %>"><%= item.title %></a>
+            <% } %>
+        </li>
+    <% } %>
+    </ul>
+</nav>

@@ -63,6 +63,38 @@ pub struct ListData {
     pub total_count: usize,
 }
 
+#[derive(Serialize, Clone)]
+pub struct SidebarNavData {
+    pub current_path: String,
+    pub items: Vec<SidebarNavItem>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct SidebarNavItem {
+    pub title: String,
+    pub url: String,
+    pub is_current: bool,
+    pub is_section: bool,
+}
+
+#[derive(Serialize, Clone)]
+pub struct NextPrevNavData {
+    pub previous: Option<ListItemData>,
+    pub next: Option<ListItemData>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct DocsPageData {
+    pub title: String,
+    pub content: String,
+    pub css_file: Option<String>,
+    pub body_attrs: String,
+    pub breadcrumb_data: Option<BreadcrumbData>,
+    pub sidebar_nav: Option<SidebarNavData>,
+    pub table_of_contents: Option<String>,
+    pub next_prev_nav: Option<NextPrevNavData>,
+}
+
 #[derive(TemplateOnce)]
 #[template(path = "default.stpl")]
 struct PageTemplate {
@@ -72,6 +104,19 @@ struct PageTemplate {
     body_attrs: String,
     list_data: Option<ListData>,
     breadcrumb_data: Option<BreadcrumbData>,
+}
+
+#[derive(TemplateOnce)]
+#[template(path = "docs.stpl")]
+struct DocsTemplate {
+    title: String,
+    content: String,
+    css_file: Option<String>,
+    body_attrs: String,
+    breadcrumb_data: Option<BreadcrumbData>,
+    sidebar_nav: Option<SidebarNavData>,
+    table_of_contents: Option<String>,
+    next_prev_nav: Option<NextPrevNavData>,
 }
 
 #[derive(Debug)]
@@ -262,6 +307,23 @@ impl TemplateManager {
         template
             .render_once()
             .map_err(|e| anyhow::anyhow!("Template render error: {}", e))
+    }
+
+    pub fn render_docs_page(&self, data: DocsPageData) -> Result<String> {
+        let template = DocsTemplate {
+            title: data.title,
+            content: data.content,
+            css_file: data.css_file,
+            body_attrs: data.body_attrs,
+            breadcrumb_data: data.breadcrumb_data,
+            sidebar_nav: data.sidebar_nav,
+            table_of_contents: data.table_of_contents,
+            next_prev_nav: data.next_prev_nav,
+        };
+
+        template
+            .render_once()
+            .map_err(|e| anyhow::anyhow!("Docs template render error: {}", e))
     }
 
     pub fn get_template_path(&self, template_name: &str) -> PathBuf {
