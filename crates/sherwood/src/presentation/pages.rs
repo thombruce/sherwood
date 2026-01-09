@@ -1,6 +1,9 @@
-use super::templates::{ListData, NextPrevNavData, SidebarNavData, TemplateManager};
 use crate::content::parser::MarkdownFile;
 use crate::partials::BreadcrumbGenerator;
+use crate::templates::{
+    DocsPageData, ListData, NextPrevNavData, PageData, SidebarNavData, TemplateDataEnum,
+    TemplateManager,
+};
 use anyhow::Result;
 use markdown::mdast::Node;
 use markdown::{ParseOptions, to_mdast};
@@ -43,13 +46,17 @@ impl PageGenerator {
             None
         };
 
-        self.template_manager.render_page_with_breadcrumb(
-            &file.title,
-            content,
-            css_file.as_deref(),
-            &body_attrs,
+        let page_data = PageData {
+            title: file.title.clone(),
+            content: content.to_string(),
+            css_file,
+            body_attrs,
             breadcrumb_data,
-        )
+            list_data: None,
+        };
+
+        self.template_manager
+            .render_template("default.stpl", TemplateDataEnum::Page(page_data))
     }
 
     fn get_template_name<'a>(
@@ -112,14 +119,17 @@ impl PageGenerator {
             None
         };
 
-        self.template_manager.render_page_with_list_and_breadcrumb(
-            title,
-            html_content,
-            css_file.as_deref(),
-            &body_attrs,
-            list_data,
+        let page_data = PageData {
+            title: title.to_string(),
+            content: html_content.to_string(),
+            css_file,
+            body_attrs,
             breadcrumb_data,
-        )
+            list_data,
+        };
+
+        self.template_manager
+            .render_template("default.stpl", TemplateDataEnum::Page(page_data))
     }
 
     fn generate_docs_page(&self, file: &MarkdownFile, html_content: &str) -> Result<String> {
@@ -145,18 +155,19 @@ impl PageGenerator {
         // Generate next/previous navigation
         let next_prev_nav = self.generate_next_prev_nav(file);
 
-        let page_data = super::templates::DocsPageData {
+        let page_data = DocsPageData {
             title: title.to_string(),
             content: html_content.to_string(),
-            css_file: css_file.map(|s| s.to_string()),
-            body_attrs: body_attrs.to_string(),
+            css_file,
+            body_attrs,
             breadcrumb_data,
             sidebar_nav,
             table_of_contents,
             next_prev_nav,
         };
 
-        self.template_manager.render_docs_page(page_data)
+        self.template_manager
+            .render_template("docs.stpl", TemplateDataEnum::Docs(page_data))
     }
 
     fn generate_sidebar_nav(&self, file: &MarkdownFile) -> Option<SidebarNavData> {
@@ -171,31 +182,31 @@ impl PageGenerator {
         Some(SidebarNavData {
             current_path: current_path.to_string(),
             items: vec![
-                crate::presentation::templates::SidebarNavItem {
+                crate::templates::SidebarNavItem {
                     title: "Documentation".to_string(),
                     url: "docs".to_string(),
                     is_current: current_path == "docs",
                     is_section: true,
                 },
-                crate::presentation::templates::SidebarNavItem {
+                crate::templates::SidebarNavItem {
                     title: "Getting Started".to_string(),
                     url: "docs/getting-started".to_string(),
                     is_current: file.path.ends_with("getting-started.md"),
                     is_section: false,
                 },
-                crate::presentation::templates::SidebarNavItem {
+                crate::templates::SidebarNavItem {
                     title: "Frontmatter".to_string(),
                     url: "docs/frontmatter".to_string(),
                     is_current: file.path.ends_with("frontmatter.md"),
                     is_section: false,
                 },
-                crate::presentation::templates::SidebarNavItem {
+                crate::templates::SidebarNavItem {
                     title: "CLI Commands".to_string(),
                     url: "docs/cli-commands".to_string(),
                     is_current: file.path.ends_with("cli-commands.md"),
                     is_section: false,
                 },
-                crate::presentation::templates::SidebarNavItem {
+                crate::templates::SidebarNavItem {
                     title: "Deployment".to_string(),
                     url: "docs/deployment".to_string(),
                     is_current: file.path.ends_with("deployment.md"),

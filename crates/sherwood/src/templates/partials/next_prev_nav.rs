@@ -1,4 +1,4 @@
-use crate::presentation::templates::NextPrevNavData;
+use crate::templates::NextPrevNavData;
 use sailfish::TemplateOnce;
 
 #[derive(TemplateOnce)]

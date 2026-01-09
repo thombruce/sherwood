@@ -7,7 +7,7 @@ use crate::partials::BreadcrumbGenerator;
 use crate::plugins::PluginRegistry;
 use crate::presentation::pages::PageGenerator;
 use crate::presentation::styles::StyleManager;
-use crate::presentation::templates::TemplateManager;
+use crate::templates::TemplateManager;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs;

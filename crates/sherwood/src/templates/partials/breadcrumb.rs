@@ -1,6 +1,6 @@
 use crate::config::BreadcrumbSection;
 use crate::content::parser::{MarkdownFile, MarkdownParser};
-use crate::presentation::templates::{BreadcrumbData, BreadcrumbItem};
+use crate::templates::{BreadcrumbData, BreadcrumbItem};
 use anyhow::Result;
 use sailfish::TemplateOnce;
 use std::path::{Path, PathBuf};

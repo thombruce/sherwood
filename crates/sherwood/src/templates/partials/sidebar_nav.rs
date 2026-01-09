@@ -1,4 +1,4 @@
-use crate::presentation::templates::SidebarNavData;
+use crate::templates::SidebarNavData;
 use sailfish::TemplateOnce;
 
 #[derive(TemplateOnce)]

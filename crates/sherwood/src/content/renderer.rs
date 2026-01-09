@@ -1,5 +1,5 @@
 use super::parser::MarkdownFile;
-use crate::presentation::templates::{ListData, ListItemData, TemplateManager};
+use crate::templates::{ListData, ListItemData, TemplateManager};
 use anyhow::Result;
 use chrono::NaiveDate;
 use serde::Serialize;
@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct SortConfig {
     pub field: String,
     pub order: String,
@@ -256,7 +256,7 @@ mod tests {
     }
 
     fn create_test_html_renderer() -> HtmlRenderer {
-        use crate::presentation::templates::TemplateManager;
+        use crate::templates::TemplateManager;
         let temp_dir = tempdir().unwrap();
         let template_manager = TemplateManager::new(temp_dir.path()).unwrap();
         HtmlRenderer::new(temp_dir.path(), template_manager)

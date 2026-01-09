@@ -1,4 +1,4 @@
-use crate::presentation::templates::ListItemData;
+use crate::templates::ListItemData;
 use sailfish::TemplateOnce;
 
 #[derive(TemplateOnce)]
