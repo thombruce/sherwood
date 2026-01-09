@@ -222,10 +222,10 @@ impl SiteGenerator {
             );
 
             self.page_generator
-                .process_markdown_file_with_list(file, &html_content, list_data)?
+                .process_markdown_file(file, &html_content, list_data)?
         } else {
             self.page_generator
-                .process_markdown_file(file, &html_content)?
+                .process_markdown_file(file, &html_content, None)?
         };
 
         fs::write(&html_path, full_html)?;

@@ -1,5 +1,6 @@
 pub mod config;
 pub mod content;
+pub mod content_generation;
 pub mod core;
 pub mod generator;
 pub mod plugins;
