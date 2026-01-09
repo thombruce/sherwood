@@ -30,7 +30,7 @@ cargo run --bin validate --input content --output dist
 
 ### Project Structure
 ```
-sherwood/
+./
 ├── crates/sherwood/
 │   ├── src/
 │   │   ├── bin/           # CLI applications
