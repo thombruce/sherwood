@@ -2,7 +2,7 @@ use crate::presentation::templates::SidebarNavData;
 use sailfish::TemplateOnce;
 
 #[derive(TemplateOnce)]
-#[template(path = "sidebar_nav.stpl")]
+#[template(path = "partials/sidebar_nav.stpl")]
 pub struct SidebarNav {
     pub sidebar_nav: SidebarNavData,
 }

@@ -2,7 +2,7 @@ use crate::presentation::templates::NextPrevNavData;
 use sailfish::TemplateOnce;
 
 #[derive(TemplateOnce)]
-#[template(path = "next_prev_nav.stpl")]
+#[template(path = "partials/next_prev_nav.stpl")]
 pub struct NextPrevNav {
     pub nav: NextPrevNavData,
 }

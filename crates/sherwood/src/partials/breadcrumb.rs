@@ -6,7 +6,7 @@ use sailfish::TemplateOnce;
 use std::path::{Path, PathBuf};
 
 #[derive(TemplateOnce)]
-#[template(path = "breadcrumb.stpl")]
+#[template(path = "partials/breadcrumb.stpl")]
 pub struct Breadcrumb {
     pub items: Vec<BreadcrumbItem>,
 }
