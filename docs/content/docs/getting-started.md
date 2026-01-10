@@ -1,6 +1,7 @@
 +++
 title = "Getting Started"
 date = "2024-01-10"
+page_template = "docs.stpl"
 +++
 
 # Getting Started

@@ -1,12 +1,12 @@
 use crate::config::BreadcrumbSection;
-use crate::content::parser::{MarkdownFile, MarkdownParser};
-use crate::presentation::templates::{BreadcrumbData, BreadcrumbItem};
+use crate::content::parsing::{MarkdownFile, MarkdownParser};
+use crate::templates::{BreadcrumbData, BreadcrumbItem};
 use anyhow::Result;
 use sailfish::TemplateOnce;
 use std::path::{Path, PathBuf};
 
 #[derive(TemplateOnce)]
-#[template(path = "breadcrumb.stpl")]
+#[template(path = "partials/breadcrumb.stpl")]
 pub struct Breadcrumb {
     pub items: Vec<BreadcrumbItem>,
 }

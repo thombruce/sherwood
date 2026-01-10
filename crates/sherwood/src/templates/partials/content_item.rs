@@ -1,8 +1,8 @@
-use crate::presentation::templates::ListItemData;
+use crate::templates::ListItemData;
 use sailfish::TemplateOnce;
 
 #[derive(TemplateOnce)]
-#[template(path = "content_item.stpl")]
+#[template(path = "partials/content_item.stpl")]
 pub struct ContentItem {
     pub item: ListItemData,
 }

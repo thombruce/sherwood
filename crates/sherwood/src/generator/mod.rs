@@ -1,5 +1,5 @@
 use crate::config::{SiteConfig, SiteSection, TemplateSection};
-use crate::content::parser::MarkdownFile;
+use crate::content::parsing::MarkdownFile;
 use crate::content::renderer::HtmlRenderer;
 use crate::content::universal_parser::UniversalContentParser;
 use crate::core::utils::{ensure_directory_exists, ensure_parent_exists};
@@ -7,7 +7,7 @@ use crate::partials::BreadcrumbGenerator;
 use crate::plugins::PluginRegistry;
 use crate::presentation::pages::PageGenerator;
 use crate::presentation::styles::StyleManager;
-use crate::presentation::templates::TemplateManager;
+use crate::templates::TemplateManager;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs;
@@ -222,10 +222,10 @@ impl SiteGenerator {
             );
 
             self.page_generator
-                .process_markdown_file_with_list(file, &html_content, list_data)?
+                .process_markdown_file(file, &html_content, list_data)?
         } else {
             self.page_generator
-                .process_markdown_file(file, &html_content)?
+                .process_markdown_file(file, &html_content, None)?
         };
 
         fs::write(&html_path, full_html)?;

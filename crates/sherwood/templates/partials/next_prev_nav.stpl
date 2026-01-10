@@ -1,0 +1,13 @@
+<div class="next-prev-nav">
+    <% if let Some(prev) = nav.previous { %>
+        <a href="/<%= prev.url %>" class="prev-link">
+            ← <%= prev.title %>
+        </a>
+    <% } %>
+    
+    <% if let Some(next) = nav.next { %>
+        <a href="/<%= next.url %>" class="next-link">
+            <%= next.title %> →
+        </a>
+    <% } %>
+</div>
