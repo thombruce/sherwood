@@ -330,7 +330,7 @@ This document demonstrates all major markdown features."#;
         assert!(result.content.contains("<em>multiple</em>"));
         assert!(result.content.contains("<ul class=\"content-list\">"));
         assert!(result.content.contains("<ol class=\"numbered-list\">"));
-        assert!(result.content.contains("<pre><code>"));
+        assert!(result.content.contains("<pre><code")); // Allow for class attribute
         assert!(result.content.contains("println!"));
         assert!(result.content.contains("<a href=\"https://rust-lang.org\""));
         assert!(
@@ -358,7 +358,11 @@ This document demonstrates all major markdown features."#;
         assert_eq!(result.frontmatter.date, None);
         assert_eq!(result.frontmatter.list, None);
         assert_eq!(result.frontmatter.tags, None);
-        assert_eq!(result.frontmatter.excerpt, None);
+        // Excerpt should be auto-extracted from content
+        assert_eq!(
+            result.frontmatter.excerpt,
+            Some("Just some simple text without any special formatting.".to_string())
+        );
 
         // Title should be from filename
         assert_eq!(result.title, "minimal");

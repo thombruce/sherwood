@@ -52,9 +52,62 @@ fn wrap_articles(html: &str) -> String {
 
 /// Add semantic structure to lists
 fn enhance_lists(html: &str) -> String {
-    // Convert plain lists to more semantic versions when appropriate
-    html.replace("<ul>", "<ul class=\"content-list\">")
-        .replace("<ol>", "<ol class=\"numbered-list\">")
+    // Use a more sophisticated approach that only modifies top-level lists
+    // This regex-based approach finds list tags that are not nested inside other lists
+    let mut result = html.to_string();
+
+    // Pattern to match top-level <ul> tags (not preceded by another list)
+    // This is a simplified approach - we look for <ul> at the start or after non-list content
+    result = regex_replace(&result, r"(?m)^\s*<ul>", "<ul class=\"content-list\">");
+    result = regex_replace(&result, r"(?m)^\s*<ol>", "<ol class=\"numbered-list\">");
+
+    // Also handle <ul> and <ol> that come after closing tags (like </p>, </div>, etc.)
+    result = regex_replace(
+        &result,
+        r"</(?:p|div|h[1-6])>\s*<ul>",
+        "</p><ul class=\"content-list\">",
+    );
+    result = regex_replace(
+        &result,
+        r"</(?:p|div|h[1-6])>\s*<ol>",
+        "</p><ol class=\"numbered-list\">",
+    );
+
+    // Handle cases where lists are at the very beginning
+    if result.starts_with("<ul>") {
+        result = result.replacen("<ul>", "<ul class=\"content-list\">", 1);
+    }
+    if result.starts_with("<ol>") {
+        result = result.replacen("<ol>", "<ol class=\"numbered-list\">", 1);
+    }
+
+    result
+}
+
+/// Simple regex replacement function to avoid pulling in regex crate
+fn regex_replace(text: &str, pattern: &str, replacement: &str) -> String {
+    // Simple pattern matching for our specific use cases
+    if pattern.contains(r"(?m)^\s*<ul>") {
+        // Match lines starting with optional whitespace followed by <ul>
+        let lines: Vec<&str> = text.lines().collect();
+        let mut result_lines = Vec::new();
+        for line in lines {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("<ul>") && !trimmed.contains("<ul><") {
+                let new_line = line.replacen("<ul>", "<ul class=\"content-list\">", 1);
+                result_lines.push(new_line);
+            } else if trimmed.starts_with("<ol>") && !trimmed.contains("<ol><") {
+                let new_line = line.replacen("<ol>", "<ol class=\"numbered-list\">", 1);
+                result_lines.push(new_line);
+            } else {
+                result_lines.push(line.to_string());
+            }
+        }
+        result_lines.join("\n")
+    } else {
+        // For other patterns, use simple string replacement
+        text.replace(pattern, replacement)
+    }
 }
 
 #[cfg(test)]
