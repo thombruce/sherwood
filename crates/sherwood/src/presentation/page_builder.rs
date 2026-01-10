@@ -1,4 +1,4 @@
-use crate::content::parser::MarkdownFile;
+use crate::content::parsing::MarkdownFile;
 use crate::partials::BreadcrumbGenerator;
 use crate::templates::{
     BreadcrumbData, DocsPageData, ListData, NextPrevNavData, PageData, SidebarNavData,

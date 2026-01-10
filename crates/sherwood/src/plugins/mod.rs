@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::content::parser::Frontmatter;
+use crate::content::parsing::Frontmatter;
 
 pub trait ContentParser: Send + Sync {
     fn name(&self) -> &'static str;

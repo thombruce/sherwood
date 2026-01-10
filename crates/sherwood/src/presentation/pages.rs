@@ -1,4 +1,4 @@
-use crate::content::parser::MarkdownFile;
+use crate::content::parsing::MarkdownFile;
 use crate::content_generation::ContentGenerator;
 use crate::partials::BreadcrumbGenerator;
 use crate::presentation::template_processor::TemplateProcessor;
@@ -71,7 +71,7 @@ mod tests {
             path: PathBuf::from("test.md"),
             title: "Test Page".to_string(),
             content: "# Test Content\n\nThis is a test page.".to_string(),
-            frontmatter: crate::content::parser::Frontmatter {
+            frontmatter: crate::content::parsing::Frontmatter {
                 title: Some("Test Page".to_string()),
                 date: None,
                 list: None,

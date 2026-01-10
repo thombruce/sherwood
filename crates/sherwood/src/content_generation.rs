@@ -1,4 +1,4 @@
-use crate::content::parser::MarkdownFile;
+use crate::content::parsing::MarkdownFile;
 use crate::templates::{NextPrevNavData, SidebarNavData};
 use markdown::mdast::Node;
 use markdown::{ParseOptions, to_mdast};

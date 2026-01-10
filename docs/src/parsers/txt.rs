@@ -1,6 +1,6 @@
 use anyhow::Result;
+use sherwood::content::Frontmatter;
 use sherwood::content::markdown_util::MarkdownProcessor;
-use sherwood::content::parser::Frontmatter;
 use sherwood::plugins::{ContentParser, ParsedContent};
 use std::collections::HashMap;
 use std::path::Path;

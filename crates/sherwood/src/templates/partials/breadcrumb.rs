@@ -1,5 +1,5 @@
 use crate::config::BreadcrumbSection;
-use crate::content::parser::{MarkdownFile, MarkdownParser};
+use crate::content::parsing::{MarkdownFile, MarkdownParser};
 use crate::templates::{BreadcrumbData, BreadcrumbItem};
 use anyhow::Result;
 use sailfish::TemplateOnce;

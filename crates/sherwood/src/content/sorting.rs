@@ -1,4 +1,4 @@
-use super::parser::MarkdownFile;
+use super::parsing::MarkdownFile;
 use crate::content::date_parsing::parse_date;
 use serde::Serialize;
 use std::cmp::Ordering;
@@ -10,7 +10,7 @@ pub struct SortConfig {
 }
 
 impl SortConfig {
-    pub fn from_frontmatter(frontmatter: &super::parser::Frontmatter) -> Self {
+    pub fn from_frontmatter(frontmatter: &super::parsing::Frontmatter) -> Self {
         let field = frontmatter
             .sort_by
             .as_ref()
@@ -115,7 +115,7 @@ fn compare_by_filename(a: &MarkdownFile, b: &MarkdownFile) -> Ordering {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content::parser::{Frontmatter, MarkdownFile};
+    use crate::content::parsing::{Frontmatter, MarkdownFile};
     use std::path::PathBuf;
 
     fn create_test_markdown_file(path: &str, title: &str, date: Option<&str>) -> MarkdownFile {

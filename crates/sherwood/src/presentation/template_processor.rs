@@ -1,4 +1,4 @@
-use crate::content::parser::{Frontmatter, MarkdownFile};
+use crate::content::parsing::{Frontmatter, MarkdownFile};
 use crate::content_generation::{ContentGenerator, DefaultContentGenerator};
 use crate::templates::{ListData, TemplateDataEnum, TemplateManager};
 use anyhow::Result;

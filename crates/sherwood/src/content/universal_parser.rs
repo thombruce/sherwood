@@ -1,4 +1,4 @@
-use crate::content::parser::MarkdownFile;
+use crate::content::parsing::MarkdownFile;
 use crate::plugins::ParsedContent;
 use anyhow::Result;
 use std::path::Path;
@@ -24,7 +24,7 @@ impl UniversalContentParser {
         }
 
         // Fallback to markdown parser
-        crate::content::parser::MarkdownParser::parse_markdown_file(file_path)
+        crate::content::parsing::MarkdownParser::parse_markdown_file(file_path)
     }
 
     fn convert_to_markdown_file(&self, parsed: ParsedContent, path: &Path) -> Result<MarkdownFile> {

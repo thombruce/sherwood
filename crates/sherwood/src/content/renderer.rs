@@ -29,7 +29,7 @@ impl HtmlRenderer {
     pub fn generate_list_data(
         &self,
         dir: &Path,
-        list_pages: &std::collections::HashMap<std::path::PathBuf, &super::parser::MarkdownFile>,
+        list_pages: &std::collections::HashMap<std::path::PathBuf, &super::parsing::MarkdownFile>,
     ) -> Result<crate::templates::ListData> {
         self.list_generator.generate_list_data(dir, list_pages)
     }
@@ -38,7 +38,7 @@ impl HtmlRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content::parser::MarkdownParser;
+    use crate::content::parsing::MarkdownParser;
     use crate::templates::TemplateManager;
     use std::fs;
     use std::path::PathBuf;

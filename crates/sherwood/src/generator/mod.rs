@@ -1,5 +1,5 @@
 use crate::config::{SiteConfig, SiteSection, TemplateSection};
-use crate::content::parser::MarkdownFile;
+use crate::content::parsing::MarkdownFile;
 use crate::content::renderer::HtmlRenderer;
 use crate::content::universal_parser::UniversalContentParser;
 use crate::core::utils::{ensure_directory_exists, ensure_parent_exists};

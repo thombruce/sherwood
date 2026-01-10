@@ -1,4 +1,4 @@
-use super::parser::MarkdownFile;
+use super::parsing::MarkdownFile;
 use super::sorting::{SortConfig, sort_markdown_files};
 use crate::templates::{ListData, ListItemData};
 use anyhow::Result;
@@ -64,7 +64,7 @@ impl ListGenerator {
 
                 // Skip index files and other list pages
                 if !file_name.starts_with("index") {
-                    let parsed = super::parser::MarkdownParser::parse_markdown_file(&path)?;
+                    let parsed = super::parsing::MarkdownParser::parse_markdown_file(&path)?;
                     markdown_files.push(parsed);
                 }
             }
@@ -99,7 +99,7 @@ impl ListGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content::parser::MarkdownParser;
+    use crate::content::parsing::MarkdownParser;
     use std::fs;
     use tempfile::tempdir;
 
