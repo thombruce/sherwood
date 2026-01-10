@@ -1,6 +1,5 @@
 pub mod config;
 pub mod content;
-pub mod content_generation;
 pub mod core;
 pub mod generator;
 pub mod plugins;
@@ -10,6 +9,7 @@ mod sherwood;
 pub mod templates;
 
 pub use config::{SiteConfig, SiteSection, TemplateSection};
+pub use core::content_generation;
 pub use generator::{
     generate_site, generate_site_development, generate_site_development_with_plugins,
     generate_site_with_plugins,
