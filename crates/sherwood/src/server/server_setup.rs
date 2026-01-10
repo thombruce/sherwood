@@ -15,9 +15,13 @@ pub struct ServerSetup {
 }
 
 /// Create server setup for regular development server
-pub async fn create_server_setup(output_dir: &Path, port: u16) -> Result<ServerSetup> {
+pub async fn create_server_setup(
+    input_dir: &Path,
+    output_dir: &Path,
+    port: u16,
+) -> Result<ServerSetup> {
     println!("Generating site in development mode...");
-    generate_site_development(output_dir.parent().unwrap(), output_dir).await?;
+    generate_site_development(input_dir, output_dir).await?;
 
     let output_dir_buf = output_dir.to_path_buf();
     let fallback_handler = move |uri: Uri| async move {
@@ -36,17 +40,13 @@ pub async fn create_server_setup(output_dir: &Path, port: u16) -> Result<ServerS
 
 /// Create server setup for plugin-enabled development server
 pub async fn create_server_setup_with_plugins(
+    input_dir: &Path,
     output_dir: &Path,
     port: u16,
     plugin_registry: Option<PluginRegistry>,
 ) -> Result<ServerSetup> {
     println!("Generating site in development mode...");
-    generate_site_development_with_plugins(
-        output_dir.parent().unwrap(),
-        output_dir,
-        plugin_registry,
-    )
-    .await?;
+    generate_site_development_with_plugins(input_dir, output_dir, plugin_registry).await?;
 
     let output_dir_buf = output_dir.to_path_buf();
     let fallback_handler = move |uri: Uri| async move {
