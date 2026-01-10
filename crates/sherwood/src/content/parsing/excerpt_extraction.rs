@@ -1,9 +1,10 @@
 use crate::content::parsing::ast_utils::extract_text_from_nodes;
+use crate::core::markdown_config;
 use markdown::mdast::Node;
-use markdown::{ParseOptions, to_mdast};
+use markdown::to_mdast;
 
 pub struct ExcerptExtractor {
-    parse_options: ParseOptions,
+    parse_options: markdown::ParseOptions,
 }
 
 impl Default for ExcerptExtractor {
@@ -14,15 +15,7 @@ impl Default for ExcerptExtractor {
 
 impl ExcerptExtractor {
     pub fn new() -> Self {
-        // Use default parse options for now, will match HTML converter later
-        let parse_options = ParseOptions {
-            constructs: markdown::Constructs {
-                frontmatter: true,
-                gfm_strikethrough: true,
-                ..Default::default()
-            },
-            ..ParseOptions::default()
-        };
+        let parse_options = markdown_config::with_frontmatter_and_gfm();
 
         Self { parse_options }
     }

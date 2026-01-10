@@ -1,7 +1,9 @@
 use crate::content::parsing::MarkdownFile;
+use crate::content::parsing::ast_utils::extract_text_from_nodes;
+use crate::core::markdown_config;
 use crate::templates::{NextPrevNavData, SidebarNavData};
 use markdown::mdast::Node;
-use markdown::{ParseOptions, to_mdast};
+use markdown::to_mdast;
 
 /// Generic trait for generating content-specific page components.
 /// This trait is designed to be extensible for future plugins and custom generators.
@@ -73,7 +75,7 @@ impl ContentGenerator for DefaultContentGenerator {
     }
 
     fn generate_table_of_contents(&self, content: &str) -> Option<String> {
-        let root = to_mdast(content, &ParseOptions::default()).ok()?;
+        let root = to_mdast(content, &markdown_config::default()).ok()?;
 
         let mut toc_html = String::from("<ul class=\"toc-list\">");
         let mut has_items = false;
@@ -117,58 +119,42 @@ impl DefaultContentGenerator {
     /// Extract plain text from a markdown AST node
     fn extract_text_from_node(&self, node: &Node) -> String {
         match node {
-            Node::Root(root) => Self::extract_text_from_nodes(&root.children),
-            Node::Blockquote(quote) => Self::extract_text_from_nodes(&quote.children),
-            Node::List(list) => Self::extract_text_from_nodes(&list.children),
-            Node::ListItem(item) => Self::extract_text_from_nodes(&item.children),
+            Node::Root(root) => extract_text_from_nodes(&root.children),
+            Node::Blockquote(quote) => extract_text_from_nodes(&quote.children),
+            Node::List(list) => extract_text_from_nodes(&list.children),
+            Node::ListItem(item) => extract_text_from_nodes(&item.children),
             Node::Definition(_def) => String::new(),
-            Node::Paragraph(para) => Self::extract_text_from_nodes(&para.children),
-            Node::Heading(heading) => Self::extract_text_from_nodes(&heading.children),
+            Node::Paragraph(para) => extract_text_from_nodes(&para.children),
+            Node::Heading(heading) => extract_text_from_nodes(&heading.children),
             Node::Table(_table) => String::new(),
             Node::TableRow(_row) => String::new(),
             Node::TableCell(_cell) => String::new(),
             Node::Html(_html) => String::new(),
-            Node::Code(code) => code.value.clone(),
-            Node::Math(_math) => String::new(),
+            Node::Code(_code) => String::new(),
             Node::Yaml(_yaml) => String::new(),
             Node::Toml(_toml) => String::new(),
-            Node::Text(text) => text.value.clone(),
-            Node::Emphasis(emphasis) => Self::extract_text_from_nodes(&emphasis.children),
-            Node::Strong(strong) => Self::extract_text_from_nodes(&strong.children),
-            Node::Delete(delete) => Self::extract_text_from_nodes(&delete.children),
+            Node::InlineMath(_math) => String::new(),
+            Node::Math(_math) => String::new(),
+            Node::MdxJsxFlowElement(_jsx) => String::new(),
+            Node::MdxFlowExpression(_expr) => String::new(),
+            Node::MdxTextExpression(_expr) => String::new(),
+            // Extract text from inline elements
+            Node::Emphasis(emphasis) => extract_text_from_nodes(&emphasis.children),
+            Node::Strong(strong) => extract_text_from_nodes(&strong.children),
+            Node::Delete(delete) => extract_text_from_nodes(&delete.children),
             Node::InlineCode(code) => code.value.clone(),
             Node::Break(_break) => String::new(),
-            Node::Link(link) => Self::extract_text_from_nodes(&link.children),
+            Node::Link(link) => extract_text_from_nodes(&link.children),
             Node::Image(image) => image.alt.clone(),
-            Node::FootnoteReference(_footnote) => String::new(),
-            Node::FootnoteDefinition(_def) => String::new(),
-            Node::InlineMath(math) => math.value.clone(),
-            Node::MdxTextExpression(_) | Node::MdxJsxTextElement(_) => String::new(),
-            _ => String::new(),
-        }
-    }
-
-    /// Extract plain text from a list of markdown AST nodes
-    fn extract_text_from_nodes(nodes: &[Node]) -> String {
-        nodes
-            .iter()
-            .map(Self::extract_text_from_node_static)
-            .collect::<Vec<String>>()
-            .join("")
-    }
-
-    /// Extract plain text from a markdown AST node (static version)
-    fn extract_text_from_node_static(node: &Node) -> String {
-        match node {
+            Node::LinkReference(_reference) => String::new(),
+            Node::ImageReference(_reference) => String::new(),
+            Node::FootnoteReference(_reference) => String::new(),
+            Node::FootnoteDefinition(_definition) => String::new(),
+            // Handle remaining variants
             Node::Text(text) => text.value.clone(),
-            Node::Emphasis(emphasis) => Self::extract_text_from_nodes(&emphasis.children),
-            Node::Strong(strong) => Self::extract_text_from_nodes(&strong.children),
-            Node::Delete(delete) => Self::extract_text_from_nodes(&delete.children),
-            Node::InlineCode(code) => code.value.clone(),
-            Node::Link(link) => Self::extract_text_from_nodes(&link.children),
-            Node::Image(image) => image.alt.clone(),
-            Node::InlineMath(math) => math.value.clone(),
-            _ => String::new(),
+            Node::ThematicBreak(_) => String::new(),
+            Node::MdxjsEsm(_) => String::new(),
+            Node::MdxJsxTextElement(_) => String::new(),
         }
     }
 

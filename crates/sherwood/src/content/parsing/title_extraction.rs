@@ -53,18 +53,13 @@ pub fn resolve_title(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use markdown::{ParseOptions, to_mdast};
+    use crate::core::markdown_config;
+    use markdown::to_mdast;
     use std::path::PathBuf;
     use tempfile::tempdir;
 
     fn parse_markdown_ast(content: &str) -> Node {
-        let options = ParseOptions {
-            constructs: markdown::Constructs {
-                frontmatter: true,
-                ..Default::default()
-            },
-            ..ParseOptions::default()
-        };
+        let options = markdown_config::with_frontmatter();
         to_mdast(content, &options).unwrap()
     }
 

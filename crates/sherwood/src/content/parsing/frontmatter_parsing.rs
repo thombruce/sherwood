@@ -1,6 +1,7 @@
+use crate::core::markdown_config;
 use anyhow::Result;
 use markdown::mdast::{Node, Root};
-use markdown::{ParseOptions, to_mdast};
+use markdown::to_mdast;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Default, Clone)]
@@ -16,7 +17,7 @@ pub struct Frontmatter {
 }
 
 pub struct FrontmatterParser {
-    parse_options: ParseOptions,
+    parse_options: markdown::ParseOptions,
 }
 
 impl Default for FrontmatterParser {
@@ -27,13 +28,7 @@ impl Default for FrontmatterParser {
 
 impl FrontmatterParser {
     pub fn new() -> Self {
-        let parse_options = ParseOptions {
-            constructs: markdown::Constructs {
-                frontmatter: true,
-                ..Default::default()
-            },
-            ..ParseOptions::default()
-        };
+        let parse_options = markdown_config::with_frontmatter();
 
         Self { parse_options }
     }

@@ -1,11 +1,12 @@
 use anyhow::Result;
-use markdown::{ParseOptions, to_mdast};
+use markdown::to_mdast;
 use std::path::Path;
 
 use crate::content::parsing::excerpt_extraction::ExcerptExtractor;
 use crate::content::parsing::frontmatter_parsing::{Frontmatter, FrontmatterParser};
 use crate::content::parsing::html_conversion::HtmlConverter;
 use crate::content::parsing::title_extraction::resolve_title;
+use crate::core::markdown_config;
 
 #[derive(Debug, Clone)]
 pub struct MarkdownFile {
@@ -19,7 +20,7 @@ pub struct MarkdownParser {
     frontmatter_parser: FrontmatterParser,
     excerpt_extractor: ExcerptExtractor,
     html_converter: HtmlConverter,
-    parse_options: ParseOptions,
+    parse_options: markdown::ParseOptions,
 }
 
 impl Default for MarkdownParser {
@@ -30,13 +31,7 @@ impl Default for MarkdownParser {
 
 impl MarkdownParser {
     pub fn new() -> Self {
-        let parse_options = ParseOptions {
-            constructs: markdown::Constructs {
-                frontmatter: true,
-                ..Default::default()
-            },
-            ..ParseOptions::default()
-        };
+        let parse_options = markdown_config::with_frontmatter();
 
         Self {
             frontmatter_parser: FrontmatterParser::new(),

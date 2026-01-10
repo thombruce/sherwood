@@ -31,8 +31,9 @@ pub fn extract_text_from_nodes(nodes: &[Node]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::markdown_config;
     use markdown::mdast::{Emphasis, Image, InlineCode, Link, Strong, Text};
-    use markdown::{ParseOptions, to_mdast};
+    use markdown::to_mdast;
 
     #[test]
     fn test_extract_text_simple() {
@@ -173,7 +174,7 @@ mod tests {
     fn test_extract_text_complex_formatting() {
         // Parse a real markdown string with complex formatting
         let content = "This has **bold**, *italic*, `code`, and [links](https://example.com)";
-        let options = ParseOptions::default();
+        let options = markdown_config::default();
         let root = to_mdast(content, &options).unwrap();
 
         if let Node::Root(root_node) = root {
