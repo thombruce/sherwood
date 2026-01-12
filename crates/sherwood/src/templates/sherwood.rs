@@ -4,8 +4,8 @@ use sailfish::TemplateOnce;
 use serde::Serialize;
 
 #[derive(TemplateOnce)]
-#[template(path = "default.stpl")]
-pub struct DefaultTemplate {
+#[template(path = "sherwood.stpl")]
+pub struct SherwoodTemplate {
     pub title: String,
     pub content: String,
     pub css_file: Option<String>,

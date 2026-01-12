@@ -75,7 +75,7 @@ mod tests {
                 title: Some("Test Page".to_string()),
                 date: None,
                 list: None,
-                page_template: Some("default.stpl".to_string()),
+                page_template: Some("sherwood.stpl".to_string()),
                 sort_by: None,
                 sort_order: None,
                 tags: None,

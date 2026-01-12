@@ -417,6 +417,8 @@ name = "docs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "sailfish",
+ "serde",
  "serde_json",
  "sherwood",
  "tokio",

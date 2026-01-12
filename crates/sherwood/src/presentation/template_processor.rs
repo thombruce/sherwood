@@ -16,7 +16,7 @@ impl TemplateType {
     pub fn resolve(frontmatter: &Frontmatter) -> Self {
         if let Some(template) = &frontmatter.page_template {
             match template.as_str() {
-                "default.stpl" => Self::Default,
+                "sherwood.stpl" => Self::Default,
                 "docs.stpl" => Self::Docs,
                 custom => Self::Custom(custom.to_string()),
             }
@@ -28,7 +28,7 @@ impl TemplateType {
     /// Get the template file name for this template type
     pub fn template_name(&self) -> &str {
         match self {
-            Self::Default => "default.stpl",
+            Self::Default => "sherwood.stpl",
             Self::Docs => "docs.stpl",
             Self::Custom(name) => name,
         }

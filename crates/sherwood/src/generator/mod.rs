@@ -20,7 +20,7 @@ const TEMPLATES_DIR_RELATIVE: &str = "../templates";
 const CONFIG_PATH_RELATIVE: &str = "../Sherwood.toml";
 
 // Constants for template names
-const DEFAULT_PAGE_TEMPLATE: &str = "default.stpl";
+const DEFAULT_PAGE_TEMPLATE: &str = "sherwood.stpl";
 
 pub struct SiteGenerator {
     input_dir: PathBuf,

@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 // Embed templates directory at compile time
 static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-use super::{default::DefaultTemplate, default::PageData, docs::DocsPageData, docs::DocsTemplate};
+use super::{
+    docs::DocsPageData, docs::DocsTemplate, sherwood::PageData, sherwood::SherwoodTemplate,
+};
 use sailfish::TemplateOnce;
 
 pub trait TemplateData {
@@ -17,7 +19,7 @@ pub trait TemplateData {
     fn get_css_file(&self) -> Option<&str>;
     fn get_body_attrs(&self) -> &str;
 
-    // Optional sections - default to None
+    // Optional sections - sherwood to None
     fn get_breadcrumb_data(&self) -> Option<&BreadcrumbData> {
         None
     }
@@ -205,7 +207,7 @@ impl TemplateManager {
     /// Single unified render function that handles all template types
     pub fn render_template(&self, template_name: &str, data: TemplateDataEnum) -> Result<String> {
         match template_name {
-            "default.stpl" => self.render_default_template(data),
+            "sherwood.stpl" => self.render_sherwood_template(data),
             "docs.stpl" => self.render_docs_template(data),
             _ => Err(TemplateError::TemplateNotFound {
                 template_name: template_name.to_string(),
@@ -222,8 +224,8 @@ impl TemplateManager {
         self.templates_dir.join(template_name).exists()
     }
 
-    fn render_default_template(&self, data: TemplateDataEnum) -> Result<String> {
-        let template = DefaultTemplate {
+    fn render_sherwood_template(&self, data: TemplateDataEnum) -> Result<String> {
+        let template = SherwoodTemplate {
             title: data.get_title().to_string(),
             content: data.get_content().to_string(),
             css_file: data.get_css_file().map(|s| s.to_string()),
@@ -234,7 +236,7 @@ impl TemplateManager {
 
         template.render_once().map_err(|e| {
             TemplateError::CompilationError {
-                template_name: "default.stpl".to_string(),
+                template_name: "sherwood.stpl".to_string(),
                 source: e,
             }
             .into()

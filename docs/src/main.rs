@@ -1,4 +1,5 @@
 mod parsers;
+mod templates;
 use parsers::{JsonContentParser, TextContentParser, TomlContentParser};
 use sherwood::plugins::PluginRegistry;
 
