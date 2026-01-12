@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 use super::{
-    docs::DocsPageData, docs::DocsTemplate, sherwood::PageData, sherwood::SherwoodTemplate,
+    docs::DocsPageData, docs::DocsTemplate, registry::TemplateRegistry, sherwood::PageData,
+    sherwood::SherwoodTemplate,
 };
 use sailfish::TemplateOnce;
 
@@ -37,6 +38,7 @@ pub trait TemplateData {
     }
 }
 
+#[derive(Clone)]
 pub enum TemplateDataEnum {
     Page(PageData),
     Docs(DocsPageData),
@@ -107,32 +109,61 @@ impl TemplateData for TemplateDataEnum {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TemplateManager {
     templates_dir: PathBuf,
     available_templates: Vec<String>,
+    registry: Option<std::sync::Arc<TemplateRegistry>>,
+}
+
+impl Clone for TemplateManager {
+    fn clone(&self) -> Self {
+        Self {
+            templates_dir: self.templates_dir.clone(),
+            available_templates: self.available_templates.clone(),
+            registry: self.registry.clone(),
+        }
+    }
 }
 
 impl TemplateManager {
     pub fn new(templates_dir: &Path) -> Result<Self> {
+        Self::new_with_registry(templates_dir, None)
+    }
+
+    pub fn new_with_registry(
+        templates_dir: &Path,
+        registry: Option<TemplateRegistry>,
+    ) -> Result<Self> {
         let templates_dir = templates_dir.to_path_buf();
+        let registry = registry.map(std::sync::Arc::new);
 
         // Templates directory is optional - we have embedded fallbacks
 
-        let available_templates = Self::discover_templates(&templates_dir)?;
+        let available_templates =
+            Self::discover_templates(&templates_dir, registry.as_ref().map(|r| r.as_ref()))?;
 
         Ok(Self {
             templates_dir,
             available_templates,
+            registry,
         })
     }
 
     /// Discover all available template files in the templates directory
-    fn discover_templates(templates_dir: &Path) -> Result<Vec<String>> {
+    fn discover_templates(
+        templates_dir: &Path,
+        registry: Option<&TemplateRegistry>,
+    ) -> Result<Vec<String>> {
         let mut templates = Vec::new();
 
         // First, add embedded templates
         templates.extend(get_available_templates());
+
+        // Add registered templates from registry
+        if let Some(registry) = registry {
+            templates.extend(registry.registered_templates());
+        }
 
         // Then scan the templates directory for additional templates
         if templates_dir.exists() && templates_dir.is_dir() {
@@ -206,6 +237,14 @@ impl TemplateManager {
 
     /// Single unified render function that handles all template types
     pub fn render_template(&self, template_name: &str, data: TemplateDataEnum) -> Result<String> {
+        // First try custom templates from registry
+        if let Some(registry) = &self.registry
+            && let Some(renderer) = registry.get_renderer(template_name)
+        {
+            return renderer.render(&data);
+        }
+
+        // Fallback to built-in templates
         match template_name {
             "sherwood.stpl" => self.render_sherwood_template(data),
             "docs.stpl" => self.render_docs_template(data),

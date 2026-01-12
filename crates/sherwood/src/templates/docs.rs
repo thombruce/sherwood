@@ -1,9 +1,10 @@
 use super::common::*;
-use super::renderer::TemplateData;
+use super::registry::FromTemplateData;
+use super::renderer::{TemplateData, TemplateDataEnum};
 use sailfish::TemplateOnce;
 use serde::Serialize;
 
-#[derive(TemplateOnce)]
+#[derive(TemplateOnce, Debug)]
 #[template(path = "docs.stpl")]
 pub struct DocsTemplate {
     pub title: String,
@@ -52,5 +53,20 @@ impl TemplateData for DocsPageData {
     }
     fn get_next_prev_nav(&self) -> Option<&NextPrevNavData> {
         self.next_prev_nav.as_ref()
+    }
+}
+
+impl FromTemplateData for DocsTemplate {
+    fn from(data: TemplateDataEnum) -> Self {
+        Self {
+            title: data.get_title().to_string(),
+            content: data.get_content().to_string(),
+            css_file: data.get_css_file().map(|s| s.to_string()),
+            body_attrs: data.get_body_attrs().to_string(),
+            breadcrumb_data: data.get_breadcrumb_data().cloned(),
+            sidebar_nav: data.get_sidebar_nav().cloned(),
+            table_of_contents: data.get_table_of_contents().map(|s| s.to_string()),
+            next_prev_nav: data.get_next_prev_nav().cloned(),
+        }
     }
 }

@@ -8,7 +8,7 @@ use anyhow::Result;
 pub enum TemplateType {
     Default,
     Docs,
-    Custom(String),
+    External(String),
 }
 
 impl TemplateType {
@@ -18,7 +18,7 @@ impl TemplateType {
             match template.as_str() {
                 "sherwood.stpl" => Self::Default,
                 "docs.stpl" => Self::Docs,
-                custom => Self::Custom(custom.to_string()),
+                external => Self::External(external.to_string()),
             }
         } else {
             Self::Default
@@ -30,7 +30,7 @@ impl TemplateType {
         match self {
             Self::Default => "sherwood.stpl",
             Self::Docs => "docs.stpl",
-            Self::Custom(name) => name,
+            Self::External(name) => name,
         }
     }
 }
@@ -129,12 +129,9 @@ impl TemplateProcessor {
                         .build_docs(),
                 ))
             }
-            TemplateType::Custom(template_name) => {
-                eprintln!(
-                    "Warning: Unknown template '{}', using default template",
-                    template_name
-                );
-
+            TemplateType::External(_template_name) => {
+                // For external templates, build basic page data
+                // The template renderer will handle field extraction via FromTemplateData
                 Ok(TemplateDataEnum::Page(
                     PageBuilder::new(file, html_content, breadcrumb_gen)
                         .with_list_data(list_data)

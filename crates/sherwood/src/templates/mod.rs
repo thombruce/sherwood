@@ -1,6 +1,7 @@
 pub mod common;
 pub mod docs;
 pub mod partials;
+pub mod registry;
 pub mod renderer;
 pub mod sherwood;
 
@@ -16,6 +17,7 @@ pub use partials::{
     next_prev_nav::NextPrevNav,
     sidebar_nav::SidebarNav,
 };
+pub use registry::{FromTemplateData, TemplateAdapter, TemplateRegistry, TemplateRenderer};
 pub use renderer::{
     TemplateData, TemplateDataEnum, TemplateManager, copy_embedded_templates,
     get_available_templates,

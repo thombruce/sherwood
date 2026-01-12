@@ -60,6 +60,36 @@ impl SiteGenerator {
         Self::new_with_mode_and_plugins(input_dir, output_dir, true, Some(plugin_registry))
     }
 
+    pub fn new_with_plugins_and_templates(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: Option<PluginRegistry>,
+        template_registry: Option<crate::templates::TemplateRegistry>,
+    ) -> Result<Self> {
+        Self::new_with_mode_and_plugins_and_templates(
+            input_dir,
+            output_dir,
+            false,
+            plugin_registry,
+            template_registry,
+        )
+    }
+
+    pub fn new_development_with_plugins_and_templates(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: Option<PluginRegistry>,
+        template_registry: Option<crate::templates::TemplateRegistry>,
+    ) -> Result<Self> {
+        Self::new_with_mode_and_plugins_and_templates(
+            input_dir,
+            output_dir,
+            true,
+            plugin_registry,
+            template_registry,
+        )
+    }
+
     fn new_with_mode(input_dir: &Path, output_dir: &Path, is_development: bool) -> Result<Self> {
         Self::new_with_mode_and_plugins(input_dir, output_dir, is_development, None)
     }
@@ -69,6 +99,22 @@ impl SiteGenerator {
         output_dir: &Path,
         is_development: bool,
         plugin_registry: Option<PluginRegistry>,
+    ) -> Result<Self> {
+        Self::new_with_mode_and_plugins_and_templates(
+            input_dir,
+            output_dir,
+            is_development,
+            plugin_registry,
+            None,
+        )
+    }
+
+    fn new_with_mode_and_plugins_and_templates(
+        input_dir: &Path,
+        output_dir: &Path,
+        is_development: bool,
+        plugin_registry: Option<PluginRegistry>,
+        template_registry: Option<crate::templates::TemplateRegistry>,
     ) -> Result<Self> {
         let styles_dir = input_dir.join(STYLES_DIR_RELATIVE);
         let templates_dir = input_dir.join(TEMPLATES_DIR_RELATIVE);
@@ -89,7 +135,8 @@ impl SiteGenerator {
             }
         };
 
-        let template_manager = TemplateManager::new(&templates_dir)?;
+        let template_manager =
+            TemplateManager::new_with_registry(&templates_dir, template_registry)?;
         let html_renderer = HtmlRenderer::new(input_dir, template_manager.clone());
 
         // Create breadcrumb generator if configured
@@ -266,6 +313,21 @@ pub async fn generate_site_with_plugins(
     generator.generate().await
 }
 
+pub async fn generate_site_with_plugins_and_templates(
+    input_dir: &Path,
+    output_dir: &Path,
+    plugin_registry: Option<PluginRegistry>,
+    template_registry: Option<crate::templates::TemplateRegistry>,
+) -> Result<()> {
+    let generator = SiteGenerator::new_with_plugins_and_templates(
+        input_dir,
+        output_dir,
+        plugin_registry,
+        template_registry,
+    )?;
+    generator.generate().await
+}
+
 pub async fn generate_site_development_with_plugins(
     input_dir: &Path,
     output_dir: &Path,
@@ -276,5 +338,20 @@ pub async fn generate_site_development_with_plugins(
     } else {
         SiteGenerator::new_development(input_dir, output_dir)?
     };
+    generator.generate().await
+}
+
+pub async fn generate_site_development_with_plugins_and_templates(
+    input_dir: &Path,
+    output_dir: &Path,
+    plugin_registry: Option<PluginRegistry>,
+    template_registry: Option<crate::templates::TemplateRegistry>,
+) -> Result<()> {
+    let generator = SiteGenerator::new_development_with_plugins_and_templates(
+        input_dir,
+        output_dir,
+        plugin_registry,
+        template_registry,
+    )?;
     generator.generate().await
 }

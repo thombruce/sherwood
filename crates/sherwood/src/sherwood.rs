@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use crate::plugins::PluginRegistry;
+use crate::templates::TemplateRegistry;
 
 /// A configurable CLI for Sherwood static site generator
 #[derive(Parser)]
@@ -36,6 +37,7 @@ enum Commands {
 /// A configurable CLI for Sherwood static site generator
 pub struct Sherwood {
     plugin_registry: Option<PluginRegistry>,
+    template_registry: Option<TemplateRegistry>,
 }
 
 impl Default for Sherwood {
@@ -49,12 +51,19 @@ impl Sherwood {
     pub fn new() -> Self {
         Self {
             plugin_registry: None,
+            template_registry: None,
         }
     }
 
     /// Add custom content parsers to the CLI
     pub fn with_plugins(mut self, registry: PluginRegistry) -> Self {
         self.plugin_registry = Some(registry);
+        self
+    }
+
+    /// Add custom template renderers to the CLI
+    pub fn with_templates(mut self, registry: TemplateRegistry) -> Self {
+        self.template_registry = Some(registry);
         self
     }
 
@@ -65,8 +74,13 @@ impl Sherwood {
 
         match args.command {
             Commands::Generate => {
-                crate::generate_site_with_plugins(&args.input, &args.output, self.plugin_registry)
-                    .await
+                crate::generate_site_with_plugins_and_templates(
+                    &args.input,
+                    &args.output,
+                    self.plugin_registry,
+                    self.template_registry,
+                )
+                .await
             }
             Commands::Dev { port } => {
                 crate::run_dev_server_with_plugins(

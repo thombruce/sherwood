@@ -1,9 +1,10 @@
 use super::common::*;
-use super::renderer::TemplateData;
+use super::registry::FromTemplateData;
+use super::renderer::{TemplateData, TemplateDataEnum};
 use sailfish::TemplateOnce;
 use serde::Serialize;
 
-#[derive(TemplateOnce)]
+#[derive(TemplateOnce, Debug)]
 #[template(path = "sherwood.stpl")]
 pub struct SherwoodTemplate {
     pub title: String,
@@ -42,5 +43,18 @@ impl TemplateData for PageData {
     }
     fn get_list_data(&self) -> Option<&ListData> {
         self.list_data.as_ref()
+    }
+}
+
+impl FromTemplateData for SherwoodTemplate {
+    fn from(data: TemplateDataEnum) -> Self {
+        Self {
+            title: data.get_title().to_string(),
+            content: data.get_content().to_string(),
+            css_file: data.get_css_file().map(|s| s.to_string()),
+            body_attrs: data.get_body_attrs().to_string(),
+            breadcrumb_data: data.get_breadcrumb_data().cloned(),
+            list_data: data.get_list_data().cloned(),
+        }
     }
 }
