@@ -83,11 +83,12 @@ impl Sherwood {
                 .await
             }
             Commands::Dev { port } => {
-                crate::run_dev_server_with_plugins(
+                crate::run_dev_server_with_plugins_and_templates(
                     &args.input,
                     &args.output,
                     port,
                     self.plugin_registry,
+                    self.template_registry,
                 )
                 .await
             }

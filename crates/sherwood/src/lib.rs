@@ -17,7 +17,9 @@ pub use generator::{
 };
 pub use plugins::{ContentParser, ParsedContent, PluginRegistry};
 pub use presentation::styles::StyleManager;
-pub use server::{run_dev_server, run_dev_server_with_plugins};
+pub use server::{
+    run_dev_server, run_dev_server_with_plugins, run_dev_server_with_plugins_and_templates,
+};
 pub use sherwood::Sherwood;
 pub use templates::TemplateManager;
 pub use templates::{TemplateRegistry, partials, partials::ContentItem};
