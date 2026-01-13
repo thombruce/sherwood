@@ -82,18 +82,17 @@ impl ContentParser for TomlContentParser {
         }
 
         // Extract excerpt if not present
-        if frontmatter.excerpt.is_none() {
-            if let Some(content_field) = parsed.get("content").and_then(|v| v.as_str()) {
-                if !content_field.trim().starts_with('<') {
-                    // Content is markdown - use AST extraction
-                    let markdown_parser = MarkdownParser::new();
-                    frontmatter.excerpt =
-                        markdown_parser.extract_excerpt_from_markdown(content_field);
-                } else {
-                    // Content is HTML or plain text - use plain text extraction
-                    frontmatter.excerpt =
-                        MarkdownParser::extract_excerpt_from_plain_text(content_field);
-                }
+        if frontmatter.excerpt.is_none()
+            && let Some(content_field) = parsed.get("content").and_then(|v| v.as_str())
+        {
+            if !content_field.trim().starts_with('<') {
+                // Content is markdown - use AST extraction
+                let markdown_parser = MarkdownParser::new();
+                frontmatter.excerpt = markdown_parser.extract_excerpt_from_markdown(content_field);
+            } else {
+                // Content is HTML or plain text - use plain text extraction
+                frontmatter.excerpt =
+                    MarkdownParser::extract_excerpt_from_plain_text(content_field);
             }
         }
 

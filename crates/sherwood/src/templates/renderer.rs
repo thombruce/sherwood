@@ -257,9 +257,6 @@ impl TemplateManager {
             body_attrs: data.get_body_attrs().to_string(),
             breadcrumb_data: data.get_breadcrumb_data().cloned(),
             list_data: data.get_list_data().cloned(),
-            sidebar_nav: data.get_sidebar_nav().cloned(),
-            table_of_contents: data.get_table_of_contents().map(|s| s.to_string()),
-            next_prev_nav: data.get_next_prev_nav().cloned(),
         };
 
         template.render_once().map_err(|e| {
