@@ -16,8 +16,5 @@ pub use partials::{
     sidebar_nav::SidebarNav,
 };
 pub use registry::{FromTemplateData, TemplateAdapter, TemplateRegistry, TemplateRenderer};
-pub use renderer::{
-    TemplateData, TemplateDataEnum, TemplateManager, copy_embedded_templates,
-    get_available_templates,
-};
+pub use renderer::{TemplateData, TemplateDataEnum, TemplateManager};
 pub use sherwood::{PageData, SherwoodTemplate};

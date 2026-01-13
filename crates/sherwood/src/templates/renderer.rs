@@ -1,11 +1,7 @@
 use super::common::*;
 use anyhow::Result;
-use include_dir::{Dir, include_dir};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-// Embed templates directory at compile time
-static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 use super::{registry::TemplateRegistry, sherwood::PageData, sherwood::SherwoodTemplate};
 use sailfish::TemplateOnce;
@@ -125,8 +121,6 @@ impl TemplateManager {
         let templates_dir = templates_dir.to_path_buf();
         let registry = registry.map(std::sync::Arc::new);
 
-        // Templates directory is optional - we have embedded fallbacks
-
         let available_templates =
             Self::discover_templates(&templates_dir, registry.as_ref().map(|r| r.as_ref()))?;
 
@@ -143,9 +137,6 @@ impl TemplateManager {
         registry: Option<&TemplateRegistry>,
     ) -> Result<Vec<String>> {
         let mut templates = Vec::new();
-
-        // First, add embedded templates
-        templates.extend(get_available_templates());
 
         // Add registered templates from registry
         if let Some(registry) = registry {
@@ -184,11 +175,7 @@ impl TemplateManager {
                 let size = if path.exists() {
                     fs::metadata(&path).map(|m| m.len() as usize).unwrap_or(0)
                 } else {
-                    // Check embedded templates
-                    TEMPLATES
-                        .get_file(name)
-                        .map(|f| f.contents().len())
-                        .unwrap_or(0)
+                    0
                 };
 
                 TemplateInfo {
@@ -267,42 +254,4 @@ impl TemplateManager {
             .into()
         })
     }
-}
-
-pub fn copy_embedded_templates(output_dir: &Path) -> Result<()> {
-    let templates_output_dir = output_dir.join("templates");
-    fs::create_dir_all(&templates_output_dir)?;
-
-    for entry in TEMPLATES.entries() {
-        if let Some(file) = entry.as_file() {
-            let template_name = entry
-                .path()
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| anyhow::anyhow!("Invalid template name"))?;
-
-            let output_path = templates_output_dir.join(template_name);
-            fs::write(
-                &output_path,
-                file.contents_utf8().ok_or_else(|| {
-                    anyhow::anyhow!("Template {} contains invalid UTF-8", template_name)
-                })?,
-            )?;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn get_available_templates() -> Vec<String> {
-    TEMPLATES
-        .files()
-        .map(|file| {
-            file.path()
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .to_string()
-        })
-        .collect()
 }
