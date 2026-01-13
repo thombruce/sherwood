@@ -7,10 +7,7 @@ use std::path::{Path, PathBuf};
 // Embed templates directory at compile time
 static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-use super::{
-    docs::DocsPageData, docs::DocsTemplate, registry::TemplateRegistry, sherwood::PageData,
-    sherwood::SherwoodTemplate,
-};
+use super::{registry::TemplateRegistry, sherwood::PageData, sherwood::SherwoodTemplate};
 use sailfish::TemplateOnce;
 
 pub trait TemplateData {
@@ -41,70 +38,60 @@ pub trait TemplateData {
 #[derive(Clone)]
 pub enum TemplateDataEnum {
     Page(PageData),
-    Docs(DocsPageData),
 }
 
 impl TemplateData for TemplateDataEnum {
     fn get_title(&self) -> &str {
         match self {
             TemplateDataEnum::Page(data) => data.get_title(),
-            TemplateDataEnum::Docs(data) => data.get_title(),
         }
     }
 
     fn get_content(&self) -> &str {
         match self {
             TemplateDataEnum::Page(data) => data.get_content(),
-            TemplateDataEnum::Docs(data) => data.get_content(),
         }
     }
 
     fn get_css_file(&self) -> Option<&str> {
         match self {
             TemplateDataEnum::Page(data) => data.get_css_file(),
-            TemplateDataEnum::Docs(data) => data.get_css_file(),
         }
     }
 
     fn get_body_attrs(&self) -> &str {
         match self {
             TemplateDataEnum::Page(data) => data.get_body_attrs(),
-            TemplateDataEnum::Docs(data) => data.get_body_attrs(),
         }
     }
 
     fn get_breadcrumb_data(&self) -> Option<&BreadcrumbData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_breadcrumb_data(),
-            TemplateDataEnum::Docs(data) => data.get_breadcrumb_data(),
         }
     }
 
     fn get_list_data(&self) -> Option<&ListData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_list_data(),
-            TemplateDataEnum::Docs(data) => data.get_list_data(),
         }
     }
 
     fn get_sidebar_nav(&self) -> Option<&SidebarNavData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_sidebar_nav(),
-            TemplateDataEnum::Docs(data) => data.get_sidebar_nav(),
         }
     }
 
     fn get_table_of_contents(&self) -> Option<&str> {
         match self {
             TemplateDataEnum::Page(data) => data.get_table_of_contents(),
-            TemplateDataEnum::Docs(data) => data.get_table_of_contents(),
         }
     }
 
     fn get_next_prev_nav(&self) -> Option<&NextPrevNavData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_next_prev_nav(),
-            TemplateDataEnum::Docs(data) => data.get_next_prev_nav(),
         }
     }
 }
@@ -247,7 +234,6 @@ impl TemplateManager {
         // Fallback to built-in templates
         match template_name {
             "sherwood.stpl" => self.render_sherwood_template(data),
-            "docs.stpl" => self.render_docs_template(data),
             _ => Err(TemplateError::TemplateNotFound {
                 template_name: template_name.to_string(),
             }
@@ -271,24 +257,6 @@ impl TemplateManager {
             body_attrs: data.get_body_attrs().to_string(),
             breadcrumb_data: data.get_breadcrumb_data().cloned(),
             list_data: data.get_list_data().cloned(),
-        };
-
-        template.render_once().map_err(|e| {
-            TemplateError::CompilationError {
-                template_name: "sherwood.stpl".to_string(),
-                source: e,
-            }
-            .into()
-        })
-    }
-
-    fn render_docs_template(&self, data: TemplateDataEnum) -> Result<String> {
-        let template = DocsTemplate {
-            title: data.get_title().to_string(),
-            content: data.get_content().to_string(),
-            css_file: data.get_css_file().map(|s| s.to_string()),
-            body_attrs: data.get_body_attrs().to_string(),
-            breadcrumb_data: data.get_breadcrumb_data().cloned(),
             sidebar_nav: data.get_sidebar_nav().cloned(),
             table_of_contents: data.get_table_of_contents().map(|s| s.to_string()),
             next_prev_nav: data.get_next_prev_nav().cloned(),
@@ -296,7 +264,7 @@ impl TemplateManager {
 
         template.render_once().map_err(|e| {
             TemplateError::CompilationError {
-                template_name: "docs.stpl".to_string(),
+                template_name: "sherwood.stpl".to_string(),
                 source: e,
             }
             .into()

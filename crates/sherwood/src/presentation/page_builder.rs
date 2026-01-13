@@ -1,8 +1,6 @@
 use crate::content::parsing::MarkdownFile;
 use crate::partials::BreadcrumbGenerator;
-use crate::templates::{
-    BreadcrumbData, DocsPageData, ListData, NextPrevNavData, PageData, SidebarNavData,
-};
+use crate::templates::{BreadcrumbData, ListData, NextPrevNavData, PageData, SidebarNavData};
 
 /// Builder pattern for constructing page data structures
 /// Eliminates duplication in page building logic and provides a fluent API
@@ -100,25 +98,6 @@ impl<'a> PageBuilder<'a> {
             body_attrs: self.body_attrs,
             breadcrumb_data,
             list_data: self.list_data,
-        }
-    }
-
-    /// Build DocsPageData for docs templates
-    pub fn build_docs(self) -> DocsPageData {
-        let title = self
-            .file
-            .frontmatter
-            .title
-            .as_deref()
-            .unwrap_or(&self.file.title);
-        let breadcrumb_data = self.generate_breadcrumb_data();
-
-        DocsPageData {
-            title: title.to_string(),
-            content: self.content.to_string(),
-            css_file: self.css_file,
-            body_attrs: self.body_attrs,
-            breadcrumb_data,
             sidebar_nav: self.sidebar_nav,
             table_of_contents: self.table_of_contents,
             next_prev_nav: self.next_prev_nav,

@@ -6,6 +6,7 @@ use serde::Serialize;
 
 #[derive(TemplateOnce, Debug)]
 #[template(path = "sherwood.stpl")]
+#[allow(unused)] // Some fields unused by sherwood template but available for docs templates
 pub struct SherwoodTemplate {
     pub title: String,
     pub content: String,
@@ -13,6 +14,12 @@ pub struct SherwoodTemplate {
     pub body_attrs: String,
     pub breadcrumb_data: Option<BreadcrumbData>,
     pub list_data: Option<ListData>,
+    // Docs-specific fields - available but unused by sherwood template
+    // These fields are populated but not rendered in sherwood.stpl
+    // Using underscore prefix to indicate intentionally unused in template
+    pub sidebar_nav: Option<SidebarNavData>,
+    pub table_of_contents: Option<String>,
+    pub next_prev_nav: Option<NextPrevNavData>,
 }
 
 #[derive(Serialize, Clone)]
@@ -23,6 +30,10 @@ pub struct PageData {
     pub body_attrs: String,
     pub breadcrumb_data: Option<BreadcrumbData>,
     pub list_data: Option<ListData>,
+    // Docs-specific fields - now available to all templates
+    pub sidebar_nav: Option<SidebarNavData>,
+    pub table_of_contents: Option<String>,
+    pub next_prev_nav: Option<NextPrevNavData>,
 }
 
 impl TemplateData for PageData {
@@ -44,10 +55,23 @@ impl TemplateData for PageData {
     fn get_list_data(&self) -> Option<&ListData> {
         self.list_data.as_ref()
     }
+    fn get_sidebar_nav(&self) -> Option<&SidebarNavData> {
+        self.sidebar_nav.as_ref()
+    }
+    fn get_table_of_contents(&self) -> Option<&str> {
+        self.table_of_contents.as_deref()
+    }
+    fn get_next_prev_nav(&self) -> Option<&NextPrevNavData> {
+        self.next_prev_nav.as_ref()
+    }
 }
 
 impl FromTemplateData for SherwoodTemplate {
     fn from(data: TemplateDataEnum) -> Self {
+        let sidebar_nav = data.get_sidebar_nav().cloned();
+        let table_of_contents = data.get_table_of_contents().map(|s| s.to_string());
+        let next_prev_nav = data.get_next_prev_nav().cloned();
+
         Self {
             title: data.get_title().to_string(),
             content: data.get_content().to_string(),
@@ -55,6 +79,9 @@ impl FromTemplateData for SherwoodTemplate {
             body_attrs: data.get_body_attrs().to_string(),
             breadcrumb_data: data.get_breadcrumb_data().cloned(),
             list_data: data.get_list_data().cloned(),
+            sidebar_nav,
+            table_of_contents,
+            next_prev_nav,
         }
     }
 }

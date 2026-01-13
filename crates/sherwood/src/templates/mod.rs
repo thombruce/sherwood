@@ -1,5 +1,4 @@
 pub mod common;
-pub mod docs;
 pub mod partials;
 pub mod registry;
 pub mod renderer;
@@ -10,7 +9,6 @@ pub use common::{
     BreadcrumbData, BreadcrumbItem, ListData, ListItemData, NextPrevNavData, SidebarNavData,
     SidebarNavItem, TemplateError, TemplateInfo,
 };
-pub use docs::{DocsPageData, DocsTemplate};
 pub use partials::{
     breadcrumb::{Breadcrumb, BreadcrumbGenerator},
     content_item::ContentItem,

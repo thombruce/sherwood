@@ -12,14 +12,14 @@
     <div class="docs-layout">
         <% if let Some(breadcrumbs) = breadcrumb_data { %>
             <div class="docs-breadcrumb">
-                <%+ crate::partials::Breadcrumb::new(breadcrumbs) %>
+                <%+ sherwood::partials::Breadcrumb::new(breadcrumbs) %>
             </div>
         <% } %>
         
         <div class="docs-container">
             <aside class="docs-sidebar">
                 <% if let Some(sidebar_nav) = sidebar_nav { %>
-                    <%+ crate::partials::SidebarNav::new(sidebar_nav) %>
+                    <%+ sherwood::partials::SidebarNav::new(sidebar_nav) %>
                 <% } %>
                 
                 <% if let Some(toc) = table_of_contents { %>
@@ -37,7 +37,7 @@
                 
                 <% if let Some(nav) = next_prev_nav { %>
                     <nav class="docs-next-prev">
-                        <%+ crate::partials::NextPrevNav::new(nav) %>
+                        <%+ sherwood::partials::NextPrevNav::new(nav) %>
                     </nav>
                 <% } %>
             </main>

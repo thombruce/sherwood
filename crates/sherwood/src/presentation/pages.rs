@@ -1,5 +1,4 @@
 use crate::content::parsing::MarkdownFile;
-use crate::content_generation::ContentGenerator;
 use crate::partials::BreadcrumbGenerator;
 use crate::presentation::template_processor::TemplateProcessor;
 use crate::templates::{ListData, TemplateManager};
@@ -30,21 +29,6 @@ impl PageGenerator {
         }
     }
 
-    /// Create a new PageGenerator with custom content generator
-    pub fn with_content_generator(
-        template_manager: TemplateManager,
-        breadcrumb_generator: Option<BreadcrumbGenerator>,
-        content_generator: Box<dyn ContentGenerator>,
-    ) -> Self {
-        Self {
-            template_processor: TemplateProcessor::with_content_generator(
-                template_manager,
-                breadcrumb_generator,
-                content_generator,
-            ),
-        }
-    }
-
     /// Unified method for processing markdown files
     /// This replaces generate_html_document_with_template, process_markdown_file_with_list,
     /// and generate_docs_page with a single, clean interface
@@ -62,7 +46,6 @@ impl PageGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content_generation::DefaultContentGenerator;
     use std::path::PathBuf;
     use tempfile::tempdir;
 
@@ -96,24 +79,6 @@ mod tests {
         let result = page_generator.process_markdown_file(&file, html_content, None);
 
         // Should succeed - even though template might not render, the processing logic should work
-        assert!(result.is_ok() || result.is_err());
-    }
-
-    #[test]
-    fn test_page_with_content_generator() {
-        let temp_dir = tempdir().unwrap();
-        let template_manager = TemplateManager::new(temp_dir.path()).unwrap();
-        let content_generator = Box::new(DefaultContentGenerator);
-
-        let page_generator =
-            PageGenerator::with_content_generator(template_manager, None, content_generator);
-
-        let file = create_test_markdown_file();
-        let html_content = "<h1>Test Content</h1>\n<p>This is a test page.</p>";
-
-        let result = page_generator.process_markdown_file(&file, html_content, None);
-
-        // Should succeed or fail gracefully
         assert!(result.is_ok() || result.is_err());
     }
 

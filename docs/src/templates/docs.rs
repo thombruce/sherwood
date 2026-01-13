@@ -1,8 +1,6 @@
-use super::common::*;
-use super::registry::FromTemplateData;
-use super::renderer::{TemplateData, TemplateDataEnum};
 use sailfish::TemplateOnce;
-use serde::Serialize;
+use sherwood::templates::common::*;
+use sherwood::templates::{FromTemplateData, TemplateData, TemplateDataEnum};
 
 #[derive(TemplateOnce, Debug)]
 #[template(path = "docs.stpl")]
@@ -17,7 +15,8 @@ pub struct DocsTemplate {
     pub next_prev_nav: Option<NextPrevNavData>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(serde::Serialize, Clone)]
+#[allow(dead_code)] // Part of public API for external use
 pub struct DocsPageData {
     pub title: String,
     pub content: String,

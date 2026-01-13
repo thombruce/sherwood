@@ -1,9 +1,9 @@
 mod parsers;
 mod templates;
-use crate::templates::{doc::DocTemplate, sock::SockTemplate};
+use crate::templates::{doc::DocTemplate, docs::DocsTemplate, sock::SockTemplate};
 use parsers::{JsonContentParser, TextContentParser, TomlContentParser};
 use sherwood::plugins::PluginRegistry;
-use sherwood::templates::{DocsTemplate, SherwoodTemplate};
+use sherwood::templates::SherwoodTemplate;
 use sherwood::{TemplateRegistry, register_template};
 
 fn create_template_registry() -> TemplateRegistry {
@@ -11,9 +11,9 @@ fn create_template_registry() -> TemplateRegistry {
 
     // Register built-in templates to maintain backward compatibility
     register_template!(registry, "sherwood.stpl", SherwoodTemplate).unwrap();
-    register_template!(registry, "docs.stpl", DocsTemplate).unwrap();
 
     // Register custom template
+    register_template!(registry, "docs.stpl", DocsTemplate).unwrap();
     register_template!(registry, "doc.stpl", DocTemplate).unwrap();
     register_template!(registry, "sock.stpl", SockTemplate).unwrap();
 
