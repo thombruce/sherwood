@@ -73,7 +73,7 @@ impl Default for HeaderData {
                     },
                     NavigationItem {
                         text: "GitHub".to_string(),
-                        url: "https://github.com/anomalyco/sherwood".to_string(),
+                        url: "https://github.com/thombruce/sherwood".to_string(),
                         active: Some(false),
                         title: Some("Sherwood on GitHub".to_string()),
                     },
