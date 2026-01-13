@@ -9,7 +9,12 @@
     <% } %>
 </head>
 <body<%= body_attrs %>>
-    <div class="docs-layout">
+    <div class="site-wrapper">
+        <% if let Some(header_data) = header_data { %>
+            <%+ crate::templates::partials::HeaderPartial::new(header_data) %>
+        <% } %>
+        
+        <div class="docs-layout">
         <% if let Some(breadcrumbs) = breadcrumb_data { %>
             <div class="docs-breadcrumb">
                 <%+ sherwood::partials::Breadcrumb::new(breadcrumbs) %>
@@ -42,6 +47,10 @@
                 <% } %>
             </main>
         </div>
+        
+        <% if let Some(footer_data) = footer_data { %>
+            <%+ crate::templates::partials::FooterPartial::new(footer_data) %>
+        <% } %>
     </div>
 </body>
 </html>
