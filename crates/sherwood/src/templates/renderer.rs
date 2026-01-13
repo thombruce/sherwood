@@ -121,8 +121,7 @@ impl TemplateManager {
         let templates_dir = templates_dir.to_path_buf();
         let registry = registry.map(std::sync::Arc::new);
 
-        let available_templates =
-            Self::discover_templates(&templates_dir, registry.as_ref().map(|r| r.as_ref()))?;
+        let available_templates = Self::discover_templates(registry.as_ref().map(|r| r.as_ref()))?;
 
         Ok(Self {
             templates_dir,
@@ -132,31 +131,12 @@ impl TemplateManager {
     }
 
     /// Discover all available template files in the templates directory
-    fn discover_templates(
-        templates_dir: &Path,
-        registry: Option<&TemplateRegistry>,
-    ) -> Result<Vec<String>> {
+    fn discover_templates(registry: Option<&TemplateRegistry>) -> Result<Vec<String>> {
         let mut templates = Vec::new();
 
         // Add registered templates from registry
         if let Some(registry) = registry {
             templates.extend(registry.registered_templates());
-        }
-
-        // Then scan the templates directory for additional templates
-        if templates_dir.exists() && templates_dir.is_dir() {
-            for entry in fs::read_dir(templates_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-
-                if path.is_file()
-                    && let Some(extension) = path.extension()
-                    && extension == "stpl"
-                    && let Some(name) = path.file_name().and_then(|n| n.to_str())
-                {
-                    templates.push(name.to_string());
-                }
-            }
         }
 
         // Remove duplicates and sort
