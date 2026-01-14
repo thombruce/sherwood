@@ -12,11 +12,14 @@ pub use config::{SiteConfig, SiteSection, TemplateSection};
 pub use core::content_generation;
 pub use generator::{
     generate_site, generate_site_development, generate_site_development_with_plugins,
-    generate_site_with_plugins,
+    generate_site_development_with_plugins_and_templates, generate_site_with_plugins,
+    generate_site_with_plugins_and_templates,
 };
 pub use plugins::{ContentParser, ParsedContent, PluginRegistry};
 pub use presentation::styles::StyleManager;
-pub use server::{run_dev_server, run_dev_server_with_plugins};
+pub use server::{
+    run_dev_server, run_dev_server_with_plugins, run_dev_server_with_plugins_and_templates,
+};
 pub use sherwood::Sherwood;
 pub use templates::TemplateManager;
-pub use templates::{partials, partials::ContentItem};
+pub use templates::{TemplateRegistry, partials, partials::ContentItem};

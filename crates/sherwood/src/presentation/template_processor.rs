@@ -7,8 +7,7 @@ use anyhow::Result;
 #[derive(Debug, Clone)]
 pub enum TemplateType {
     Default,
-    Docs,
-    Custom(String),
+    External(String),
 }
 
 impl TemplateType {
@@ -16,9 +15,8 @@ impl TemplateType {
     pub fn resolve(frontmatter: &Frontmatter) -> Self {
         if let Some(template) = &frontmatter.page_template {
             match template.as_str() {
-                "default.stpl" => Self::Default,
-                "docs.stpl" => Self::Docs,
-                custom => Self::Custom(custom.to_string()),
+                "sherwood.stpl" => Self::Default,
+                external => Self::External(external.to_string()),
             }
         } else {
             Self::Default
@@ -28,9 +26,8 @@ impl TemplateType {
     /// Get the template file name for this template type
     pub fn template_name(&self) -> &str {
         match self {
-            Self::Default => "default.stpl",
-            Self::Docs => "docs.stpl",
-            Self::Custom(name) => name,
+            Self::Default => "sherwood.stpl",
+            Self::External(name) => name,
         }
     }
 }
@@ -44,7 +41,7 @@ pub struct TemplateProcessor {
 }
 
 impl TemplateProcessor {
-    /// Create a new TemplateProcessor with default content generator
+    /// Create a new TemplateProcessor
     pub fn new(
         template_manager: TemplateManager,
         breadcrumb_generator: Option<crate::partials::BreadcrumbGenerator>,
@@ -53,19 +50,6 @@ impl TemplateProcessor {
             template_manager,
             breadcrumb_generator,
             content_generator: Box::new(DefaultContentGenerator),
-        }
-    }
-
-    /// Create a new TemplateProcessor with custom content generator
-    pub fn with_content_generator(
-        template_manager: TemplateManager,
-        breadcrumb_generator: Option<crate::partials::BreadcrumbGenerator>,
-        content_generator: Box<dyn ContentGenerator>,
-    ) -> Self {
-        Self {
-            template_manager,
-            breadcrumb_generator,
-            content_generator,
         }
     }
 
@@ -107,39 +91,26 @@ impl TemplateProcessor {
                     .with_list_data(list_data)
                     .build_page(),
             )),
-            TemplateType::Docs => {
-                // Generate docs-specific content
-                let sidebar_nav = self.content_generator.generate_sidebar_nav(file);
+            TemplateType::External(_template_name) => {
+                // For external templates, generate comprehensive page data including docs-specific fields
+                let mut page_builder =
+                    PageBuilder::new(file, html_content, breadcrumb_gen).with_list_data(list_data);
 
-                // Generate table of contents from original file content
+                // Generate docs-specific data using ContentGenerator
+                let sidebar_nav = self.content_generator.generate_sidebar_nav(file);
                 let original_content =
                     std::fs::read_to_string(&file.path).unwrap_or_else(|_| file.content.clone());
                 let table_of_contents = self
                     .content_generator
                     .generate_table_of_contents(&original_content);
-
-                // Generate next/previous navigation
                 let next_prev_nav = self.content_generator.generate_next_prev_nav(file);
 
-                Ok(TemplateDataEnum::Docs(
-                    PageBuilder::new(file, html_content, breadcrumb_gen)
-                        .with_sidebar_nav(sidebar_nav)
-                        .with_table_of_contents(table_of_contents)
-                        .with_next_prev_nav(next_prev_nav)
-                        .build_docs(),
-                ))
-            }
-            TemplateType::Custom(template_name) => {
-                eprintln!(
-                    "Warning: Unknown template '{}', using default template",
-                    template_name
-                );
+                page_builder = page_builder
+                    .with_sidebar_nav(sidebar_nav)
+                    .with_table_of_contents(table_of_contents)
+                    .with_next_prev_nav(next_prev_nav);
 
-                Ok(TemplateDataEnum::Page(
-                    PageBuilder::new(file, html_content, breadcrumb_gen)
-                        .with_list_data(list_data)
-                        .build_page(),
-                ))
+                Ok(TemplateDataEnum::Page(page_builder.build_page()))
             }
         }
     }

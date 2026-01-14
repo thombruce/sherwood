@@ -29,7 +29,7 @@ pub enum TemplateError {
     },
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct ListItemData {
     pub title: String,
     pub url: String,
@@ -37,32 +37,32 @@ pub struct ListItemData {
     pub excerpt: Option<String>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct BreadcrumbItem {
     pub title: String,
     pub url: String,
     pub is_current: bool,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct BreadcrumbData {
     pub items: Vec<BreadcrumbItem>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct ListData {
     pub items: Vec<ListItemData>,
     pub sort_config: crate::content::renderer::SortConfig,
     pub total_count: usize,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct SidebarNavData {
     pub current_path: String,
     pub items: Vec<SidebarNavItem>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct SidebarNavItem {
     pub title: String,
     pub url: String,
@@ -70,7 +70,7 @@ pub struct SidebarNavItem {
     pub is_section: bool,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct NextPrevNavData {
     pub previous: Option<ListItemData>,
     pub next: Option<ListItemData>,

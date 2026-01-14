@@ -2,7 +2,10 @@ mod server_handlers;
 mod server_setup;
 
 pub use server_handlers::create_404_response;
-pub use server_setup::{create_server_setup, create_server_setup_with_plugins, start_server};
+pub use server_setup::{
+    create_server_setup, create_server_setup_with_plugins,
+    create_server_setup_with_plugins_and_templates, start_server,
+};
 
 use anyhow::Result;
 use std::path::Path;
@@ -25,6 +28,25 @@ pub async fn run_dev_server_with_plugins(
         output_dir,
         port,
         plugin_registry,
+    )
+    .await?;
+    start_server(setup).await
+}
+
+/// Run development server with plugins and templates
+pub async fn run_dev_server_with_plugins_and_templates(
+    input_dir: &Path,
+    output_dir: &Path,
+    port: u16,
+    plugin_registry: Option<crate::plugins::PluginRegistry>,
+    template_registry: Option<crate::templates::TemplateRegistry>,
+) -> Result<()> {
+    let setup = server_setup::create_server_setup_with_plugins_and_templates(
+        input_dir,
+        output_dir,
+        port,
+        plugin_registry,
+        template_registry,
     )
     .await?;
     start_server(setup).await

@@ -1,0 +1,75 @@
+<footer class="site-footer">
+    <div class="footer-container">
+        <% if let Some(sections) = data.sections { %>
+            <div class="footer-sections">
+                <% for section in sections { %>
+                    <div class="footer-section">
+                        <% if let Some(title) = section.title { %>
+                            <h3 class="footer-section-title"><%- title %></h3>
+                        <% } %>
+                        
+                        <% if let Some(links) = section.links { %>
+                            <ul class="footer-links">
+                                <% for link in links { %>
+                                    <li class="footer-link-item">
+                                        <a href="<%= link.url %>" 
+                                           class="footer-link"
+                                           <% if let Some(target) = link.target { %>target="<%= target %>"<% } %>
+                                           <% if let Some(rel) = link.rel { %>rel="<%= rel %>"<% } %>>
+                                            <%- link.text %>
+                                        </a>
+                                    </li>
+                                <% } %>
+                            </ul>
+                        <% } %>
+                        
+                        <% if let Some(content) = section.content { %>
+                            <div class="footer-content">
+                                <%- content %>
+                            </div>
+                        <% } %>
+                    </div>
+                <% } %>
+            </div>
+        <% } %>
+        
+        <% if let Some(copyright) = data.copyright { %>
+            <div class="footer-copyright">
+                <% if let Some(text) = copyright.text { %>
+                    <p class="copyright-text"><%- text %></p>
+                <% } %>
+                
+                <% if let Some(license) = copyright.license { %>
+                    <p class="copyright-license">
+                        <% if let Some(url) = license.url { %>
+                            <a href="<%= url %>" class="license-link"><%- license.name %></a>
+                        <% } else { %>
+                            <span class="license-name"><%- license.name %></span>
+                        <% } %>
+                    </p>
+                <% } %>
+            </div>
+        <% } %>
+        
+        <% if let Some(social) = data.social { %>
+            <div class="footer-social">
+                <% for item in social.items { %>
+                    <a href="<%= item.url %>" 
+                       class="social-link"
+                       title="<%- item.title.unwrap_or_else(|| item.name.clone()) %>"
+                       <% if let Some(target) = item.target { %>target="<%= target %>"<% } %>>
+                        <% if let Some(icon) = item.icon { %>
+                            <% if icon.starts_with('<') { %>
+                                <%- icon %>
+                            <% } else { %>
+                                <img src="<%= icon %>" alt="<%- item.name %>" class="social-icon">
+                            <% } %>
+                        <% } else { %>
+                            <span class="social-text"><%- item.name %></span>
+                        <% } %>
+                    </a>
+                <% } %>
+            </div>
+        <% } %>
+    </div>
+</footer>

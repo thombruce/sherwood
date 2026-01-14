@@ -1,13 +1,9 @@
 use super::common::*;
 use anyhow::Result;
-use include_dir::{Dir, include_dir};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-// Embed templates directory at compile time
-static TEMPLATES: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates");
-
-use super::{default::DefaultTemplate, default::PageData, docs::DocsPageData, docs::DocsTemplate};
+use super::{registry::TemplateRegistry, sherwood::PageData, sherwood::SherwoodTemplate};
 use sailfish::TemplateOnce;
 
 pub trait TemplateData {
@@ -17,7 +13,7 @@ pub trait TemplateData {
     fn get_css_file(&self) -> Option<&str>;
     fn get_body_attrs(&self) -> &str;
 
-    // Optional sections - default to None
+    // Optional sections - sherwood to None
     fn get_breadcrumb_data(&self) -> Option<&BreadcrumbData> {
         None
     }
@@ -35,117 +31,112 @@ pub trait TemplateData {
     }
 }
 
+#[derive(Clone)]
 pub enum TemplateDataEnum {
     Page(PageData),
-    Docs(DocsPageData),
 }
 
 impl TemplateData for TemplateDataEnum {
     fn get_title(&self) -> &str {
         match self {
             TemplateDataEnum::Page(data) => data.get_title(),
-            TemplateDataEnum::Docs(data) => data.get_title(),
         }
     }
 
     fn get_content(&self) -> &str {
         match self {
             TemplateDataEnum::Page(data) => data.get_content(),
-            TemplateDataEnum::Docs(data) => data.get_content(),
         }
     }
 
     fn get_css_file(&self) -> Option<&str> {
         match self {
             TemplateDataEnum::Page(data) => data.get_css_file(),
-            TemplateDataEnum::Docs(data) => data.get_css_file(),
         }
     }
 
     fn get_body_attrs(&self) -> &str {
         match self {
             TemplateDataEnum::Page(data) => data.get_body_attrs(),
-            TemplateDataEnum::Docs(data) => data.get_body_attrs(),
         }
     }
 
     fn get_breadcrumb_data(&self) -> Option<&BreadcrumbData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_breadcrumb_data(),
-            TemplateDataEnum::Docs(data) => data.get_breadcrumb_data(),
         }
     }
 
     fn get_list_data(&self) -> Option<&ListData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_list_data(),
-            TemplateDataEnum::Docs(data) => data.get_list_data(),
         }
     }
 
     fn get_sidebar_nav(&self) -> Option<&SidebarNavData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_sidebar_nav(),
-            TemplateDataEnum::Docs(data) => data.get_sidebar_nav(),
         }
     }
 
     fn get_table_of_contents(&self) -> Option<&str> {
         match self {
             TemplateDataEnum::Page(data) => data.get_table_of_contents(),
-            TemplateDataEnum::Docs(data) => data.get_table_of_contents(),
         }
     }
 
     fn get_next_prev_nav(&self) -> Option<&NextPrevNavData> {
         match self {
             TemplateDataEnum::Page(data) => data.get_next_prev_nav(),
-            TemplateDataEnum::Docs(data) => data.get_next_prev_nav(),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TemplateManager {
     templates_dir: PathBuf,
     available_templates: Vec<String>,
+    registry: Option<std::sync::Arc<TemplateRegistry>>,
+}
+
+impl Clone for TemplateManager {
+    fn clone(&self) -> Self {
+        Self {
+            templates_dir: self.templates_dir.clone(),
+            available_templates: self.available_templates.clone(),
+            registry: self.registry.clone(),
+        }
+    }
 }
 
 impl TemplateManager {
     pub fn new(templates_dir: &Path) -> Result<Self> {
+        Self::new_with_registry(templates_dir, None)
+    }
+
+    pub fn new_with_registry(
+        templates_dir: &Path,
+        registry: Option<TemplateRegistry>,
+    ) -> Result<Self> {
         let templates_dir = templates_dir.to_path_buf();
+        let registry = registry.map(std::sync::Arc::new);
 
-        // Templates directory is optional - we have embedded fallbacks
-
-        let available_templates = Self::discover_templates(&templates_dir)?;
+        let available_templates = Self::discover_templates(registry.as_ref().map(|r| r.as_ref()))?;
 
         Ok(Self {
             templates_dir,
             available_templates,
+            registry,
         })
     }
 
     /// Discover all available template files in the templates directory
-    fn discover_templates(templates_dir: &Path) -> Result<Vec<String>> {
+    fn discover_templates(registry: Option<&TemplateRegistry>) -> Result<Vec<String>> {
         let mut templates = Vec::new();
 
-        // First, add embedded templates
-        templates.extend(get_available_templates());
-
-        // Then scan the templates directory for additional templates
-        if templates_dir.exists() && templates_dir.is_dir() {
-            for entry in fs::read_dir(templates_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-
-                if path.is_file()
-                    && let Some(extension) = path.extension()
-                    && extension == "stpl"
-                    && let Some(name) = path.file_name().and_then(|n| n.to_str())
-                {
-                    templates.push(name.to_string());
-                }
-            }
+        // Add registered templates from registry
+        if let Some(registry) = registry {
+            templates.extend(registry.registered_templates());
         }
 
         // Remove duplicates and sort
@@ -164,11 +155,7 @@ impl TemplateManager {
                 let size = if path.exists() {
                     fs::metadata(&path).map(|m| m.len() as usize).unwrap_or(0)
                 } else {
-                    // Check embedded templates
-                    TEMPLATES
-                        .get_file(name)
-                        .map(|f| f.contents().len())
-                        .unwrap_or(0)
+                    0
                 };
 
                 TemplateInfo {
@@ -204,9 +191,16 @@ impl TemplateManager {
 
     /// Single unified render function that handles all template types
     pub fn render_template(&self, template_name: &str, data: TemplateDataEnum) -> Result<String> {
+        // First try custom templates from registry
+        if let Some(registry) = &self.registry
+            && let Some(renderer) = registry.get_renderer(template_name)
+        {
+            return renderer.render(&data);
+        }
+
+        // Fallback to built-in templates
         match template_name {
-            "default.stpl" => self.render_default_template(data),
-            "docs.stpl" => self.render_docs_template(data),
+            "sherwood.stpl" => self.render_sherwood_template(data),
             _ => Err(TemplateError::TemplateNotFound {
                 template_name: template_name.to_string(),
             }
@@ -222,8 +216,8 @@ impl TemplateManager {
         self.templates_dir.join(template_name).exists()
     }
 
-    fn render_default_template(&self, data: TemplateDataEnum) -> Result<String> {
-        let template = DefaultTemplate {
+    fn render_sherwood_template(&self, data: TemplateDataEnum) -> Result<String> {
+        let template = SherwoodTemplate {
             title: data.get_title().to_string(),
             content: data.get_content().to_string(),
             css_file: data.get_css_file().map(|s| s.to_string()),
@@ -234,69 +228,10 @@ impl TemplateManager {
 
         template.render_once().map_err(|e| {
             TemplateError::CompilationError {
-                template_name: "default.stpl".to_string(),
+                template_name: "sherwood.stpl".to_string(),
                 source: e,
             }
             .into()
         })
     }
-
-    fn render_docs_template(&self, data: TemplateDataEnum) -> Result<String> {
-        let template = DocsTemplate {
-            title: data.get_title().to_string(),
-            content: data.get_content().to_string(),
-            css_file: data.get_css_file().map(|s| s.to_string()),
-            body_attrs: data.get_body_attrs().to_string(),
-            breadcrumb_data: data.get_breadcrumb_data().cloned(),
-            sidebar_nav: data.get_sidebar_nav().cloned(),
-            table_of_contents: data.get_table_of_contents().map(|s| s.to_string()),
-            next_prev_nav: data.get_next_prev_nav().cloned(),
-        };
-
-        template.render_once().map_err(|e| {
-            TemplateError::CompilationError {
-                template_name: "docs.stpl".to_string(),
-                source: e,
-            }
-            .into()
-        })
-    }
-}
-
-pub fn copy_embedded_templates(output_dir: &Path) -> Result<()> {
-    let templates_output_dir = output_dir.join("templates");
-    fs::create_dir_all(&templates_output_dir)?;
-
-    for entry in TEMPLATES.entries() {
-        if let Some(file) = entry.as_file() {
-            let template_name = entry
-                .path()
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| anyhow::anyhow!("Invalid template name"))?;
-
-            let output_path = templates_output_dir.join(template_name);
-            fs::write(
-                &output_path,
-                file.contents_utf8().ok_or_else(|| {
-                    anyhow::anyhow!("Template {} contains invalid UTF-8", template_name)
-                })?,
-            )?;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn get_available_templates() -> Vec<String> {
-    TEMPLATES
-        .files()
-        .map(|file| {
-            file.path()
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .to_string()
-        })
-        .collect()
 }

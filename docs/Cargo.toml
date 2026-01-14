@@ -17,6 +17,8 @@ path = "src/main.rs"
 [dependencies]
 sherwood = { path = "../crates/sherwood" }
 tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+sailfish = "0.8"
 anyhow = "1.0"
 toml = "0.8"
 serde_json = "1.0"
