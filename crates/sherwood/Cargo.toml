@@ -23,7 +23,7 @@ anyhow = "1.0"
 serde_yaml = "0.9"
 toml = "0.9"
 include_dir = { version = "0.7", features = ["glob"] }
-sailfish = "0.8"
+sailfish = "0.10"
 thiserror = "2.0"
 tempfile = "3.8"
 lightningcss = { version = "1.0.0-alpha.68", features = ["bundler"] }
