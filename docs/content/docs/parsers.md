@@ -1,3 +1,9 @@
++++
+title = "Parsers"
+date = "2024-01-10"
+page_template = "docs.stpl"
++++
+
 # Plugin System: Custom Content Parsers
 
 Sherwood's plugin system allows extending content parsing beyond Markdown by creating custom parsers and registering them with file extensions.

@@ -1,6 +1,6 @@
 +++
 list = true
-title = "Documentation"
+title = "Docs"
 +++
 
 # Documentation
@@ -9,10 +9,10 @@ Welcome to Sherwood documentation. Here you'll find comprehensive guides and ref
 
 ## Available Topics
 
-- [CLI Commands](cli-commands.md)
-- [Frontmatter](frontmatter.md)
-- [Getting Started](getting-started.md)
-- [Deployment](deployment.md)
-- [Plugin System](parsers.md)
-- [Parser Development Guide](parsers.md#parser-development-guide)
-- [Content Processing](frontmatter.md#content-types)
+- [CLI Commands](cli-commands)
+- [Frontmatter](frontmatter)
+- [Getting Started](getting-started)
+- [Deployment](deployment)
+- [Plugin System](parsers)
+- [Parser Development Guide](parsers#parser-development-guide)
+- [Content Processing](frontmatter#content-types)

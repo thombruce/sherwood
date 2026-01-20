@@ -1,19 +1,15 @@
-# Welcome to Sherwood
+# Sherwood
 
-This is a **static site generator** written in Rust that converts Markdown files to semantic HTML.
+**Sherwood** is a _compile-it-yourself_ static site generator for blazing fast site generation built in Rust!
 
 - [About](/about)
 - [Blog](/blog/)
-- [Documentation](/docs/)
-
-## Features
-
-- Converts Markdown to HTML5 with semantic structure
-- Command-line interface with `generate` and `dev` commands
-- Development server for local testing
-- Semantic HTML with proper accessibility
+- [Docs](/docs/)
 
 ## Usage
+
+> [!WARNING]
+> Sherwood is a work in progress and the documentation may be incomplete or incorrect. The following commands for example simply do not exist in the Sherwood CLI _yet_.
 
 ### Generate Site
 
