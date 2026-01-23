@@ -25,6 +25,9 @@ pub struct DocsPageData {
     pub content: String,
     pub css_file: Option<String>,
     pub body_attrs: String,
+    // Site-wide configuration
+    pub site_title: String,
+    pub footer_text: Option<String>,
     pub header_data: Option<HeaderData>,
     pub footer_data: Option<FooterData>,
     pub breadcrumb_data: Option<BreadcrumbData>,
@@ -45,6 +48,12 @@ impl TemplateData for DocsPageData {
     }
     fn get_body_attrs(&self) -> &str {
         &self.body_attrs
+    }
+    fn get_site_title(&self) -> &str {
+        &self.site_title
+    }
+    fn get_footer_text(&self) -> Option<&str> {
+        self.footer_text.as_deref()
     }
 
     fn get_breadcrumb_data(&self) -> Option<&BreadcrumbData> {

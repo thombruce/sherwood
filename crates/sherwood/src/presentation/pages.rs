@@ -1,3 +1,4 @@
+use crate::config::SiteSection;
 use crate::content::parsing::MarkdownFile;
 use crate::partials::BreadcrumbGenerator;
 use crate::presentation::template_processor::TemplateProcessor;
@@ -13,9 +14,9 @@ pub struct PageGenerator {
 
 impl PageGenerator {
     /// Create a new PageGenerator
-    pub fn new(template_manager: TemplateManager) -> Self {
+    pub fn new(template_manager: TemplateManager, site_config: SiteSection) -> Self {
         Self {
-            template_processor: TemplateProcessor::new(template_manager, None),
+            template_processor: TemplateProcessor::new(template_manager, None, site_config),
         }
     }
 
@@ -23,9 +24,14 @@ impl PageGenerator {
     pub fn new_with_breadcrumb(
         template_manager: TemplateManager,
         breadcrumb_generator: Option<BreadcrumbGenerator>,
+        site_config: SiteSection,
     ) -> Self {
         Self {
-            template_processor: TemplateProcessor::new(template_manager, breadcrumb_generator),
+            template_processor: TemplateProcessor::new(
+                template_manager,
+                breadcrumb_generator,
+                site_config,
+            ),
         }
     }
 
@@ -71,8 +77,12 @@ mod tests {
     fn test_unified_page_processing() {
         let temp_dir = tempdir().unwrap();
         let template_manager = TemplateManager::new(temp_dir.path()).unwrap();
+        let site_config = SiteSection {
+            title: "Test Site".to_string(),
+            footer_text: Some("Test Footer".to_string()),
+        };
 
-        let page_generator = PageGenerator::new(template_manager);
+        let page_generator = PageGenerator::new(template_manager, site_config);
         let file = create_test_markdown_file();
         let html_content = "<h1>Test Content</h1>\n<p>This is a test page.</p>";
 
@@ -87,9 +97,13 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let template_manager = TemplateManager::new(temp_dir.path()).unwrap();
         let breadcrumb_gen = BreadcrumbGenerator::new(&PathBuf::from("/content"), None);
+        let site_config = SiteSection {
+            title: "Test Site".to_string(),
+            footer_text: Some("Test Footer".to_string()),
+        };
 
         let page_generator =
-            PageGenerator::new_with_breadcrumb(template_manager, Some(breadcrumb_gen));
+            PageGenerator::new_with_breadcrumb(template_manager, Some(breadcrumb_gen), site_config);
 
         let file = create_test_markdown_file();
         let html_content = "<h1>Test Content</h1>\n<p>This is a test page.</p>";

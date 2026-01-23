@@ -13,6 +13,12 @@ pub trait TemplateData {
     fn get_css_file(&self) -> Option<&str>;
     fn get_body_attrs(&self) -> &str;
 
+    // Site-wide configuration
+    fn get_site_title(&self) -> &str;
+    fn get_footer_text(&self) -> Option<&str> {
+        None
+    }
+
     // Optional sections - sherwood to None
     fn get_breadcrumb_data(&self) -> Option<&BreadcrumbData> {
         None
@@ -58,6 +64,18 @@ impl TemplateData for TemplateDataEnum {
     fn get_body_attrs(&self) -> &str {
         match self {
             TemplateDataEnum::Page(data) => data.get_body_attrs(),
+        }
+    }
+
+    fn get_site_title(&self) -> &str {
+        match self {
+            TemplateDataEnum::Page(data) => data.get_site_title(),
+        }
+    }
+
+    fn get_footer_text(&self) -> Option<&str> {
+        match self {
+            TemplateDataEnum::Page(data) => data.get_footer_text(),
         }
     }
 
@@ -222,6 +240,8 @@ impl TemplateManager {
             content: data.get_content().to_string(),
             css_file: data.get_css_file().map(|s| s.to_string()),
             body_attrs: data.get_body_attrs().to_string(),
+            site_title: data.get_site_title().to_string(),
+            footer_text: data.get_footer_text().map(|s| s.to_string()),
             breadcrumb_data: data.get_breadcrumb_data().cloned(),
             list_data: data.get_list_data().cloned(),
         };

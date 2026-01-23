@@ -1,14 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
+
+    <title><%= title %> | <%= site_title %></title>
+    
     <% if let Some(css_file) = css_file { %>
-        <link rel="stylesheet" href="<%= css_file %>">
+      <link rel="stylesheet" href="<%= css_file %>">
     <% } %>
-</head>
-<body<%= body_attrs %>>
+  </head>
+
+  <body<%= body_attrs %>>
+    <header>
+      <span><%= site_title %></span>
+
+      <nav>
+        <ol>
+          <li>
+            <a href="/">Home</a>
+          </li>
+        </ol>
+      </nav>
+    </header>
+
     <main>
         <% if let Some(breadcrumbs) = breadcrumb_data { %>
             <%+ crate::partials::Breadcrumb::new(breadcrumbs) %>
@@ -24,5 +39,11 @@
             </div>
         <% } %>
     </main>
-</body>
+
+    <footer>
+      <% if let Some(footer) = footer_text { %>
+        <%= footer %>
+      <% } %>
+    </footer>
+  </body>
 </html>

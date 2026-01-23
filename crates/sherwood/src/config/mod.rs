@@ -8,8 +8,11 @@ pub struct SiteConfig {
     pub breadcrumb: Option<BreadcrumbSection>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct SiteSection {}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SiteSection {
+    pub title: String,
+    pub footer_text: Option<String>,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TemplateSection {

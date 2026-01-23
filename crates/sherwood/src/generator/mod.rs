@@ -126,7 +126,10 @@ impl SiteGenerator {
             toml::from_str(&content)?
         } else {
             SiteConfig {
-                site: SiteSection {},
+                site: SiteSection {
+                    title: String::new(), // Will be validated below
+                    footer_text: None,
+                },
                 templates: Some(TemplateSection {
                     page_template: Some(DEFAULT_PAGE_TEMPLATE.to_string()),
                 }),
@@ -134,6 +137,17 @@ impl SiteGenerator {
                 breadcrumb: None,
             }
         };
+
+        // Validate required site configuration
+        if site_config.site.title.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Site title is required but not found in configuration.\n\
+                 Please add a [site] section with a 'title' field to your Sherwood.toml:\n\
+                 [site]\n\
+                 title = \"Your Site Title\"\n\
+                 footer_text = \"Optional footer text\""
+            ));
+        }
 
         let template_manager =
             TemplateManager::new_with_registry(&templates_dir, template_registry)?;
@@ -145,8 +159,11 @@ impl SiteGenerator {
             .as_ref()
             .map(|config| BreadcrumbGenerator::new(input_dir, Some(config.clone())));
 
-        let page_generator =
-            PageGenerator::new_with_breadcrumb(template_manager, breadcrumb_generator);
+        let page_generator = PageGenerator::new_with_breadcrumb(
+            template_manager,
+            breadcrumb_generator,
+            site_config.site.clone(),
+        );
 
         // Create style manager based on mode and configuration
         let style_manager =

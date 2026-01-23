@@ -1,3 +1,4 @@
+use crate::config::SiteSection;
 use crate::content::parsing::MarkdownFile;
 use crate::partials::BreadcrumbGenerator;
 use crate::templates::{BreadcrumbData, ListData, NextPrevNavData, PageData, SidebarNavData};
@@ -10,6 +11,7 @@ pub struct PageBuilder<'a> {
     breadcrumb_generator: Option<&'a BreadcrumbGenerator>,
     css_file: Option<String>,
     body_attrs: String,
+    site_config: &'a SiteSection,
     list_data: Option<ListData>,
     sidebar_nav: Option<SidebarNavData>,
     table_of_contents: Option<String>,
@@ -22,6 +24,7 @@ impl<'a> PageBuilder<'a> {
         file: &'a MarkdownFile,
         content: &'a str,
         breadcrumb_generator: Option<&'a BreadcrumbGenerator>,
+        site_config: &'a SiteSection,
     ) -> Self {
         Self {
             file,
@@ -29,6 +32,7 @@ impl<'a> PageBuilder<'a> {
             breadcrumb_generator,
             css_file: Some("/css/main.css".to_string()),
             body_attrs: String::new(),
+            site_config,
             list_data: None,
             sidebar_nav: None,
             table_of_contents: None,
@@ -96,6 +100,8 @@ impl<'a> PageBuilder<'a> {
             content: self.content.to_string(),
             css_file: self.css_file,
             body_attrs: self.body_attrs,
+            site_title: self.site_config.title.clone(),
+            footer_text: self.site_config.footer_text.clone(),
             breadcrumb_data,
             list_data: self.list_data,
             sidebar_nav: self.sidebar_nav,

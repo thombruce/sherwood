@@ -1,3 +1,4 @@
+use crate::config::SiteSection;
 use crate::content::parsing::{Frontmatter, MarkdownFile};
 use crate::content_generation::{ContentGenerator, DefaultContentGenerator};
 use crate::templates::{ListData, TemplateDataEnum, TemplateManager};
@@ -38,6 +39,7 @@ pub struct TemplateProcessor {
     template_manager: TemplateManager,
     breadcrumb_generator: Option<crate::partials::BreadcrumbGenerator>,
     content_generator: Box<dyn ContentGenerator>,
+    site_config: SiteSection,
 }
 
 impl TemplateProcessor {
@@ -45,11 +47,13 @@ impl TemplateProcessor {
     pub fn new(
         template_manager: TemplateManager,
         breadcrumb_generator: Option<crate::partials::BreadcrumbGenerator>,
+        site_config: SiteSection,
     ) -> Self {
         Self {
             template_manager,
             breadcrumb_generator,
             content_generator: Box::new(DefaultContentGenerator),
+            site_config,
         }
     }
 
@@ -87,14 +91,15 @@ impl TemplateProcessor {
 
         match template_type {
             TemplateType::Default => Ok(TemplateDataEnum::Page(
-                PageBuilder::new(file, html_content, breadcrumb_gen)
+                PageBuilder::new(file, html_content, breadcrumb_gen, &self.site_config)
                     .with_list_data(list_data)
                     .build_page(),
             )),
             TemplateType::External(_template_name) => {
                 // For external templates, generate comprehensive page data including docs-specific fields
                 let mut page_builder =
-                    PageBuilder::new(file, html_content, breadcrumb_gen).with_list_data(list_data);
+                    PageBuilder::new(file, html_content, breadcrumb_gen, &self.site_config)
+                        .with_list_data(list_data);
 
                 // Generate docs-specific data using ContentGenerator
                 let sidebar_nav = self.content_generator.generate_sidebar_nav(file);

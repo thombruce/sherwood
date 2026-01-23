@@ -1,5 +1,6 @@
 [site]
-title = "Sherwood"
+title = "Sherwood" # (required)
+footer_text = "© 2026 Sherwood Static Site Generator." # (optional TODO: can we make copyright year dynamic?)
 
 # [templates]
 # page_template = "default.stpl"
