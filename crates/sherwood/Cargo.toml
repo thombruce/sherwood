@@ -26,6 +26,6 @@ include_dir = { version = "0.7", features = ["glob"] }
 sailfish = "0.8"
 thiserror = "2.0"
 tempfile = "3.8"
-lightningcss = { version = "1.0.0-alpha.68", features = ["bundler"] }
+lightningcss = { version = "1.0.0-alpha.70", features = ["bundler"] }
 chrono = { version = "0.4", features = ["serde"] }
 
