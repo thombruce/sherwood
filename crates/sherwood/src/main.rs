@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use sherwood::{ServerConfig, SiteGeneratorConfig};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -33,7 +34,8 @@ async fn main() {
 
     match cli.command {
         Commands::Generate { input, output } => {
-            if let Err(e) = sherwood::generate_site(&input, &output).await {
+            let config = SiteGeneratorConfig::new();
+            if let Err(e) = sherwood::generate_site_with_config(&input, &output, config).await {
                 eprintln!("Error generating site: {}", e);
                 std::process::exit(1);
             }
@@ -43,7 +45,8 @@ async fn main() {
             output,
             port,
         } => {
-            if let Err(e) = sherwood::run_dev_server(&input, &output, port).await {
+            let config = ServerConfig::with_port(port);
+            if let Err(e) = sherwood::run_dev_server_with_config(&input, &output, config).await {
                 eprintln!("Error running dev server: {}", e);
                 std::process::exit(1);
             }

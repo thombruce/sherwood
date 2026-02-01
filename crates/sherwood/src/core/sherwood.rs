@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+use crate::config::{ServerConfig, SiteGeneratorConfig};
 use crate::plugins::PluginRegistry;
 use crate::templates::TemplateRegistry;
 
@@ -74,23 +75,17 @@ impl Sherwood {
 
         match args.command {
             Commands::Generate => {
-                crate::generate_site_with_plugins_and_templates(
-                    &args.input,
-                    &args.output,
-                    self.plugin_registry,
-                    self.template_registry,
-                )
-                .await
+                let config = SiteGeneratorConfig::new()
+                    .with_optional_plugins(self.plugin_registry)
+                    .with_optional_templates(self.template_registry);
+                crate::generate_site_with_config(&args.input, &args.output, config).await
             }
             Commands::Dev { port } => {
-                crate::run_dev_server_with_plugins_and_templates(
-                    &args.input,
-                    &args.output,
-                    port,
-                    self.plugin_registry,
-                    self.template_registry,
-                )
-                .await
+                let site_config = SiteGeneratorConfig::development()
+                    .with_optional_plugins(self.plugin_registry)
+                    .with_optional_templates(self.template_registry);
+                let server_config = ServerConfig::with_port(port).site_config(site_config);
+                crate::run_dev_server_with_config(&args.input, &args.output, server_config).await
             }
         }
     }
