@@ -1,4 +1,4 @@
-use crate::config::{SiteConfig, SiteSection, TemplateSection};
+use crate::config::{SiteConfig, SiteGeneratorConfig, SiteSection, TemplateSection};
 use crate::content::parsing::MarkdownFile;
 use crate::content::renderer::HtmlRenderer;
 use crate::content::universal_parser::UniversalContentParser;
@@ -22,6 +22,68 @@ const CONFIG_PATH_RELATIVE: &str = "../Sherwood.toml";
 // Constants for template names
 const DEFAULT_PAGE_TEMPLATE: &str = "sherwood.stpl";
 
+/// Builder for SiteGenerator that provides a fluent API for configuration
+pub struct SiteGeneratorBuilder {
+    input_dir: PathBuf,
+    output_dir: PathBuf,
+    config: SiteGeneratorConfig,
+}
+
+impl SiteGeneratorBuilder {
+    /// Create a new builder with the specified input and output directories
+    pub fn new(input_dir: &Path, output_dir: &Path) -> Self {
+        Self {
+            input_dir: input_dir.to_path_buf(),
+            output_dir: output_dir.to_path_buf(),
+            config: SiteGeneratorConfig::new(),
+        }
+    }
+
+    /// Set development mode
+    pub fn development(mut self, is_development: bool) -> Self {
+        self.config.is_development = is_development;
+        self
+    }
+
+    /// Set plugin registry
+    pub fn with_plugins(mut self, plugin_registry: PluginRegistry) -> Self {
+        self.config.plugin_registry = Some(plugin_registry);
+        self
+    }
+
+    /// Set template registry
+    pub fn with_templates(mut self, template_registry: crate::templates::TemplateRegistry) -> Self {
+        self.config.template_registry = Some(template_registry);
+        self
+    }
+
+    /// Set optional plugin registry
+    pub fn with_optional_plugins(mut self, plugin_registry: Option<PluginRegistry>) -> Self {
+        self.config.plugin_registry = plugin_registry;
+        self
+    }
+
+    /// Set optional template registry
+    pub fn with_optional_templates(
+        mut self,
+        template_registry: Option<crate::templates::TemplateRegistry>,
+    ) -> Self {
+        self.config.template_registry = template_registry;
+        self
+    }
+
+    /// Set the complete configuration
+    pub fn config(mut self, config: SiteGeneratorConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    /// Build the SiteGenerator instance
+    pub fn build(self) -> Result<SiteGenerator> {
+        SiteGenerator::build_with_config(&self.input_dir, &self.output_dir, self.config)
+    }
+}
+
 pub struct SiteGenerator {
     input_dir: PathBuf,
     output_dir: PathBuf,
@@ -36,85 +98,16 @@ pub struct SiteGenerator {
 }
 
 impl SiteGenerator {
-    pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
-        Self::new_with_mode(input_dir, output_dir, false)
+    /// Create a builder for configuring and building a SiteGenerator
+    pub fn builder(input_dir: &Path, output_dir: &Path) -> SiteGeneratorBuilder {
+        SiteGeneratorBuilder::new(input_dir, output_dir)
     }
 
-    pub fn new_development(input_dir: &Path, output_dir: &Path) -> Result<Self> {
-        Self::new_with_mode(input_dir, output_dir, true)
-    }
-
-    pub fn new_with_plugins(
+    /// Build a SiteGenerator with the specified configuration
+    fn build_with_config(
         input_dir: &Path,
         output_dir: &Path,
-        plugin_registry: PluginRegistry,
-    ) -> Result<Self> {
-        Self::new_with_mode_and_plugins(input_dir, output_dir, false, Some(plugin_registry))
-    }
-
-    pub fn new_development_with_plugins(
-        input_dir: &Path,
-        output_dir: &Path,
-        plugin_registry: PluginRegistry,
-    ) -> Result<Self> {
-        Self::new_with_mode_and_plugins(input_dir, output_dir, true, Some(plugin_registry))
-    }
-
-    pub fn new_with_plugins_and_templates(
-        input_dir: &Path,
-        output_dir: &Path,
-        plugin_registry: Option<PluginRegistry>,
-        template_registry: Option<crate::templates::TemplateRegistry>,
-    ) -> Result<Self> {
-        Self::new_with_mode_and_plugins_and_templates(
-            input_dir,
-            output_dir,
-            false,
-            plugin_registry,
-            template_registry,
-        )
-    }
-
-    pub fn new_development_with_plugins_and_templates(
-        input_dir: &Path,
-        output_dir: &Path,
-        plugin_registry: Option<PluginRegistry>,
-        template_registry: Option<crate::templates::TemplateRegistry>,
-    ) -> Result<Self> {
-        Self::new_with_mode_and_plugins_and_templates(
-            input_dir,
-            output_dir,
-            true,
-            plugin_registry,
-            template_registry,
-        )
-    }
-
-    fn new_with_mode(input_dir: &Path, output_dir: &Path, is_development: bool) -> Result<Self> {
-        Self::new_with_mode_and_plugins(input_dir, output_dir, is_development, None)
-    }
-
-    fn new_with_mode_and_plugins(
-        input_dir: &Path,
-        output_dir: &Path,
-        is_development: bool,
-        plugin_registry: Option<PluginRegistry>,
-    ) -> Result<Self> {
-        Self::new_with_mode_and_plugins_and_templates(
-            input_dir,
-            output_dir,
-            is_development,
-            plugin_registry,
-            None,
-        )
-    }
-
-    fn new_with_mode_and_plugins_and_templates(
-        input_dir: &Path,
-        output_dir: &Path,
-        is_development: bool,
-        plugin_registry: Option<PluginRegistry>,
-        template_registry: Option<crate::templates::TemplateRegistry>,
+        config: SiteGeneratorConfig,
     ) -> Result<Self> {
         let styles_dir = input_dir.join(STYLES_DIR_RELATIVE);
         let templates_dir = input_dir.join(TEMPLATES_DIR_RELATIVE);
@@ -150,7 +143,7 @@ impl SiteGenerator {
         }
 
         let template_manager =
-            TemplateManager::new_with_registry(&templates_dir, template_registry)?;
+            TemplateManager::new_with_registry(&templates_dir, config.template_registry)?;
         let html_renderer = HtmlRenderer::new(input_dir, template_manager.clone());
 
         // Create breadcrumb generator if configured
@@ -166,11 +159,14 @@ impl SiteGenerator {
         );
 
         // Create style manager based on mode and configuration
-        let style_manager =
-            StyleManager::new_with_config(&styles_dir, site_config.css.as_ref(), is_development);
+        let style_manager = StyleManager::new_with_config(
+            &styles_dir,
+            site_config.css.as_ref(),
+            config.is_development,
+        );
 
         // Create content parser with optional plugins
-        let content_parser = UniversalContentParser::new(plugin_registry);
+        let content_parser = UniversalContentParser::new(config.plugin_registry);
 
         Ok(Self {
             input_dir: input_dir.to_path_buf(),
@@ -180,8 +176,82 @@ impl SiteGenerator {
             page_generator,
             content_parser,
             site_config,
-            is_development,
+            is_development: config.is_development,
         })
+    }
+
+    // Legacy constructors for backward compatibility
+    pub fn new(input_dir: &Path, output_dir: &Path) -> Result<Self> {
+        Self::builder(input_dir, output_dir).build()
+    }
+
+    pub fn new_development(input_dir: &Path, output_dir: &Path) -> Result<Self> {
+        Self::builder(input_dir, output_dir)
+            .development(true)
+            .build()
+    }
+
+    pub fn new_with_plugins(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: PluginRegistry,
+    ) -> Result<Self> {
+        Self::builder(input_dir, output_dir)
+            .with_plugins(plugin_registry)
+            .build()
+    }
+
+    pub fn new_development_with_plugins(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: PluginRegistry,
+    ) -> Result<Self> {
+        Self::builder(input_dir, output_dir)
+            .development(true)
+            .with_plugins(plugin_registry)
+            .build()
+    }
+
+    pub fn new_with_plugins_and_templates(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: Option<PluginRegistry>,
+        template_registry: Option<crate::templates::TemplateRegistry>,
+    ) -> Result<Self> {
+        Self::builder(input_dir, output_dir)
+            .with_optional_plugins(plugin_registry)
+            .with_optional_templates(template_registry)
+            .build()
+    }
+
+    pub fn new_development_with_plugins_and_templates(
+        input_dir: &Path,
+        output_dir: &Path,
+        plugin_registry: Option<PluginRegistry>,
+        template_registry: Option<crate::templates::TemplateRegistry>,
+    ) -> Result<Self> {
+        Self::builder(input_dir, output_dir)
+            .development(true)
+            .with_optional_plugins(plugin_registry)
+            .with_optional_templates(template_registry)
+            .build()
+    }
+
+    // Legacy internal constructor - now delegates to build_with_config
+    #[allow(dead_code)]
+    fn new_with_mode_and_plugins_and_templates(
+        input_dir: &Path,
+        output_dir: &Path,
+        is_development: bool,
+        plugin_registry: Option<PluginRegistry>,
+        template_registry: Option<crate::templates::TemplateRegistry>,
+    ) -> Result<Self> {
+        let config = SiteGeneratorConfig {
+            is_development,
+            plugin_registry,
+            template_registry,
+        };
+        Self::build_with_config(input_dir, output_dir, config)
     }
 
     pub async fn generate(&self) -> Result<()> {
@@ -307,68 +377,89 @@ impl SiteGenerator {
     }
 }
 
+/// Generate a site using the specified configuration
+///
+/// This is the unified function that replaces all previous generate_site variants
+pub async fn generate_site_with_config(
+    input_dir: &Path,
+    output_dir: &Path,
+    config: SiteGeneratorConfig,
+) -> Result<()> {
+    let generator = SiteGenerator::build_with_config(input_dir, output_dir, config)?;
+    generator.generate().await
+}
+
+// Legacy functions for backward compatibility
+#[deprecated(
+    since = "0.6.0",
+    note = "Use generate_site_with_config with SiteGeneratorConfig instead"
+)]
 pub async fn generate_site(input_dir: &Path, output_dir: &Path) -> Result<()> {
-    let generator = SiteGenerator::new(input_dir, output_dir)?;
-    generator.generate().await
+    generate_site_with_config(input_dir, output_dir, SiteGeneratorConfig::new()).await
 }
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use generate_site_with_config with SiteGeneratorConfig::development() instead"
+)]
 pub async fn generate_site_development(input_dir: &Path, output_dir: &Path) -> Result<()> {
-    let generator = SiteGenerator::new_development(input_dir, output_dir)?;
-    generator.generate().await
+    generate_site_with_config(input_dir, output_dir, SiteGeneratorConfig::development()).await
 }
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use generate_site_with_config with SiteGeneratorConfig::new().with_optional_plugins() instead"
+)]
 pub async fn generate_site_with_plugins(
     input_dir: &Path,
     output_dir: &Path,
     plugin_registry: Option<PluginRegistry>,
 ) -> Result<()> {
-    let generator = if let Some(registry) = plugin_registry {
-        SiteGenerator::new_with_plugins(input_dir, output_dir, registry)?
-    } else {
-        SiteGenerator::new(input_dir, output_dir)?
-    };
-    generator.generate().await
+    let config = SiteGeneratorConfig::new().with_optional_plugins(plugin_registry);
+    generate_site_with_config(input_dir, output_dir, config).await
 }
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use generate_site_with_config with SiteGeneratorConfig::new().with_optional_plugins().with_optional_templates() instead"
+)]
 pub async fn generate_site_with_plugins_and_templates(
     input_dir: &Path,
     output_dir: &Path,
     plugin_registry: Option<PluginRegistry>,
     template_registry: Option<crate::templates::TemplateRegistry>,
 ) -> Result<()> {
-    let generator = SiteGenerator::new_with_plugins_and_templates(
-        input_dir,
-        output_dir,
-        plugin_registry,
-        template_registry,
-    )?;
-    generator.generate().await
+    let config = SiteGeneratorConfig::new()
+        .with_optional_plugins(plugin_registry)
+        .with_optional_templates(template_registry);
+    generate_site_with_config(input_dir, output_dir, config).await
 }
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use generate_site_with_config with SiteGeneratorConfig::development().with_optional_plugins() instead"
+)]
 pub async fn generate_site_development_with_plugins(
     input_dir: &Path,
     output_dir: &Path,
     plugin_registry: Option<PluginRegistry>,
 ) -> Result<()> {
-    let generator = if let Some(registry) = plugin_registry {
-        SiteGenerator::new_development_with_plugins(input_dir, output_dir, registry)?
-    } else {
-        SiteGenerator::new_development(input_dir, output_dir)?
-    };
-    generator.generate().await
+    let config = SiteGeneratorConfig::development().with_optional_plugins(plugin_registry);
+    generate_site_with_config(input_dir, output_dir, config).await
 }
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use generate_site_with_config with SiteGeneratorConfig::development().with_optional_plugins().with_optional_templates() instead"
+)]
 pub async fn generate_site_development_with_plugins_and_templates(
     input_dir: &Path,
     output_dir: &Path,
     plugin_registry: Option<PluginRegistry>,
     template_registry: Option<crate::templates::TemplateRegistry>,
 ) -> Result<()> {
-    let generator = SiteGenerator::new_development_with_plugins_and_templates(
-        input_dir,
-        output_dir,
-        plugin_registry,
-        template_registry,
-    )?;
-    generator.generate().await
+    let config = SiteGeneratorConfig::development()
+        .with_optional_plugins(plugin_registry)
+        .with_optional_templates(template_registry);
+    generate_site_with_config(input_dir, output_dir, config).await
 }
