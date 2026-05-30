@@ -39,6 +39,8 @@ pub(crate) fn output_path_for(source: &Path, config: &SiteConfig) -> PathBuf {
 mod tests {
     use super::*;
     use crate::config::SiteConfig;
+    use std::fs;
+    use tempfile::TempDir;
 
     fn default_config() -> SiteConfig {
         SiteConfig {
@@ -84,5 +86,51 @@ mod tests {
         let config = default_config();
         let path = output_path_for(Path::new("content/index.md"), &config);
         assert_eq!(path, PathBuf::from("_site/index.html"));
+    }
+
+    #[test]
+    fn output_path_outside_content_dir_falls_back() {
+        let config = default_config();
+        let path = output_path_for(Path::new("other/page.md"), &config);
+        assert_eq!(path, PathBuf::from("_site/other/page.html"));
+    }
+
+    #[test]
+    fn load_page_reads_yaml_frontmatter() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("about.md");
+        fs::write(&file, "---\ntitle: About\n---\n\n# About").unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        let page = load_page(&file, &config).unwrap();
+        assert_eq!(page.frontmatter.title, "About");
+        assert!(page.content_html.contains("<h1>About</h1>"));
+    }
+
+    #[test]
+    fn load_page_reads_toml_frontmatter() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("post.md");
+        fs::write(&file, "+++\ntitle = \"My Post\"\n+++\n\nHello.").unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        let page = load_page(&file, &config).unwrap();
+        assert_eq!(page.frontmatter.title, "My Post");
+    }
+
+    #[test]
+    fn load_page_missing_title_returns_error() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("bad.md");
+        fs::write(&file, "---\nfoo: bar\n---\n\nContent.").unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        assert!(load_page(&file, &config).is_err());
     }
 }

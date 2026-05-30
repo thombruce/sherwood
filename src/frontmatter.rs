@@ -77,4 +77,18 @@ mod tests {
         let result = parse_frontmatter("", "test.md");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn yaml_frontmatter_missing_title_returns_error() {
+        let source = "---\nfoo: bar\n---\n\nContent.";
+        let result = parse_frontmatter(source, "test.md");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn toml_frontmatter_missing_title_returns_error() {
+        let source = "+++\nfoo = \"bar\"\n+++\n\nContent.";
+        let result = parse_frontmatter(source, "test.md");
+        assert!(result.is_err());
+    }
 }

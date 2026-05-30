@@ -283,4 +283,39 @@ mod tests {
         assert_eq!(pages[1].output_path, PathBuf::from("_site/blog/post.html"));
         assert_eq!(pages[2].output_path, PathBuf::from("_site/index.html"));
     }
+
+    #[test]
+    fn breadcrumbs_depth_3() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/a/b/c.html", "C Page"),
+            make_page("_site/index.html", "Home"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert_eq!(ctx.breadcrumbs.len(), 4);
+        assert_eq!(ctx.breadcrumbs[0].title, "Home");
+        assert_eq!(ctx.breadcrumbs[1].title, "A");
+        assert_eq!(ctx.breadcrumbs[2].title, "B");
+        assert_eq!(ctx.breadcrumbs[3].title, "C Page");
+        assert!(ctx.breadcrumbs[3].href.is_none());
+    }
+
+    #[test]
+    fn home_crumb_uses_index_page_title() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/about.html", "About"),
+            make_page("_site/index.html", "Welcome"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert_eq!(ctx.breadcrumbs[0].title, "Welcome");
+    }
+
+    #[test]
+    fn home_crumb_defaults_when_no_root_index() {
+        let config = test_config();
+        let pages = vec![make_page("_site/about.html", "About")];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert_eq!(ctx.breadcrumbs[0].title, "Home");
+    }
 }

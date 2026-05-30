@@ -55,3 +55,76 @@ fn write_page(output_path: &Path, html: &str) -> Result<(), BuildError> {
     std::fs::write(output_path, html)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn setup(files: &[(&str, &str)]) -> (TempDir, SiteConfig) {
+        let tmp = TempDir::new().unwrap();
+        let content_dir = tmp.path().join("content");
+        let output_dir = tmp.path().join("_site");
+        fs::create_dir_all(&content_dir).unwrap();
+        for (path, content) in files {
+            let full = content_dir.join(path);
+            if let Some(parent) = full.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(full, content).unwrap();
+        }
+        let config = SiteConfig { content_dir, output_dir };
+        (tmp, config)
+    }
+
+    #[test]
+    fn build_creates_output_files() {
+        let (_tmp, config) = setup(&[
+            ("index.md", "---\ntitle: Home\n---\n\n# Home"),
+            ("about.md", "---\ntitle: About\n---\n\nAbout page."),
+        ]);
+        build_site(&config, |page, _ctx| {
+            Ok(format!("<html><title>{}</title></html>", page.frontmatter.title))
+        })
+        .unwrap();
+        assert!(config.output_dir.join("index.html").exists());
+        assert!(config.output_dir.join("about.html").exists());
+    }
+
+    #[test]
+    fn build_renderer_receives_all_pages_in_nav() {
+        let (_tmp, config) = setup(&[
+            ("index.md", "---\ntitle: Home\n---\n"),
+            ("about.md", "---\ntitle: About\n---\n"),
+        ]);
+        build_site(&config, |_page, ctx| Ok(format!("nav:{}", ctx.nav.len()))).unwrap();
+        let content = fs::read_to_string(config.output_dir.join("index.html")).unwrap();
+        assert!(content.contains("nav:2"));
+    }
+
+    #[test]
+    fn build_output_mirrors_nested_structure() {
+        let (_tmp, config) = setup(&[
+            ("blog/post.md", "---\ntitle: Post\n---\n\nHello."),
+        ]);
+        build_site(&config, |_page, _ctx| Ok(String::new())).unwrap();
+        assert!(config.output_dir.join("blog/post.html").exists());
+    }
+
+    #[test]
+    fn build_empty_content_dir_succeeds() {
+        let (_tmp, config) = setup(&[]);
+        assert!(build_site(&config, |_page, _ctx| Ok(String::new())).is_ok());
+    }
+
+    #[test]
+    fn build_missing_content_dir_returns_error() {
+        let tmp = TempDir::new().unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().join("nonexistent"),
+            output_dir: tmp.path().join("_site"),
+        };
+        assert!(build_site(&config, |_page, _ctx| Ok(String::new())).is_err());
+    }
+}
