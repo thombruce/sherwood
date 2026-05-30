@@ -20,17 +20,23 @@ Sherwood is a dual-delivery crate: a **library** (`src/lib.rs`) and a **binary**
 
 ### Library (public API)
 
-The library exposes the build pipeline without any template dependency. Advanced users add `sherwood` as a crate dependency, define their own Sailfish templates, and call `build_site` with a render closure:
+The library exposes the build pipeline without any template dependency. Advanced users add `sherwood` as a crate dependency, define their own Sailfish templates, and call `build_site` with a render closure and a progress callback:
 
 ```rust
-sherwood::build_site(&config, |page, ctx| {
-    MyTemplate {
-        title: page.frontmatter.title.clone(),
-        nav: ctx.nav.clone(),
-        // ...
-    }.render_once()
-})
+sherwood::build_site(
+    &config,
+    |page, ctx| {
+        MyTemplate {
+            title: page.frontmatter.title.clone(),
+            nav: ctx.nav.clone(),
+            // ...
+        }.render_once()
+    },
+    |page| println!("{} -> {}", page.source_path.display(), page.output_path.display()),
+)
 ```
+
+The progress callback is `FnMut(&Page)` and is invoked after each page is written. Pass `|_| {}` to silence build logging.
 
 Public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `BuildError`.
 
@@ -48,12 +54,15 @@ Pass 1 — collect:
     └─ load_page()         [page.rs]         read file → parse frontmatter + markdown → Page
 
 Pass 2 — sort + render:
-  pages.sort_by(output_path)
+  pages.sort_by(root index first, then output_path)
   for each page:
     └─ nav::compute_context()  [nav.rs]       build PageContext (nav, breadcrumbs, prev, next)
     └─ renderer closure()      [caller]       PageTemplate { ... }.render_once() → HTML string
     └─ write_page()            [build.rs]     create dirs, write _site/path/to/file.html
+    └─ progress callback()     [caller]       optional per-page hook (e.g. CLI logging)
 ```
+
+Sort key is `(!is_root_index, output_path)` — keeps the root `index.html` at the front of the nav rather than buried after alphabetical siblings.
 
 Output paths mirror source structure: `content/blog/post.md` → `_site/blog/post.html`.
 
@@ -64,3 +73,5 @@ Output paths mirror source structure: `content/blog/post.md` → `_site/blog/pos
 **`gray_matter` TOML support** requires `features = ["toml"]` in `Cargo.toml` (not enabled by default). TOML delimiter is `+++`; a separate `Matter::<TOML>` instance with `matter.delimiter = "+++".to_owned()` is required since gray_matter defaults all engines to `---`.
 
 **axum 0.8 static files**: use `Router::fallback_service(ServeDir::new(...))` — `nest_service("/", ...)` panics at runtime.
+
+**URL building from `Path`**: do not use `Path::display()` when constructing href strings. On Windows it emits `\` separators, producing invalid URLs like `/blog\post.html`. `nav::path_to_url` walks `Component::Normal` and joins with `/` — use it for any new URL output.

@@ -70,7 +70,7 @@ Every page includes:
 
 - **Global nav bar** — links to all pages; current page marked with `aria-current="page"`
 - **Breadcrumbs** — directory hierarchy (hidden on root page)
-- **Prev / Next links** — sequential navigation between pages (alphabetical order)
+- **Prev / Next links** — sequential navigation between pages (root `index.html` first, then alphabetical by output path)
 
 ## Custom Options
 
@@ -96,15 +96,21 @@ struct MyTemplate {
 
 fn main() {
     let config = SiteConfig::default();
-    build_site(&config, |page, ctx| {
-        MyTemplate {
-            title: page.frontmatter.title.clone(),
-            content: page.content_html.clone(),
-        }
-        .render_once()
-        .map_err(|e| sherwood::BuildError::Render(e.to_string()))
-    }).unwrap();
+    build_site(
+        &config,
+        |page, _ctx| {
+            MyTemplate {
+                title: page.frontmatter.title.clone(),
+                content: page.content_html.clone(),
+            }
+            .render_once()
+            .map_err(|e| sherwood::BuildError::Render(e.to_string()))
+        },
+        |page| println!("{} -> {}", page.source_path.display(), page.output_path.display()),
+    ).unwrap();
 }
 ```
+
+`build_site` takes a renderer `FnMut(&Page, &PageContext) -> Result<String, BuildError>` and a progress callback `FnMut(&Page)` invoked after each page is written. Pass `|_| {}` to silence build logging.
 
 `PageContext` provides `nav`, `breadcrumbs`, `prev`, and `next` for building navigation in custom templates.

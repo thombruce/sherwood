@@ -36,7 +36,10 @@ async fn main() {
     match cli.command {
         Commands::Build { content_dir, output_dir } => {
             let config = SiteConfig { content_dir, output_dir };
-            match build_site(&config, templates::render_page) {
+            let result = build_site(&config, templates::render_page, |page| {
+                println!("{} -> {}", page.source_path.display(), page.output_path.display());
+            });
+            match result {
                 Ok(()) => println!("Build complete."),
                 Err(e) => {
                     eprintln!("Build failed: {}", e);
