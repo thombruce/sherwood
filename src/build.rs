@@ -2,7 +2,8 @@ use std::path::Path;
 use thiserror::Error;
 use walkdir::WalkDir;
 use crate::config::SiteConfig;
-use crate::page::load_page;
+use crate::nav::{self, PageContext};
+use crate::page::{Page, load_page};
 
 #[derive(Debug, Error)]
 pub enum BuildError {
@@ -18,25 +19,30 @@ pub enum BuildError {
 
 pub fn build_site<F>(config: &SiteConfig, renderer: F) -> Result<(), BuildError>
 where
-    F: Fn(&crate::page::Page) -> Result<String, BuildError>,
+    F: Fn(&Page, &PageContext) -> Result<String, BuildError>,
 {
     std::fs::create_dir_all(&config.output_dir)?;
 
+    // Pass 1: collect all pages
+    let mut pages: Vec<Page> = Vec::new();
     for entry in WalkDir::new(&config.content_dir) {
         let entry = entry?;
-        if !entry.file_type().is_file() {
-            continue;
+        if entry.file_type().is_file()
+            && entry.path().extension().and_then(|s| s.to_str()) == Some("md")
+        {
+            pages.push(load_page(entry.path(), config)?);
         }
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("md") {
-            continue;
-        }
+    }
 
-        let page = load_page(path, config)?;
-        let html = renderer(&page)?;
+    // Sort alphabetically by output path
+    pages.sort_by(|a, b| a.output_path.cmp(&b.output_path));
+
+    // Pass 2: render each page with navigation context
+    for page in &pages {
+        let ctx = nav::compute_context(page, &pages, config);
+        let html = renderer(page, &ctx)?;
         write_page(&page.output_path, &html)?;
-
-        println!("{} -> {}", path.display(), page.output_path.display());
+        println!("{} -> {}", page.source_path.display(), page.output_path.display());
     }
 
     Ok(())

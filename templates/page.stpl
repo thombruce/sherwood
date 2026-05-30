@@ -6,8 +6,44 @@
     <title><%= title %></title>
   </head>
   <body>
+    <nav>
+      <ul>
+        <% for item in nav { %>
+          <li>
+            <% if item.is_current { %>
+              <a href="<%= item.href %>" aria-current="page"><%= item.title %></a>
+            <% } else { %>
+              <a href="<%= item.href %>"><%= item.title %></a>
+            <% } %>
+          </li>
+        <% } %>
+      </ul>
+    </nav>
+    <% if !breadcrumbs.is_empty() { %>
+      <nav aria-label="breadcrumb">
+        <ol>
+          <% for crumb in breadcrumbs { %>
+            <% if let Some(href) = crumb.href { %>
+              <li><a href="<%= href %>"><%= crumb.title %></a></li>
+            <% } else { %>
+              <li><%= crumb.title %></li>
+            <% } %>
+          <% } %>
+        </ol>
+      </nav>
+    <% } %>
     <main>
       <%- content %>
     </main>
+    <% if prev.is_some() || next.is_some() { %>
+      <nav aria-label="page navigation">
+        <% if let Some(p) = prev { %>
+          <a rel="prev" href="<%= p.href %>">&#8592; <%= p.title %></a>
+        <% } %>
+        <% if let Some(n) = next { %>
+          <a rel="next" href="<%= n.href %>"><%= n.title %> &#8594;</a>
+        <% } %>
+      </nav>
+    <% } %>
   </body>
 </html>
