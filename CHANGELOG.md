@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-30
+
 ### Fixed
 
 - Windows path-separator bug in nav and breadcrumb URLs: `Path::display()` was emitting `\` on Windows, producing invalid hrefs like `/blog\post.html`. Replaced with `nav::path_to_url`, which joins `Component::Normal` segments with `/`.
