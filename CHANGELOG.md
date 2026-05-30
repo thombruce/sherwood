@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Default stylesheet bundled into the binary via `include_str!("../templates/style.css")`. Written once to `<output_dir>/style.css` after `build_site` — zero per-page cost.
+- `sherwood build --style <path>` flag overrides the embedded default with a CSS file from disk.
+- `<link rel="stylesheet" href="/style.css">` injected into the bundled `page.stpl` template.
+
+### Notes
+
+- The library remains style-agnostic. `SiteConfig` and `build_site` are unchanged; downstream library users embed their own CSS in their own binary.
+
 ## [0.2.0] - 2026-05-30
 
 ### Fixed

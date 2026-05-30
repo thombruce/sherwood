@@ -72,10 +72,23 @@ Every page includes:
 - **Breadcrumbs** — directory hierarchy (hidden on root page)
 - **Prev / Next links** — sequential navigation between pages (root `index.html` first, then alphabetical by output path)
 
+## Styling
+
+The binary ships a minimal default stylesheet (CSS reset, readable typography, nav/breadcrumb baseline) embedded at compile time. Every build writes it once to `<output_dir>/style.css` and links it from each page.
+
+Override with your own CSS:
+
+```bash
+sherwood build --style my.css
+```
+
+Library consumers are unaffected — `build_site` does not emit a stylesheet. Embed your own CSS in your downstream binary (e.g. with `include_str!`) and write it to the output directory after `build_site` returns.
+
 ## Custom Options
 
 ```bash
 sherwood build --content-dir src --output-dir dist
+sherwood build --style my.css
 sherwood serve --port 8080
 ```
 
