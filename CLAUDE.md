@@ -23,12 +23,16 @@ Sherwood is a dual-delivery crate: a **library** (`src/lib.rs`) and a **binary**
 The library exposes the build pipeline without any template dependency. Advanced users add `sherwood` as a crate dependency, define their own Sailfish templates, and call `build_site` with a render closure:
 
 ```rust
-sherwood::build_site(&config, |page| {
-    MyTemplate { title: page.frontmatter.title.clone(), ... }.render_once()
+sherwood::build_site(&config, |page, ctx| {
+    MyTemplate {
+        title: page.frontmatter.title.clone(),
+        nav: ctx.nav.clone(),
+        // ...
+    }.render_once()
 })
 ```
 
-Public API surface: `SiteConfig`, `FrontMatter`, `Page`, `build_site`, `BuildError`.
+Public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `BuildError`.
 
 ### Binary (standalone)
 
@@ -36,13 +40,19 @@ Public API surface: `SiteConfig`, `FrontMatter`, `Page`, `build_site`, `BuildErr
 
 ### Build pipeline flow
 
+Two-pass pipeline — all pages collected and sorted before any rendering begins:
+
 ```
-content/**/*.md
-  └─ load_page()          [page.rs]    read file, call parse_frontmatter + markdown_to_html
-       └─ parse_frontmatter()  [frontmatter.rs]  detect --- (YAML) or +++ (TOML), parse with gray_matter
-       └─ markdown_to_html()   [page.rs]          pulldown-cmark → HTML string
-  └─ renderer closure()   [caller]     PageTemplate { title, content }.render_once()
-  └─ write_page()         [build.rs]   create dirs, write _site/path/to/file.html
+Pass 1 — collect:
+  content/**/*.md
+    └─ load_page()         [page.rs]         read file → parse frontmatter + markdown → Page
+
+Pass 2 — sort + render:
+  pages.sort_by(output_path)
+  for each page:
+    └─ nav::compute_context()  [nav.rs]       build PageContext (nav, breadcrumbs, prev, next)
+    └─ renderer closure()      [caller]       PageTemplate { ... }.render_once() → HTML string
+    └─ write_page()            [build.rs]     create dirs, write _site/path/to/file.html
 ```
 
 Output paths mirror source structure: `content/blog/post.md` → `_site/blog/post.html`.
