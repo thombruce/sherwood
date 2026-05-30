@@ -10,6 +10,7 @@ cargo test                           # run all tests
 cargo test frontmatter               # run tests in a specific module
 cargo run -- build                   # build site: content/ → _site/
 cargo run -- build --content-dir src --output-dir out  # custom dirs
+cargo run -- build --style my.css    # override bundled stylesheet
 cargo run -- serve                   # dev server at http://127.0.0.1:4000
 cargo run -- serve --port 4001       # custom port
 ```
@@ -43,6 +44,8 @@ Public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem
 ### Binary (standalone)
 
 `src/main.rs` declares two binary-only modules — `mod serve` and `mod templates` — which are not re-exported by the library. `src/templates.rs` owns the baked-in Sailfish template (`templates/page.stpl`) compiled into the binary at build time.
+
+Styling is binary-only. `src/templates.rs` embeds `templates/style.css` via `include_str!` as `DEFAULT_STYLE`, and the binary writes it once to `<output_dir>/style.css` after `build_site`. `--style <path>` overrides the embedded default with a file from disk. The library does not ship or prescribe a stylesheet — lib users embed their own CSS in their downstream binary.
 
 ### Build pipeline flow
 

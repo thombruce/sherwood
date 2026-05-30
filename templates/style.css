@@ -1,0 +1,112 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #222;
+  background: #fff;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: 1.5rem;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.25;
+  margin-top: 1.75em;
+  margin-bottom: 0.5em;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.25rem; }
+
+p, ul, ol, pre, blockquote {
+  margin: 0 0 1rem;
+}
+
+a {
+  color: #0366d6;
+  text-decoration: underline;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: #f4f4f4;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+
+pre {
+  background: #f4f4f4;
+  padding: 1rem;
+  overflow-x: auto;
+  border-radius: 4px;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+}
+
+blockquote {
+  border-left: 3px solid #ddd;
+  padding-left: 1rem;
+  color: #555;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #eee;
+  margin: 2rem 0;
+}
+
+nav ul,
+nav ol {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+nav[aria-label="breadcrumb"] ol li + li::before {
+  content: "/";
+  margin-right: 0.75rem;
+  color: #999;
+}
+
+nav[aria-label="page navigation"] {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+[aria-current="page"] {
+  font-weight: 600;
+}
+
+main {
+  margin-block: 2rem;
+}

@@ -1,6 +1,8 @@
 use sailfish::TemplateSimple;
 use sherwood::{Breadcrumb, BuildError, NavItem, Page, PageContext};
 
+pub const DEFAULT_STYLE: &str = include_str!("../templates/style.css");
+
 #[derive(TemplateSimple)]
 #[template(path = "page.stpl")]
 struct PageTemplate {
