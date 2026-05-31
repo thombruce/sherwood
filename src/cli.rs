@@ -22,7 +22,10 @@ pub struct Asset {
 
 impl Asset {
     pub fn new(dest: impl Into<PathBuf>, bytes: impl Into<Cow<'static, [u8]>>) -> Self {
-        Self { dest: dest.into(), bytes: bytes.into() }
+        Self {
+            dest: dest.into(),
+            bytes: bytes.into(),
+        }
     }
 }
 
@@ -98,17 +101,34 @@ where
 {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Build { content_dir, output_dir, asset } => {
+        Commands::Build {
+            content_dir,
+            output_dir,
+            asset,
+        } => {
             let assets = apply_overrides(assets, asset)?;
-            let config = SiteConfig { content_dir, output_dir };
+            let config = SiteConfig {
+                content_dir,
+                output_dir,
+            };
             build_site(&config, renderer, |page| {
-                println!("{} -> {}", page.source_path.display(), page.output_path.display());
+                println!(
+                    "{} -> {}",
+                    page.source_path.display(),
+                    page.output_path.display()
+                );
             })?;
             write_assets(&assets, &config)?;
             println!("Build complete.");
             Ok(())
         }
-        Commands::Serve { content_dir, output_dir, port, asset, no_watch } => {
+        Commands::Serve {
+            content_dir,
+            output_dir,
+            port,
+            asset,
+            no_watch,
+        } => {
             let assets = apply_overrides(assets, asset)?;
             let config = SiteConfig {
                 content_dir: content_dir.clone(),
@@ -126,7 +146,7 @@ where
                 let mut guard = renderer_for_rebuild
                     .lock()
                     .map_err(|_| BuildError::Render("renderer mutex poisoned".to_string()))?;
-                let renderer_ref: &mut F = &mut *guard;
+                let renderer_ref: &mut F = &mut guard;
                 build_site(&config_for_rebuild, |p, c| renderer_ref(p, c), |_| {})?;
                 write_assets(&assets_for_rebuild, &config_for_rebuild)
                     .map_err(|e| BuildError::Render(e.to_string()))?;
@@ -150,11 +170,15 @@ fn write_assets(assets: &[Asset], config: &SiteConfig) -> Result<(), CliError> {
     for a in assets {
         let dest = config.output_dir.join(&a.dest);
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| CliError::AssetWrite { path: dest.clone(), source: e })?;
+            std::fs::create_dir_all(parent).map_err(|e| CliError::AssetWrite {
+                path: dest.clone(),
+                source: e,
+            })?;
         }
-        std::fs::write(&dest, &a.bytes)
-            .map_err(|e| CliError::AssetWrite { path: dest, source: e })?;
+        std::fs::write(&dest, &a.bytes).map_err(|e| CliError::AssetWrite {
+            path: dest,
+            source: e,
+        })?;
     }
     Ok(())
 }
@@ -164,11 +188,16 @@ fn apply_overrides(
     overrides: Vec<(PathBuf, PathBuf)>,
 ) -> Result<Vec<Asset>, CliError> {
     for (name, path) in overrides {
-        let bytes = std::fs::read(&path)
-            .map_err(|e| CliError::AssetRead { path: path.clone(), source: e })?;
+        let bytes = std::fs::read(&path).map_err(|e| CliError::AssetRead {
+            path: path.clone(),
+            source: e,
+        })?;
         match assets.iter_mut().find(|a| a.dest == name) {
             Some(a) => a.bytes = Cow::Owned(bytes),
-            None => assets.push(Asset { dest: name, bytes: Cow::Owned(bytes) }),
+            None => assets.push(Asset {
+                dest: name,
+                bytes: Cow::Owned(bytes),
+            }),
         }
     }
     Ok(assets)
@@ -183,9 +212,15 @@ pub enum CliError {
     #[error("Failed to start tokio runtime: {0}")]
     Runtime(std::io::Error),
     #[error("Failed to read asset {}: {source}", path.display())]
-    AssetRead { path: PathBuf, source: std::io::Error },
+    AssetRead {
+        path: PathBuf,
+        source: std::io::Error,
+    },
     #[error("Failed to write asset {}: {source}", path.display())]
-    AssetWrite { path: PathBuf, source: std::io::Error },
+    AssetWrite {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 }
 
 #[cfg(test)]
@@ -238,6 +273,9 @@ mod tests {
     fn apply_overrides_missing_file_errors() {
         let assets = vec![];
         let overrides = vec![(PathBuf::from("x"), PathBuf::from("/nonexistent/path/xyz"))];
-        assert!(matches!(apply_overrides(assets, overrides), Err(CliError::AssetRead { .. })));
+        assert!(matches!(
+            apply_overrides(assets, overrides),
+            Err(CliError::AssetRead { .. })
+        ));
     }
 }

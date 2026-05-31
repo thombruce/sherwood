@@ -1,9 +1,9 @@
-use std::path::Path;
-use thiserror::Error;
-use walkdir::WalkDir;
 use crate::config::SiteConfig;
 use crate::nav::{self, PageContext, is_root_index};
 use crate::page::{Page, load_page};
+use std::path::Path;
+use thiserror::Error;
+use walkdir::WalkDir;
 
 #[derive(Debug, Error)]
 pub enum BuildError {
@@ -83,7 +83,10 @@ mod tests {
             }
             fs::write(full, content).unwrap();
         }
-        let config = SiteConfig { content_dir, output_dir };
+        let config = SiteConfig {
+            content_dir,
+            output_dir,
+        };
         (tmp, config)
     }
 
@@ -95,7 +98,12 @@ mod tests {
         ]);
         build_site(
             &config,
-            |page, _ctx| Ok(format!("<html><title>{}</title></html>", page.frontmatter.title)),
+            |page, _ctx| {
+                Ok(format!(
+                    "<html><title>{}</title></html>",
+                    page.frontmatter.title
+                ))
+            },
             |_| {},
         )
         .unwrap();
@@ -121,9 +129,7 @@ mod tests {
 
     #[test]
     fn build_output_mirrors_nested_structure() {
-        let (_tmp, config) = setup(&[
-            ("blog/post.md", "---\ntitle: Post\n---\n\nHello."),
-        ]);
+        let (_tmp, config) = setup(&[("blog/post.md", "---\ntitle: Post\n---\n\nHello.")]);
         build_site(&config, |_page, _ctx| Ok(String::new()), |_| {}).unwrap();
         assert!(config.output_dir.join("blog/post/index.html").exists());
     }

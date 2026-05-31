@@ -1,5 +1,5 @@
-use sailfish::TemplateSimple;
 use crate::{Breadcrumb, BuildError, NavItem, Page, PageContext};
+use sailfish::TemplateSimple;
 
 pub const DEFAULT_STYLE: &str = include_str!("../templates/style.css");
 

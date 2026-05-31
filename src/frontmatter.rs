@@ -1,5 +1,8 @@
-use gray_matter::{Matter, Pod, engine::{Engine, YAML, TOML}};
 use crate::build::BuildError;
+use gray_matter::{
+    Matter, Pod,
+    engine::{Engine, TOML, YAML},
+};
 
 const EXCERPT_DELIMITER: &str = "<!-- more -->";
 

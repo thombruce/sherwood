@@ -114,9 +114,21 @@ fn build_reports_frontmatter_error_with_snippet() {
         .output()
         .expect("failed to launch sherwood binary");
 
-    assert!(!result.status.success(), "build should fail on bad frontmatter");
+    assert!(
+        !result.status.success(),
+        "build should fail on bad frontmatter"
+    );
     let stderr = String::from_utf8_lossy(&result.stderr);
-    assert!(stderr.contains("missing required field `title`"), "stderr:\n{stderr}");
-    assert!(stderr.contains("foo: bar"), "snippet missing in stderr:\n{stderr}");
-    assert!(stderr.contains(" | "), "line-numbered indent missing:\n{stderr}");
+    assert!(
+        stderr.contains("missing required field `title`"),
+        "stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("foo: bar"),
+        "snippet missing in stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains(" | "),
+        "line-numbered indent missing:\n{stderr}"
+    );
 }

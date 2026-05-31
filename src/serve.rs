@@ -5,8 +5,11 @@ use std::time::Duration;
 use axum::{
     Router,
     body::{Body, to_bytes},
-    extract::{State, WebSocketUpgrade, ws::{Message, WebSocket}},
-    http::{header, Request, Response},
+    extract::{
+        State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
+    http::{Request, Response, header},
     middleware::{self, Next},
     response::IntoResponse,
     routing::get,
@@ -79,8 +82,12 @@ where
     let addr = format!("127.0.0.1:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     if watch {
-        println!("Serving {} at http://{} (watching {} for changes)",
-            output_dir.display(), addr, content_dir.display());
+        println!(
+            "Serving {} at http://{} (watching {} for changes)",
+            output_dir.display(),
+            addr,
+            content_dir.display()
+        );
     } else {
         println!("Serving {} at http://{}", output_dir.display(), addr);
     }
@@ -99,11 +106,8 @@ pub async fn serve(output_dir: &Path, port: u16) -> Result<(), ServeError> {
     Ok(())
 }
 
-fn watch_loop<F>(
-    content_dir: PathBuf,
-    reload_tx: broadcast::Sender<()>,
-    mut rebuild: F,
-) where
+fn watch_loop<F>(content_dir: PathBuf, reload_tx: broadcast::Sender<()>, mut rebuild: F)
+where
     F: FnMut() -> Result<(), BuildError> + Send + 'static,
 {
     use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
@@ -118,7 +122,10 @@ fn watch_loop<F>(
             return;
         }
     };
-    if let Err(e) = debouncer.watcher().watch(&content_dir, RecursiveMode::Recursive) {
+    if let Err(e) = debouncer
+        .watcher()
+        .watch(&content_dir, RecursiveMode::Recursive)
+    {
         eprintln!("Failed to watch {}: {e}", content_dir.display());
         return;
     }
@@ -156,12 +163,11 @@ fn snapshot_mtimes(root: &Path) -> std::collections::HashMap<PathBuf, std::time:
     use walkdir::WalkDir;
     let mut map = std::collections::HashMap::new();
     for entry in WalkDir::new(root).into_iter().flatten() {
-        if entry.file_type().is_file() {
-            if let Ok(meta) = entry.metadata() {
-                if let Ok(mtime) = meta.modified() {
-                    map.insert(entry.path().to_owned(), mtime);
-                }
-            }
+        if entry.file_type().is_file()
+            && let Ok(meta) = entry.metadata()
+            && let Ok(mtime) = meta.modified()
+        {
+            map.insert(entry.path().to_owned(), mtime);
         }
     }
     map

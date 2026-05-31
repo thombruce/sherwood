@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
-use pulldown_cmark::{Parser, Options, html};
+use crate::build::BuildError;
 use crate::config::SiteConfig;
 use crate::frontmatter::{FrontMatter, parse_frontmatter};
-use crate::build::BuildError;
 use crate::nav::href_for;
+use pulldown_cmark::{Options, Parser, html};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct Page {
@@ -38,8 +38,7 @@ pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, BuildE
     let (frontmatter, body, excerpt_md) = parse_frontmatter(&source, &path_str)?;
     let content_html = markdown_to_html(&body);
     let excerpt_html = excerpt_md.map(|md| markdown_to_html(&md));
-    let is_section_index =
-        source_path.file_stem().and_then(|s| s.to_str()) == Some("index");
+    let is_section_index = source_path.file_stem().and_then(|s| s.to_str()) == Some("index");
     let output_path = output_path_for(source_path, config);
     let url = href_for(&output_path, config);
     Ok(Page {
@@ -54,9 +53,7 @@ pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, BuildE
 }
 
 pub(crate) fn output_path_for(source: &Path, config: &SiteConfig) -> PathBuf {
-    let relative = source
-        .strip_prefix(&config.content_dir)
-        .unwrap_or(source);
+    let relative = source.strip_prefix(&config.content_dir).unwrap_or(source);
     let stem = relative.file_stem().and_then(|s| s.to_str()).unwrap_or("");
     let parent = relative.parent().unwrap_or(Path::new(""));
     if stem == "index" {
