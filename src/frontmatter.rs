@@ -59,33 +59,60 @@ fn finalize<E: Engine>(
     source: &str,
     path: &str,
 ) -> Result<(FrontMatter, String, Option<String>), BuildError> {
+    let frontmatter_text = extract_frontmatter_text(source);
+    let make_err = |message: String| BuildError::FrontmatterParse {
+        path: path.to_string(),
+        message: format_parse_error(&message, &frontmatter_text),
+    };
     let result = matter
         .parse::<Pod>(source)
-        .map_err(|e| BuildError::FrontmatterParse {
-            path: path.to_string(),
-            message: e.to_string(),
-        })?;
-    let data = result.data.ok_or_else(|| BuildError::FrontmatterParse {
-        path: path.to_string(),
-        message: "No frontmatter data found".to_string(),
-    })?;
+        .map_err(|e| make_err(e.to_string()))?;
+    let data = result
+        .data
+        .ok_or_else(|| make_err("no frontmatter data found".to_string()))?;
     let map = match &data {
         Pod::Hash(map) => map,
-        _ => {
-            return Err(BuildError::FrontmatterParse {
-                path: path.to_string(),
-                message: "Frontmatter must be a map of fields".to_string(),
-            });
-        }
+        _ => return Err(make_err("frontmatter must be a map of fields".to_string())),
     };
     let title = map
         .get("title")
         .and_then(|p| p.as_string().ok())
-        .ok_or_else(|| BuildError::FrontmatterParse {
-            path: path.to_string(),
-            message: "missing required field `title`".to_string(),
-        })?;
+        .ok_or_else(|| make_err("missing required field `title`".to_string()))?;
     Ok((FrontMatter { title, data }, result.content, result.excerpt))
+}
+
+/// Slice out just the frontmatter block (delimiter to delimiter) so error
+/// messages can show the user exactly what they wrote.
+fn extract_frontmatter_text(source: &str) -> String {
+    let mut lines = source.lines();
+    let first = match lines.next() {
+        Some(l) => l.trim(),
+        None => return String::new(),
+    };
+    if first != "---" && first != "+++" {
+        return String::new();
+    }
+    let mut collected = vec![first];
+    for line in lines {
+        collected.push(line);
+        if line.trim() == first {
+            return collected.join("\n");
+        }
+    }
+    String::new()
+}
+
+fn format_parse_error(message: &str, frontmatter: &str) -> String {
+    if frontmatter.is_empty() {
+        return message.to_string();
+    }
+    let indented = frontmatter
+        .lines()
+        .enumerate()
+        .map(|(i, l)| format!("  {:>3} | {}", i + 1, l))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{message}\n\n{indented}")
 }
 
 #[cfg(test)]
@@ -211,5 +238,37 @@ mod tests {
         let source = "---\ntitle: Post\n---\n\nJust a body.";
         let (_, _, excerpt) = parse_frontmatter(source, "test.md").unwrap();
         assert!(excerpt.is_none());
+    }
+
+    #[test]
+    fn parse_error_includes_frontmatter_snippet() {
+        let source = "---\ntitle: [unclosed\n---\n\nBody.";
+        let err = parse_frontmatter(source, "test.md").unwrap_err();
+        let msg = err.to_string();
+        // Path appears at the top of the BuildError display
+        assert!(msg.contains("test.md"));
+        // Frontmatter lines shown with line numbers
+        assert!(msg.contains("  1 | ---"));
+        assert!(msg.contains("  2 | title: [unclosed"));
+        assert!(msg.contains("  3 | ---"));
+    }
+
+    #[test]
+    fn missing_title_error_includes_what_was_provided() {
+        let source = "---\nfoo: bar\nbaz: qux\n---\n\nBody.";
+        let err = parse_frontmatter(source, "test.md").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("missing required field `title`"));
+        assert!(msg.contains("foo: bar"));
+        assert!(msg.contains("baz: qux"));
+    }
+
+    #[test]
+    fn no_frontmatter_error_skips_snippet() {
+        let source = "no delimiters here";
+        let err = parse_frontmatter(source, "test.md").unwrap_err();
+        let msg = err.to_string();
+        // Without delimiters there's nothing to extract; just the bare message.
+        assert!(!msg.contains(" | "));
     }
 }

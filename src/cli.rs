@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::{Arc, Mutex};
 
 use clap::{Parser, Subcommand};
 
@@ -45,12 +46,22 @@ enum Commands {
         #[arg(long, value_parser = parse_asset_override)]
         asset: Vec<(PathBuf, PathBuf)>,
     },
-    /// Serve _site/ on a local dev server
+    /// Build then serve, with file watching and browser live reload.
     Serve {
+        #[arg(long, default_value = "content")]
+        content_dir: PathBuf,
         #[arg(long, default_value = "_site")]
         output_dir: PathBuf,
         #[arg(long, default_value_t = 4000)]
         port: u16,
+        /// Override a bundled asset with a file from disk. Format: `name=path`.
+        /// May be repeated. Re-applied on every rebuild.
+        #[arg(long, value_parser = parse_asset_override)]
+        asset: Vec<(PathBuf, PathBuf)>,
+        /// Disable file watching and live reload. The dev server becomes a
+        /// plain static-file server.
+        #[arg(long)]
+        no_watch: bool,
     },
 }
 
@@ -69,7 +80,7 @@ fn parse_asset_override(raw: &str) -> Result<(PathBuf, PathBuf), String> {
 /// want to handle errors yourself.
 pub fn run_cli<F>(renderer: F, assets: Vec<Asset>) -> ExitCode
 where
-    F: FnMut(&Page, &PageContext) -> Result<String, BuildError>,
+    F: FnMut(&Page, &PageContext) -> Result<String, BuildError> + Send + 'static,
 {
     match try_run_cli(renderer, assets) {
         Ok(()) => ExitCode::SUCCESS,
@@ -83,7 +94,7 @@ where
 /// Same as [`run_cli`] but returns the error instead of exiting.
 pub fn try_run_cli<F>(renderer: F, assets: Vec<Asset>) -> Result<(), CliError>
 where
-    F: FnMut(&Page, &PageContext) -> Result<String, BuildError>,
+    F: FnMut(&Page, &PageContext) -> Result<String, BuildError> + Send + 'static,
 {
     let cli = Cli::parse();
     match cli.command {
@@ -93,24 +104,59 @@ where
             build_site(&config, renderer, |page| {
                 println!("{} -> {}", page.source_path.display(), page.output_path.display());
             })?;
-            for a in &assets {
-                let dest = config.output_dir.join(&a.dest);
-                if let Some(parent) = dest.parent() {
-                    std::fs::create_dir_all(parent)
-                        .map_err(|e| CliError::AssetWrite { path: dest.clone(), source: e })?;
-                }
-                std::fs::write(&dest, &a.bytes)
-                    .map_err(|e| CliError::AssetWrite { path: dest, source: e })?;
-            }
+            write_assets(&assets, &config)?;
             println!("Build complete.");
             Ok(())
         }
-        Commands::Serve { output_dir, port } => {
+        Commands::Serve { content_dir, output_dir, port, asset, no_watch } => {
+            let assets = apply_overrides(assets, asset)?;
+            let config = SiteConfig {
+                content_dir: content_dir.clone(),
+                output_dir: output_dir.clone(),
+            };
+
+            // Share the renderer + assets with the watcher's rebuild closure.
+            let renderer = Arc::new(Mutex::new(renderer));
+            let assets = Arc::new(assets);
+            let config_for_rebuild = config.clone();
+            let renderer_for_rebuild = renderer.clone();
+            let assets_for_rebuild = assets.clone();
+
+            let rebuild = move || -> Result<(), BuildError> {
+                let mut guard = renderer_for_rebuild
+                    .lock()
+                    .map_err(|_| BuildError::Render("renderer mutex poisoned".to_string()))?;
+                let renderer_ref: &mut F = &mut *guard;
+                build_site(&config_for_rebuild, |p, c| renderer_ref(p, c), |_| {})?;
+                write_assets(&assets_for_rebuild, &config_for_rebuild)
+                    .map_err(|e| BuildError::Render(e.to_string()))?;
+                Ok(())
+            };
+
             let runtime = tokio::runtime::Runtime::new().map_err(CliError::Runtime)?;
-            runtime.block_on(serve::serve(&output_dir, port))?;
+            runtime.block_on(serve::serve_with_watch(
+                content_dir,
+                output_dir,
+                port,
+                rebuild,
+                !no_watch,
+            ))?;
             Ok(())
         }
     }
+}
+
+fn write_assets(assets: &[Asset], config: &SiteConfig) -> Result<(), CliError> {
+    for a in assets {
+        let dest = config.output_dir.join(&a.dest);
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| CliError::AssetWrite { path: dest.clone(), source: e })?;
+        }
+        std::fs::write(&dest, &a.bytes)
+            .map_err(|e| CliError::AssetWrite { path: dest, source: e })?;
+    }
+    Ok(())
 }
 
 fn apply_overrides(

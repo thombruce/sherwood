@@ -1,18 +1,95 @@
-use std::path::Path;
-use axum::Router;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::{
+    Router,
+    body::{Body, to_bytes},
+    extract::{State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    http::{header, Request, Response},
+    middleware::{self, Next},
+    response::IntoResponse,
+    routing::get,
+};
 use thiserror::Error;
+use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
+
+use crate::build::BuildError;
 
 #[derive(Debug, Error)]
 pub enum ServeError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("Initial build failed: {0}")]
+    Build(BuildError),
+    #[error("Watcher error: {0}")]
+    Watcher(String),
 }
 
+const LIVE_RELOAD_PATH: &str = "/_sherwood/reload";
+
+const LIVE_RELOAD_SNIPPET: &str = "\n<script>\n(function(){function c(){var p=location.protocol==='https:'?'wss':'ws';var w=new WebSocket(p+'://'+location.host+'/_sherwood/reload');w.onmessage=function(){location.reload();};w.onclose=function(){setTimeout(c,1000);};}c();})();\n</script>\n";
+
+/// Build a router for static-only serving (no live reload).
 pub fn router(output_dir: &Path) -> Router {
     Router::new().fallback_service(ServeDir::new(output_dir))
 }
 
+/// Build a router with live-reload wiring: a `/_sherwood/reload` websocket
+/// endpoint that pushes `reload` messages on the broadcast channel, plus a
+/// middleware that injects a tiny script into every served HTML response so
+/// the browser connects to that socket.
+pub fn router_with_reload(output_dir: &Path, reload_tx: broadcast::Sender<()>) -> Router {
+    let state = Arc::new(reload_tx);
+    Router::new()
+        .route(LIVE_RELOAD_PATH, get(ws_handler).with_state(state))
+        .fallback_service(ServeDir::new(output_dir))
+        .layer(middleware::from_fn(inject_reload_script))
+}
+
+/// Start the dev server. If `watch` is `Some`, also watches `content_dir`,
+/// reruns `rebuild` on changes, and pushes live-reload notifications.
+pub async fn serve_with_watch<F>(
+    content_dir: PathBuf,
+    output_dir: PathBuf,
+    port: u16,
+    mut rebuild: F,
+    watch: bool,
+) -> Result<(), ServeError>
+where
+    F: FnMut() -> Result<(), BuildError> + Send + 'static,
+{
+    // Initial build before the server comes up. Bail out loudly if it fails
+    // — the user's first request would 404 otherwise.
+    rebuild().map_err(ServeError::Build)?;
+
+    let app = if watch {
+        let (tx, _rx) = broadcast::channel::<()>(16);
+        let tx_for_watcher = tx.clone();
+        let content_dir_for_watcher = content_dir.clone();
+        tokio::task::spawn_blocking(move || {
+            watch_loop(content_dir_for_watcher, tx_for_watcher, rebuild);
+        });
+        router_with_reload(&output_dir, tx)
+    } else {
+        router(&output_dir)
+    };
+
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    if watch {
+        println!("Serving {} at http://{} (watching {} for changes)",
+            output_dir.display(), addr, content_dir.display());
+    } else {
+        println!("Serving {} at http://{}", output_dir.display(), addr);
+    }
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+/// Legacy entry point — serves `output_dir` statically with no watch and no
+/// live reload. Retained so existing call sites keep working.
 pub async fn serve(output_dir: &Path, port: u16) -> Result<(), ServeError> {
     let app = router(output_dir);
     let addr = format!("127.0.0.1:{}", port);
@@ -20,6 +97,118 @@ pub async fn serve(output_dir: &Path, port: u16) -> Result<(), ServeError> {
     println!("Serving {} at http://{}", output_dir.display(), addr);
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn watch_loop<F>(
+    content_dir: PathBuf,
+    reload_tx: broadcast::Sender<()>,
+    mut rebuild: F,
+) where
+    F: FnMut() -> Result<(), BuildError> + Send + 'static,
+{
+    use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
+
+    let (event_tx, event_rx) = std::sync::mpsc::channel();
+    let mut debouncer = match new_debouncer(Duration::from_millis(300), move |res| {
+        let _ = event_tx.send(res);
+    }) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("Failed to start file watcher: {e}");
+            return;
+        }
+    };
+    if let Err(e) = debouncer.watcher().watch(&content_dir, RecursiveMode::Recursive) {
+        eprintln!("Failed to watch {}: {e}", content_dir.display());
+        return;
+    }
+
+    // Snapshot content-file mtimes so we can ignore spurious events.
+    // Reading files during a rebuild updates `atime`, which fires `IN_ATTRIB`
+    // events on Linux even though the data hasn't changed — without this
+    // guard, every rebuild self-triggers another rebuild.
+    let mut snapshot = snapshot_mtimes(&content_dir);
+
+    for res in event_rx {
+        match res {
+            Ok(events) if !events.is_empty() => {
+                let current = snapshot_mtimes(&content_dir);
+                if current == snapshot {
+                    continue;
+                }
+                eprintln!("Change detected — rebuilding...");
+                match rebuild() {
+                    Ok(()) => {
+                        eprintln!("Rebuild complete.");
+                        let _ = reload_tx.send(());
+                    }
+                    Err(e) => eprintln!("Rebuild failed: {e}"),
+                }
+                snapshot = snapshot_mtimes(&content_dir);
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("Watcher error: {e}"),
+        }
+    }
+}
+
+fn snapshot_mtimes(root: &Path) -> std::collections::HashMap<PathBuf, std::time::SystemTime> {
+    use walkdir::WalkDir;
+    let mut map = std::collections::HashMap::new();
+    for entry in WalkDir::new(root).into_iter().flatten() {
+        if entry.file_type().is_file() {
+            if let Ok(meta) = entry.metadata() {
+                if let Ok(mtime) = meta.modified() {
+                    map.insert(entry.path().to_owned(), mtime);
+                }
+            }
+        }
+    }
+    map
+}
+
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(reload_tx): State<Arc<broadcast::Sender<()>>>,
+) -> impl IntoResponse {
+    let mut rx = reload_tx.subscribe();
+    ws.on_upgrade(move |socket| async move {
+        handle_socket(socket, &mut rx).await;
+    })
+}
+
+async fn handle_socket(mut socket: WebSocket, rx: &mut broadcast::Receiver<()>) {
+    while rx.recv().await.is_ok() {
+        if socket.send(Message::Text("reload".into())).await.is_err() {
+            break;
+        }
+    }
+}
+
+async fn inject_reload_script(req: Request<Body>, next: Next) -> Response<Body> {
+    let resp = next.run(req).await;
+    let (mut parts, body) = resp.into_parts();
+    let is_html = parts
+        .headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.starts_with("text/html"))
+        .unwrap_or(false);
+    if !is_html {
+        return Response::from_parts(parts, body);
+    }
+    let bytes = match to_bytes(body, usize::MAX).await {
+        Ok(b) => b,
+        Err(_) => return Response::from_parts(parts, Body::empty()),
+    };
+    let mut html = String::from_utf8_lossy(&bytes).into_owned();
+    if let Some(pos) = html.rfind("</body>") {
+        html.insert_str(pos, LIVE_RELOAD_SNIPPET);
+    } else {
+        html.push_str(LIVE_RELOAD_SNIPPET);
+    }
+    parts.headers.remove(header::CONTENT_LENGTH);
+    Response::from_parts(parts, Body::from(html))
 }
 
 #[cfg(test)]
@@ -80,5 +269,52 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn reload_router_injects_script_into_html() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("index.html"),
+            "<html><body><p>hi</p></body></html>",
+        )
+        .unwrap();
+        let (tx, _rx) = broadcast::channel::<()>(4);
+        let resp = router_with_reload(tmp.path(), tx)
+            .oneshot(
+                Request::builder()
+                    .uri("/index.html")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        assert!(body.contains("/_sherwood/reload"));
+        assert!(body.contains("WebSocket"));
+        // Script must come before the closing body tag.
+        let body_pos = body.find("</body>").unwrap();
+        let script_pos = body.find("WebSocket").unwrap();
+        assert!(script_pos < body_pos);
+    }
+
+    #[tokio::test]
+    async fn reload_router_leaves_non_html_alone() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("style.css"), "body{}").unwrap();
+        let (tx, _rx) = broadcast::channel::<()>(4);
+        let resp = router_with_reload(tmp.path(), tx)
+            .oneshot(
+                Request::builder()
+                    .uri("/style.css")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&bytes[..], b"body{}");
     }
 }

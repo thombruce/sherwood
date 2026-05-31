@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-31
+
+### Added
+
+- `sherwood serve` now watches the content directory and reruns the build on file changes. Each served HTML response gets a tiny `<script>` injected before `</body>` that connects to `/_sherwood/reload`; the server pushes a `reload` message after a successful rebuild and the browser reloads. Pass `--no-watch` to fall back to plain static serving.
+- `Serve` CLI subcommand gains `--content-dir` (defaults to `content`), `--asset name=path` (same override semantics as `build`, re-applied on every rebuild), and `--no-watch`.
+- `serve::router_with_reload(output_dir, broadcast::Sender<()>)` and `serve::serve_with_watch(content_dir, output_dir, port, rebuild_fn, watch)` exposed for library users who want to wire their own watcher or websocket-driven reload behaviour.
+- Frontmatter parse errors now include the offending frontmatter block with line numbers. Example:
+  ```
+  Frontmatter parse error in content/bad.md: missing required field `title`
+
+      1 | ---
+      2 | foo: bar
+      3 | ---
+  ```
+
+### Changed
+
+- **Breaking:** `run_cli` / `try_run_cli` now require the renderer closure to be `Send + 'static`. The watcher's rebuild closure runs on a `tokio::task::spawn_blocking` worker, which needs `Send`. Most renderers (struct-construction + `render_once`) already satisfy this; closures capturing non-`Send` state will fail to compile.
+- `Cargo.toml`: `cli` feature now also pulls in `notify-debouncer-mini` and `axum`'s `ws` feature.
+- File-watch loop snapshots content-file mtimes between rebuilds and ignores events that don't change them. Reading `.md` files during a rebuild updates `atime`, which fires `IN_ATTRIB` events on Linux; without the snapshot guard, every rebuild would self-trigger another.
+
+### Tests
+
+- Test count: 74 → 79.
+- New: `router_with_reload` injects the reload script into `text/html` responses and leaves non-HTML responses untouched; frontmatter parse errors include the source snippet with line numbers (malformed YAML, missing-title, no-delimiter cases).
+
 ## [0.4.0] - 2026-05-31
 
 ### Added
