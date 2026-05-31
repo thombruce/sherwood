@@ -300,6 +300,44 @@ mod tests {
         assert!(script_pos < body_pos);
     }
 
+    #[test]
+    fn snapshot_mtimes_changes_when_content_changes() {
+        let tmp = TempDir::new().unwrap();
+        let f = tmp.path().join("page.md");
+        fs::write(&f, "v1").unwrap();
+        let snap1 = snapshot_mtimes(tmp.path());
+        // mtime has filesystem-dependent resolution; sleep to ensure tick.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        fs::write(&f, "v2 with more bytes").unwrap();
+        let snap2 = snapshot_mtimes(tmp.path());
+        assert_ne!(snap1, snap2, "rewriting a file must change snapshot");
+    }
+
+    #[test]
+    fn snapshot_mtimes_unchanged_when_file_only_read() {
+        // This is the load-bearing assertion for the live-reload watch loop:
+        // reading content files during a rebuild must not change the mtime
+        // snapshot, otherwise the loop would keep self-triggering.
+        let tmp = TempDir::new().unwrap();
+        let f = tmp.path().join("page.md");
+        fs::write(&f, "data").unwrap();
+        let snap1 = snapshot_mtimes(tmp.path());
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let _ = fs::read_to_string(&f).unwrap();
+        let snap2 = snapshot_mtimes(tmp.path());
+        assert_eq!(snap1, snap2, "reading a file must not change snapshot");
+    }
+
+    #[test]
+    fn snapshot_mtimes_detects_added_file() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("a.md"), "a").unwrap();
+        let snap1 = snapshot_mtimes(tmp.path());
+        fs::write(tmp.path().join("b.md"), "b").unwrap();
+        let snap2 = snapshot_mtimes(tmp.path());
+        assert_ne!(snap1, snap2);
+    }
+
     #[tokio::test]
     async fn reload_router_leaves_non_html_alone() {
         let tmp = TempDir::new().unwrap();
