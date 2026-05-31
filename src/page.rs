@@ -3,13 +3,21 @@ use pulldown_cmark::{Parser, Options, html};
 use crate::config::SiteConfig;
 use crate::frontmatter::{FrontMatter, parse_frontmatter};
 use crate::build::BuildError;
+use crate::nav::href_for;
 
 #[derive(Debug, Clone)]
 pub struct Page {
     pub frontmatter: FrontMatter,
     pub content_html: String,
+    /// Pre-rendered excerpt HTML, when the source contains the `<!-- more -->`
+    /// delimiter. Everything before the delimiter is extracted, converted to
+    /// HTML, and stored here. `None` if the delimiter is absent.
+    pub excerpt_html: Option<String>,
     pub source_path: PathBuf,
     pub output_path: PathBuf,
+    /// Absolute URL of the page, e.g. `/blog/first-post.html`. Cross-platform
+    /// (uses `/` separators on every OS).
+    pub url: String,
 }
 
 pub fn markdown_to_html(markdown: &str) -> String {
@@ -22,10 +30,19 @@ pub fn markdown_to_html(markdown: &str) -> String {
 pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, BuildError> {
     let source = std::fs::read_to_string(source_path)?;
     let path_str = source_path.to_string_lossy();
-    let (frontmatter, body) = parse_frontmatter(&source, &path_str)?;
+    let (frontmatter, body, excerpt_md) = parse_frontmatter(&source, &path_str)?;
     let content_html = markdown_to_html(&body);
+    let excerpt_html = excerpt_md.map(|md| markdown_to_html(&md));
     let output_path = output_path_for(source_path, config);
-    Ok(Page { frontmatter, content_html, source_path: source_path.to_owned(), output_path })
+    let url = href_for(&output_path, config);
+    Ok(Page {
+        frontmatter,
+        content_html,
+        excerpt_html,
+        source_path: source_path.to_owned(),
+        output_path,
+        url,
+    })
 }
 
 pub(crate) fn output_path_for(source: &Path, config: &SiteConfig) -> PathBuf {
@@ -132,5 +149,52 @@ mod tests {
             output_dir: tmp.path().join("_site"),
         };
         assert!(load_page(&file, &config).is_err());
+    }
+
+    #[test]
+    fn load_page_sets_url_from_output_path() {
+        let tmp = TempDir::new().unwrap();
+        let blog = tmp.path().join("blog");
+        fs::create_dir_all(&blog).unwrap();
+        let file = blog.join("post.md");
+        fs::write(&file, "---\ntitle: Post\n---\n\nBody.").unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        let page = load_page(&file, &config).unwrap();
+        assert_eq!(page.url, "/blog/post.html");
+    }
+
+    #[test]
+    fn load_page_extracts_excerpt_when_delimiter_present() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("post.md");
+        fs::write(
+            &file,
+            "---\ntitle: Post\n---\n\nIntro paragraph.\n\n<!-- more -->\n\nRest of body.",
+        )
+        .unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        let page = load_page(&file, &config).unwrap();
+        let excerpt = page.excerpt_html.expect("excerpt should be set");
+        assert!(excerpt.contains("Intro paragraph."));
+        assert!(!excerpt.contains("Rest of body."));
+    }
+
+    #[test]
+    fn load_page_no_excerpt_when_delimiter_absent() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("post.md");
+        fs::write(&file, "---\ntitle: Post\n---\n\nJust a body, no delimiter.").unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        let page = load_page(&file, &config).unwrap();
+        assert!(page.excerpt_html.is_none());
     }
 }

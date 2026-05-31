@@ -16,32 +16,80 @@ pub struct Breadcrumb {
 }
 
 #[derive(Debug, Clone)]
-pub struct PageContext {
+pub struct PageContext<'a> {
     pub nav: Vec<NavItem>,
     pub breadcrumbs: Vec<Breadcrumb>,
     pub prev: Option<NavItem>,
     pub next: Option<NavItem>,
+    /// All pages in the site, in build order (root index first, then by
+    /// output path). Templates can iterate, filter, and sort this to build
+    /// indexes, archives, tag listings, etc.
+    pub pages: &'a [Page],
 }
 
-pub fn compute_context(page: &Page, all_pages: &[Page], config: &SiteConfig) -> PageContext {
+impl<'a> PageContext<'a> {
+    /// Pages whose URL starts with the given prefix. Use to drive section
+    /// indexes — e.g. a `/blog/index.html` page can call
+    /// `ctx.pages_under("/blog/")` to list every post under `blog/`.
+    /// The current page is included; filter it out yourself if undesired.
+    pub fn pages_under(&self, url_prefix: &str) -> Vec<&'a Page> {
+        self.pages
+            .iter()
+            .filter(|p| p.url.starts_with(url_prefix))
+            .collect()
+    }
+}
+
+pub fn compute_context<'a>(
+    page: &Page,
+    all_pages: &'a [Page],
+    config: &SiteConfig,
+) -> PageContext<'a> {
     let idx = all_pages.iter().position(|p| p.output_path == page.output_path);
 
     let nav = all_pages
         .iter()
-        .map(|p| nav_item_for(p, config, p.output_path == page.output_path))
+        .filter(|p| include_in_nav(p, config))
+        .map(|p| nav_item_for(p, p.output_path == page.output_path))
         .collect();
 
     let prev = idx
         .filter(|&i| i > 0)
-        .map(|i| nav_item_for(&all_pages[i - 1], config, false));
+        .map(|i| nav_item_for(&all_pages[i - 1], false));
 
     let next = idx
         .filter(|&i| i + 1 < all_pages.len())
-        .map(|i| nav_item_for(&all_pages[i + 1], config, false));
+        .map(|i| nav_item_for(&all_pages[i + 1], false));
 
     let breadcrumbs = breadcrumbs_for(page, all_pages, config);
 
-    PageContext { nav, breadcrumbs, prev, next }
+    PageContext { nav, breadcrumbs, prev, next, pages: all_pages }
+}
+
+/// Nav inclusion rules. By default the top-level nav lists:
+/// - any top-level page (e.g. `/about.html`, `/index.html`)
+/// - any section index (`<dir>/.../index.html`) — the landing page of a
+///   subdirectory
+/// Anything else (deep leaf pages like `/blog/first-post.html`) is excluded.
+///
+/// Frontmatter `nav: true` force-includes a page that wouldn't otherwise
+/// qualify; `nav: false` force-excludes one that would.
+fn include_in_nav(page: &Page, config: &SiteConfig) -> bool {
+    if let Some(gray_matter::Pod::Boolean(b)) = page.frontmatter.get("nav") {
+        return *b;
+    }
+    let relative = page
+        .output_path
+        .strip_prefix(&config.output_dir)
+        .unwrap_or(&page.output_path);
+    let normal_components: Vec<_> = relative
+        .components()
+        .filter(|c| matches!(c, std::path::Component::Normal(_)))
+        .collect();
+    if normal_components.len() <= 1 {
+        return true;
+    }
+    relative.file_name().and_then(|n| n.to_str()) == Some("index.html")
 }
 
 pub(crate) fn is_root_index(page: &Page, config: &SiteConfig) -> bool {
@@ -51,15 +99,15 @@ pub(crate) fn is_root_index(page: &Page, config: &SiteConfig) -> bool {
         .unwrap_or(false)
 }
 
-fn nav_item_for(p: &Page, config: &SiteConfig, is_current: bool) -> NavItem {
+fn nav_item_for(p: &Page, is_current: bool) -> NavItem {
     NavItem {
         title: p.frontmatter.title.clone(),
-        href: href_for(&p.output_path, config),
+        href: p.url.clone(),
         is_current,
     }
 }
 
-fn href_for(output_path: &Path, config: &SiteConfig) -> String {
+pub(crate) fn href_for(output_path: &Path, config: &SiteConfig) -> String {
     let relative = output_path
         .strip_prefix(&config.output_dir)
         .unwrap_or(output_path);
@@ -70,7 +118,7 @@ fn href_for(output_path: &Path, config: &SiteConfig) -> String {
 // join with '/' rather than using `Path::display()` because on Windows
 // `display()` would emit '\' separators, producing invalid URLs like
 // "/blog\post.html".
-fn path_to_url(relative: &Path) -> String {
+pub(crate) fn path_to_url(relative: &Path) -> String {
     let segments: Vec<String> = relative
         .components()
         .filter_map(|c| match c {
@@ -130,10 +178,22 @@ fn breadcrumbs_for(page: &Page, all_pages: &[Page], config: &SiteConfig) -> Vec<
         });
     }
 
-    crumbs.push(Breadcrumb {
-        title: page.frontmatter.title.clone(),
-        href: None,
-    });
+    let is_dir_index = relative.file_name().and_then(|n| n.to_str()) == Some("index.html")
+        && relative.components().count() > 1;
+
+    if is_dir_index {
+        // The leaf is `<dir>/index.html` — its parent dir crumb already names
+        // this page, so don't append a duplicate. Just unlink the dir crumb so
+        // it renders as the current location.
+        if let Some(last) = crumbs.last_mut() {
+            last.href = None;
+        }
+    } else {
+        crumbs.push(Breadcrumb {
+            title: page.frontmatter.title.clone(),
+            href: None,
+        });
+    }
 
     crumbs
 }
@@ -160,11 +220,14 @@ mod tests {
 
     fn make_page(output: &str, title: &str) -> Page {
         let path = PathBuf::from(output);
+        let url = href_for(&path, &test_config());
         Page {
-            frontmatter: FrontMatter { title: title.to_string() },
+            frontmatter: FrontMatter { title: title.to_string(), data: gray_matter::Pod::Null },
             content_html: String::new(),
+            excerpt_html: None,
             source_path: path.clone(),
             output_path: path,
+            url,
         }
     }
 
@@ -193,13 +256,11 @@ mod tests {
         let config = test_config();
         let pages = vec![
             make_page("_site/about.html", "About"),
-            make_page("_site/blog/post.html", "Post"),
             make_page("_site/index.html", "Home"),
         ];
         let ctx = compute_context(&pages[1], &pages, &config);
         assert!(!ctx.nav[0].is_current);
         assert!(ctx.nav[1].is_current);
-        assert!(!ctx.nav[2].is_current);
     }
 
     #[test]
@@ -344,5 +405,130 @@ mod tests {
         assert!(is_root_index(&root, &config));
         assert!(!is_root_index(&nested, &config));
         assert!(!is_root_index(&other, &config));
+    }
+
+    #[test]
+    fn breadcrumbs_dir_index_no_duplicate_leaf() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/blog/index.html", "Blog"),
+            make_page("_site/index.html", "Home"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert_eq!(ctx.breadcrumbs.len(), 2);
+        assert_eq!(ctx.breadcrumbs[0].title, "Home");
+        assert_eq!(ctx.breadcrumbs[1].title, "Blog");
+        assert!(ctx.breadcrumbs[1].href.is_none());
+    }
+
+    #[test]
+    fn pages_under_filters_by_url_prefix() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/index.html", "Home"),
+            make_page("_site/about.html", "About"),
+            make_page("_site/blog/index.html", "Blog"),
+            make_page("_site/blog/first.html", "First"),
+            make_page("_site/blog/second.html", "Second"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        let blog: Vec<_> = ctx.pages_under("/blog/").iter().map(|p| p.url.clone()).collect();
+        assert_eq!(blog, vec!["/blog/index.html", "/blog/first.html", "/blog/second.html"]);
+    }
+
+    #[test]
+    fn pages_under_empty_for_unknown_prefix() {
+        let config = test_config();
+        let pages = vec![make_page("_site/index.html", "Home")];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert!(ctx.pages_under("/nope/").is_empty());
+    }
+
+    fn make_page_with_data(output: &str, title: &str, data: gray_matter::Pod) -> Page {
+        let path = PathBuf::from(output);
+        let url = href_for(&path, &test_config());
+        Page {
+            frontmatter: FrontMatter { title: title.to_string(), data },
+            content_html: String::new(),
+            excerpt_html: None,
+            source_path: path.clone(),
+            output_path: path,
+            url,
+        }
+    }
+
+    fn pod_hash(pairs: &[(&str, gray_matter::Pod)]) -> gray_matter::Pod {
+        let mut map = std::collections::HashMap::new();
+        for (k, v) in pairs {
+            map.insert(k.to_string(), v.clone());
+        }
+        gray_matter::Pod::Hash(map)
+    }
+
+    #[test]
+    fn nav_includes_top_level_pages() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/index.html", "Home"),
+            make_page("_site/about.html", "About"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert_eq!(ctx.nav.len(), 2);
+    }
+
+    #[test]
+    fn nav_includes_section_indexes_excludes_leaves() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/index.html", "Home"),
+            make_page("_site/blog/index.html", "Blog"),
+            make_page("_site/blog/post.html", "Post"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        let titles: Vec<_> = ctx.nav.iter().map(|n| n.title.as_str()).collect();
+        assert_eq!(titles, vec!["Home", "Blog"]);
+    }
+
+    #[test]
+    fn nav_false_hides_top_level_page() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/index.html", "Home"),
+            make_page_with_data(
+                "_site/private.html",
+                "Private",
+                pod_hash(&[("nav", gray_matter::Pod::Boolean(false))]),
+            ),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        let titles: Vec<_> = ctx.nav.iter().map(|n| n.title.as_str()).collect();
+        assert_eq!(titles, vec!["Home"]);
+    }
+
+    #[test]
+    fn nav_true_force_includes_leaf() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/index.html", "Home"),
+            make_page_with_data(
+                "_site/blog/featured.html",
+                "Featured",
+                pod_hash(&[("nav", gray_matter::Pod::Boolean(true))]),
+            ),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        let titles: Vec<_> = ctx.nav.iter().map(|n| n.title.as_str()).collect();
+        assert_eq!(titles, vec!["Home", "Featured"]);
+    }
+
+    #[test]
+    fn context_exposes_full_pages_slice() {
+        let config = test_config();
+        let pages = vec![
+            make_page("_site/index.html", "Home"),
+            make_page("_site/about.html", "About"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert_eq!(ctx.pages.len(), 2);
     }
 }

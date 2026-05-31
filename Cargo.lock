@@ -821,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "sherwood"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "clap",
@@ -829,7 +829,6 @@ dependencies = [
  "http-body-util",
  "pulldown-cmark",
  "sailfish",
- "serde",
  "tempfile",
  "thiserror",
  "tokio",
