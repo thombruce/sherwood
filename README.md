@@ -56,13 +56,16 @@ The `title` field is required.
 
 ## Output Structure
 
-Output mirrors the source structure under `_site/`:
+Each page (other than `index.md` files) is wrapped in a directory so that the dev server and most static hosts serve clean URLs without a `.html` suffix:
 
 ```
-content/index.md          →  _site/index.html
-content/about.md          →  _site/about.html
-content/blog/first.md     →  _site/blog/first.html
+content/index.md          →  _site/index.html               →  /
+content/about.md          →  _site/about/index.html         →  /about/
+content/blog/index.md     →  _site/blog/index.html          →  /blog/
+content/blog/first.md     →  _site/blog/first/index.html    →  /blog/first/
 ```
+
+`index.md` files (root or section) stay flat as `<dir>/index.html`. Any other page is wrapped so it gets a directory-style URL.
 
 ## Built-in Navigation
 

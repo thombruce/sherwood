@@ -15,9 +15,14 @@ pub struct Page {
     pub excerpt_html: Option<String>,
     pub source_path: PathBuf,
     pub output_path: PathBuf,
-    /// Absolute URL of the page, e.g. `/blog/first-post.html`. Cross-platform
+    /// Absolute URL of the page, e.g. `/blog/first-post/`. Cross-platform
     /// (uses `/` separators on every OS).
     pub url: String,
+    /// `true` when the source file is named `index.md` (a section landing
+    /// page, including the root index). Regular pages are wrapped in a
+    /// `<stem>/index.html` directory for pretty URLs and have this flag set
+    /// to `false`.
+    pub is_section_index: bool,
 }
 
 pub fn markdown_to_html(markdown: &str) -> String {
@@ -33,6 +38,8 @@ pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, BuildE
     let (frontmatter, body, excerpt_md) = parse_frontmatter(&source, &path_str)?;
     let content_html = markdown_to_html(&body);
     let excerpt_html = excerpt_md.map(|md| markdown_to_html(&md));
+    let is_section_index =
+        source_path.file_stem().and_then(|s| s.to_str()) == Some("index");
     let output_path = output_path_for(source_path, config);
     let url = href_for(&output_path, config);
     Ok(Page {
@@ -42,6 +49,7 @@ pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, BuildE
         source_path: source_path.to_owned(),
         output_path,
         url,
+        is_section_index,
     })
 }
 
@@ -49,7 +57,13 @@ pub(crate) fn output_path_for(source: &Path, config: &SiteConfig) -> PathBuf {
     let relative = source
         .strip_prefix(&config.content_dir)
         .unwrap_or(source);
-    config.output_dir.join(relative.with_extension("html"))
+    let stem = relative.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let parent = relative.parent().unwrap_or(Path::new(""));
+    if stem == "index" {
+        config.output_dir.join(parent).join("index.html")
+    } else {
+        config.output_dir.join(parent).join(stem).join("index.html")
+    }
 }
 
 #[cfg(test)]
@@ -85,31 +99,38 @@ mod tests {
     }
 
     #[test]
-    fn output_path_flat_file() {
+    fn output_path_flat_file_wraps_in_dir() {
         let config = default_config();
         let path = output_path_for(Path::new("content/about.md"), &config);
-        assert_eq!(path, PathBuf::from("_site/about.html"));
+        assert_eq!(path, PathBuf::from("_site/about/index.html"));
     }
 
     #[test]
-    fn output_path_nested_file() {
+    fn output_path_nested_file_wraps_in_dir() {
         let config = default_config();
         let path = output_path_for(Path::new("content/blog/post.md"), &config);
-        assert_eq!(path, PathBuf::from("_site/blog/post.html"));
+        assert_eq!(path, PathBuf::from("_site/blog/post/index.html"));
     }
 
     #[test]
-    fn output_path_index_file() {
+    fn output_path_root_index_stays_flat() {
         let config = default_config();
         let path = output_path_for(Path::new("content/index.md"), &config);
         assert_eq!(path, PathBuf::from("_site/index.html"));
     }
 
     #[test]
+    fn output_path_section_index_stays_flat() {
+        let config = default_config();
+        let path = output_path_for(Path::new("content/blog/index.md"), &config);
+        assert_eq!(path, PathBuf::from("_site/blog/index.html"));
+    }
+
+    #[test]
     fn output_path_outside_content_dir_falls_back() {
         let config = default_config();
         let path = output_path_for(Path::new("other/page.md"), &config);
-        assert_eq!(path, PathBuf::from("_site/other/page.html"));
+        assert_eq!(path, PathBuf::from("_site/other/page/index.html"));
     }
 
     #[test]
@@ -152,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn load_page_sets_url_from_output_path() {
+    fn load_page_sets_pretty_url() {
         let tmp = TempDir::new().unwrap();
         let blog = tmp.path().join("blog");
         fs::create_dir_all(&blog).unwrap();
@@ -163,7 +184,38 @@ mod tests {
             output_dir: tmp.path().join("_site"),
         };
         let page = load_page(&file, &config).unwrap();
-        assert_eq!(page.url, "/blog/post.html");
+        assert_eq!(page.url, "/blog/post/");
+        assert!(!page.is_section_index);
+    }
+
+    #[test]
+    fn load_page_section_index_url_and_flag() {
+        let tmp = TempDir::new().unwrap();
+        let blog = tmp.path().join("blog");
+        fs::create_dir_all(&blog).unwrap();
+        let file = blog.join("index.md");
+        fs::write(&file, "---\ntitle: Blog\n---\n\nBody.").unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        let page = load_page(&file, &config).unwrap();
+        assert_eq!(page.url, "/blog/");
+        assert!(page.is_section_index);
+    }
+
+    #[test]
+    fn load_page_root_index_url() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("index.md");
+        fs::write(&file, "---\ntitle: Home\n---\n\nBody.").unwrap();
+        let config = SiteConfig {
+            content_dir: tmp.path().to_owned(),
+            output_dir: tmp.path().join("_site"),
+        };
+        let page = load_page(&file, &config).unwrap();
+        assert_eq!(page.url, "/");
+        assert!(page.is_section_index);
     }
 
     #[test]

@@ -78,18 +78,18 @@ fn include_in_nav(page: &Page, config: &SiteConfig) -> bool {
     if let Some(gray_matter::Pod::Boolean(b)) = page.frontmatter.get("nav") {
         return *b;
     }
+    if page.is_section_index {
+        return true;
+    }
     let relative = page
-        .output_path
-        .strip_prefix(&config.output_dir)
-        .unwrap_or(&page.output_path);
+        .source_path
+        .strip_prefix(&config.content_dir)
+        .unwrap_or(&page.source_path);
     let normal_components: Vec<_> = relative
         .components()
         .filter(|c| matches!(c, std::path::Component::Normal(_)))
         .collect();
-    if normal_components.len() <= 1 {
-        return true;
-    }
-    relative.file_name().and_then(|n| n.to_str()) == Some("index.html")
+    normal_components.len() <= 1
 }
 
 pub(crate) fn is_root_index(page: &Page, config: &SiteConfig) -> bool {
@@ -111,7 +111,20 @@ pub(crate) fn href_for(output_path: &Path, config: &SiteConfig) -> String {
     let relative = output_path
         .strip_prefix(&config.output_dir)
         .unwrap_or(output_path);
-    path_to_url(relative)
+    let url_path = if relative.file_name().and_then(|n| n.to_str()) == Some("index.html") {
+        relative.parent().unwrap_or(Path::new(""))
+    } else {
+        relative
+    };
+    let url = path_to_url(url_path);
+    if url == "/" {
+        return url;
+    }
+    if url.ends_with('/') {
+        url
+    } else {
+        format!("{}/", url)
+    }
 }
 
 // Build an absolute URL from a relative output path. We walk components and
@@ -149,7 +162,7 @@ fn breadcrumbs_for(page: &Page, all_pages: &[Page], config: &SiteConfig) -> Vec<
 
     crumbs.push(Breadcrumb {
         title: home_title,
-        href: Some("/index.html".to_string()),
+        href: Some("/".to_string()),
     });
 
     let components: Vec<_> = relative.components().collect();
@@ -174,7 +187,7 @@ fn breadcrumbs_for(page: &Page, all_pages: &[Page], config: &SiteConfig) -> Vec<
 
         crumbs.push(Breadcrumb {
             title: dir_title,
-            href: Some(path_to_url(&index_relative)),
+            href: Some(href_for(&index_output, config)),
         });
     }
 
@@ -210,6 +223,7 @@ fn capitalize_first(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::frontmatter::FrontMatter;
+    use crate::page::output_path_for;
 
     fn test_config() -> SiteConfig {
         SiteConfig {
@@ -218,31 +232,67 @@ mod tests {
         }
     }
 
-    fn make_page(output: &str, title: &str) -> Page {
-        let path = PathBuf::from(output);
-        let url = href_for(&path, &test_config());
+    /// `rel` is the source path stem relative to `content/`, without `.md`.
+    /// Examples: `"about"`, `"blog/post"`, `"index"`, `"blog/index"`. The
+    /// helper computes source path, output path, URL, and the
+    /// `is_section_index` flag from this single input — mirroring what
+    /// `load_page` does.
+    fn make_page(rel: &str, title: &str) -> Page {
+        make_page_with_data(rel, title, gray_matter::Pod::Null)
+    }
+
+    fn make_page_with_data(rel: &str, title: &str, data: gray_matter::Pod) -> Page {
+        let config = test_config();
+        let source = config.content_dir.join(format!("{}.md", rel));
+        let output = output_path_for(&source, &config);
+        let url = href_for(&output, &config);
+        let is_section_index =
+            Path::new(rel).file_name().and_then(|n| n.to_str()) == Some("index");
         Page {
-            frontmatter: FrontMatter { title: title.to_string(), data: gray_matter::Pod::Null },
+            frontmatter: FrontMatter { title: title.to_string(), data },
             content_html: String::new(),
             excerpt_html: None,
-            source_path: path.clone(),
-            output_path: path,
+            source_path: source,
+            output_path: output,
             url,
+            is_section_index,
         }
+    }
+
+    fn pod_hash(pairs: &[(&str, gray_matter::Pod)]) -> gray_matter::Pod {
+        let mut map = std::collections::HashMap::new();
+        for (k, v) in pairs {
+            map.insert(k.to_string(), v.clone());
+        }
+        gray_matter::Pod::Hash(map)
     }
 
     #[test]
     fn href_flat() {
         let config = test_config();
-        let page = make_page("_site/about.html", "About");
-        assert_eq!(href_for(&page.output_path, &config), "/about.html");
+        let page = make_page("about", "About");
+        assert_eq!(href_for(&page.output_path, &config), "/about/");
     }
 
     #[test]
     fn href_nested() {
         let config = test_config();
-        let page = make_page("_site/blog/post.html", "Post");
-        assert_eq!(href_for(&page.output_path, &config), "/blog/post.html");
+        let page = make_page("blog/post", "Post");
+        assert_eq!(href_for(&page.output_path, &config), "/blog/post/");
+    }
+
+    #[test]
+    fn href_root_index() {
+        let config = test_config();
+        let page = make_page("index", "Home");
+        assert_eq!(href_for(&page.output_path, &config), "/");
+    }
+
+    #[test]
+    fn href_section_index() {
+        let config = test_config();
+        let page = make_page("blog/index", "Blog");
+        assert_eq!(href_for(&page.output_path, &config), "/blog/");
     }
 
     #[test]
@@ -255,8 +305,8 @@ mod tests {
     fn nav_is_current_only_for_page() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/about.html", "About"),
-            make_page("_site/index.html", "Home"),
+            make_page("about", "About"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[1], &pages, &config);
         assert!(!ctx.nav[0].is_current);
@@ -267,8 +317,8 @@ mod tests {
     fn prev_none_for_first() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/about.html", "About"),
-            make_page("_site/index.html", "Home"),
+            make_page("about", "About"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert!(ctx.prev.is_none());
@@ -279,8 +329,8 @@ mod tests {
     fn next_none_for_last() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/about.html", "About"),
-            make_page("_site/index.html", "Home"),
+            make_page("about", "About"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[1], &pages, &config);
         assert!(ctx.prev.is_some());
@@ -291,9 +341,9 @@ mod tests {
     fn prev_next_for_middle() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/about.html", "About"),
-            make_page("_site/blog/post.html", "Post"),
-            make_page("_site/index.html", "Home"),
+            make_page("about", "About"),
+            make_page("blog/post", "Post"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[1], &pages, &config);
         assert!(ctx.prev.is_some());
@@ -303,7 +353,7 @@ mod tests {
     #[test]
     fn only_page_has_no_prev_next() {
         let config = test_config();
-        let pages = vec![make_page("_site/index.html", "Home")];
+        let pages = vec![make_page("index", "Home")];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert!(ctx.prev.is_none());
         assert!(ctx.next.is_none());
@@ -312,7 +362,7 @@ mod tests {
     #[test]
     fn breadcrumbs_empty_for_root() {
         let config = test_config();
-        let pages = vec![make_page("_site/index.html", "Home")];
+        let pages = vec![make_page("index", "Home")];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert!(ctx.breadcrumbs.is_empty());
     }
@@ -321,13 +371,13 @@ mod tests {
     fn breadcrumbs_flat_includes_home() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/about.html", "About"),
-            make_page("_site/index.html", "Home"),
+            make_page("about", "About"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.breadcrumbs.len(), 2);
         assert_eq!(ctx.breadcrumbs[0].title, "Home");
-        assert!(ctx.breadcrumbs[0].href.is_some());
+        assert_eq!(ctx.breadcrumbs[0].href.as_deref(), Some("/"));
         assert_eq!(ctx.breadcrumbs[1].title, "About");
         assert!(ctx.breadcrumbs[1].href.is_none());
     }
@@ -336,14 +386,14 @@ mod tests {
     fn breadcrumbs_nested_has_dir_crumb() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/blog/post.html", "My Post"),
-            make_page("_site/index.html", "Home"),
+            make_page("blog/post", "My Post"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.breadcrumbs.len(), 3);
         assert_eq!(ctx.breadcrumbs[0].title, "Home");
         assert_eq!(ctx.breadcrumbs[1].title, "Blog");
-        assert_eq!(ctx.breadcrumbs[1].href.as_deref(), Some("/blog/index.html"));
+        assert_eq!(ctx.breadcrumbs[1].href.as_deref(), Some("/blog/"));
         assert_eq!(ctx.breadcrumbs[2].title, "My Post");
         assert!(ctx.breadcrumbs[2].href.is_none());
     }
@@ -351,13 +401,13 @@ mod tests {
     #[test]
     fn sort_order() {
         let mut pages = [
-            make_page("_site/index.html", "Home"),
-            make_page("_site/about.html", "About"),
-            make_page("_site/blog/post.html", "Post"),
+            make_page("index", "Home"),
+            make_page("about", "About"),
+            make_page("blog/post", "Post"),
         ];
         pages.sort_by(|a, b| a.output_path.cmp(&b.output_path));
-        assert_eq!(pages[0].output_path, PathBuf::from("_site/about.html"));
-        assert_eq!(pages[1].output_path, PathBuf::from("_site/blog/post.html"));
+        assert_eq!(pages[0].output_path, PathBuf::from("_site/about/index.html"));
+        assert_eq!(pages[1].output_path, PathBuf::from("_site/blog/post/index.html"));
         assert_eq!(pages[2].output_path, PathBuf::from("_site/index.html"));
     }
 
@@ -365,8 +415,8 @@ mod tests {
     fn breadcrumbs_depth_3() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/a/b/c.html", "C Page"),
-            make_page("_site/index.html", "Home"),
+            make_page("a/b/c", "C Page"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.breadcrumbs.len(), 4);
@@ -381,8 +431,8 @@ mod tests {
     fn home_crumb_uses_index_page_title() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/about.html", "About"),
-            make_page("_site/index.html", "Welcome"),
+            make_page("about", "About"),
+            make_page("index", "Welcome"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.breadcrumbs[0].title, "Welcome");
@@ -391,7 +441,7 @@ mod tests {
     #[test]
     fn home_crumb_defaults_when_no_root_index() {
         let config = test_config();
-        let pages = vec![make_page("_site/about.html", "About")];
+        let pages = vec![make_page("about", "About")];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.breadcrumbs[0].title, "Home");
     }
@@ -399,9 +449,9 @@ mod tests {
     #[test]
     fn is_root_index_detects_root() {
         let config = test_config();
-        let root = make_page("_site/index.html", "Home");
-        let nested = make_page("_site/blog/index.html", "Blog");
-        let other = make_page("_site/about.html", "About");
+        let root = make_page("index", "Home");
+        let nested = make_page("blog/index", "Blog");
+        let other = make_page("about", "About");
         assert!(is_root_index(&root, &config));
         assert!(!is_root_index(&nested, &config));
         assert!(!is_root_index(&other, &config));
@@ -411,8 +461,8 @@ mod tests {
     fn breadcrumbs_dir_index_no_duplicate_leaf() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/blog/index.html", "Blog"),
-            make_page("_site/index.html", "Home"),
+            make_page("blog/index", "Blog"),
+            make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.breadcrumbs.len(), 2);
@@ -425,52 +475,31 @@ mod tests {
     fn pages_under_filters_by_url_prefix() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/index.html", "Home"),
-            make_page("_site/about.html", "About"),
-            make_page("_site/blog/index.html", "Blog"),
-            make_page("_site/blog/first.html", "First"),
-            make_page("_site/blog/second.html", "Second"),
+            make_page("index", "Home"),
+            make_page("about", "About"),
+            make_page("blog/index", "Blog"),
+            make_page("blog/first", "First"),
+            make_page("blog/second", "Second"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         let blog: Vec<_> = ctx.pages_under("/blog/").iter().map(|p| p.url.clone()).collect();
-        assert_eq!(blog, vec!["/blog/index.html", "/blog/first.html", "/blog/second.html"]);
+        assert_eq!(blog, vec!["/blog/", "/blog/first/", "/blog/second/"]);
     }
 
     #[test]
     fn pages_under_empty_for_unknown_prefix() {
         let config = test_config();
-        let pages = vec![make_page("_site/index.html", "Home")];
+        let pages = vec![make_page("index", "Home")];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert!(ctx.pages_under("/nope/").is_empty());
-    }
-
-    fn make_page_with_data(output: &str, title: &str, data: gray_matter::Pod) -> Page {
-        let path = PathBuf::from(output);
-        let url = href_for(&path, &test_config());
-        Page {
-            frontmatter: FrontMatter { title: title.to_string(), data },
-            content_html: String::new(),
-            excerpt_html: None,
-            source_path: path.clone(),
-            output_path: path,
-            url,
-        }
-    }
-
-    fn pod_hash(pairs: &[(&str, gray_matter::Pod)]) -> gray_matter::Pod {
-        let mut map = std::collections::HashMap::new();
-        for (k, v) in pairs {
-            map.insert(k.to_string(), v.clone());
-        }
-        gray_matter::Pod::Hash(map)
     }
 
     #[test]
     fn nav_includes_top_level_pages() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/index.html", "Home"),
-            make_page("_site/about.html", "About"),
+            make_page("index", "Home"),
+            make_page("about", "About"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.nav.len(), 2);
@@ -480,9 +509,9 @@ mod tests {
     fn nav_includes_section_indexes_excludes_leaves() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/index.html", "Home"),
-            make_page("_site/blog/index.html", "Blog"),
-            make_page("_site/blog/post.html", "Post"),
+            make_page("index", "Home"),
+            make_page("blog/index", "Blog"),
+            make_page("blog/post", "Post"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         let titles: Vec<_> = ctx.nav.iter().map(|n| n.title.as_str()).collect();
@@ -493,9 +522,9 @@ mod tests {
     fn nav_false_hides_top_level_page() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/index.html", "Home"),
+            make_page("index", "Home"),
             make_page_with_data(
-                "_site/private.html",
+                "private",
                 "Private",
                 pod_hash(&[("nav", gray_matter::Pod::Boolean(false))]),
             ),
@@ -509,9 +538,9 @@ mod tests {
     fn nav_true_force_includes_leaf() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/index.html", "Home"),
+            make_page("index", "Home"),
             make_page_with_data(
-                "_site/blog/featured.html",
+                "blog/featured",
                 "Featured",
                 pod_hash(&[("nav", gray_matter::Pod::Boolean(true))]),
             ),
@@ -525,8 +554,8 @@ mod tests {
     fn context_exposes_full_pages_slice() {
         let config = test_config();
         let pages = vec![
-            make_page("_site/index.html", "Home"),
-            make_page("_site/about.html", "About"),
+            make_page("index", "Home"),
+            make_page("about", "About"),
         ];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.pages.len(), 2);

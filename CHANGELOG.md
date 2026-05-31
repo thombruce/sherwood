@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-31
+
+### Added
+
+- Pretty URLs. Every page other than an `index.md` file is now written to `<dir>/<stem>/index.html` so the dev server (and any static host that auto-serves `index.html`) resolves clean URLs without a `.html` suffix. URL examples: `content/about.md` → `/about/`, `content/blog/first.md` → `/blog/first/`. Section indexes (`<dir>/index.md`) and the root `index.md` stay flat at `<dir>/index.html` and serve as `/<dir>/` and `/`. `axum` `ServeDir` returns a 307 redirect from `/about` to `/about/`, so omitting the trailing slash still resolves.
+- `Page.is_section_index: bool` — `true` when the source file is named `index.md`. Used internally to distinguish wrapped regular pages from section landing pages; exposed for downstream renderers that need the same distinction.
+
+### Changed
+
+- **Breaking:** `Page.output_path` now points at `<dir>/index.html` for non-index sources. Build pipelines or tests that assert on output paths must update accordingly (`_site/about.html` → `_site/about/index.html`, etc.).
+- **Breaking:** `Page.url` (and `PageContext.nav` hrefs, prev/next hrefs, breadcrumb hrefs) now use directory-style paths with trailing slashes (`/about/` rather than `/about.html`). Templates that hardcoded `.html`-suffixed URLs in markdown links or template fragments must be updated.
+- `breadcrumbs_for` now reads dir-href via `href_for` so dir crumbs use the new pretty-URL form (`/blog/` rather than `/blog/index.html`).
+- `include_in_nav` now branches on `Page.is_section_index` instead of inspecting the output filename, since every page's output filename is now `index.html`.
+
+### Tests
+
+- Test count: 69 → 74.
+- New: pretty URL derivation (`href_for` for flat, nested, root index, section index), section-index flag set in `load_page`, output_path wraps non-index files.
+- Migrated: every nav test fixture switched to a `make_page("source-stem", title)` helper that mirrors `load_page` (computes source path, output path, URL, and `is_section_index` from a single input).
+
 ## [0.3.0] - 2026-05-31
 
 ### Added

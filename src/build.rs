@@ -100,7 +100,7 @@ mod tests {
         )
         .unwrap();
         assert!(config.output_dir.join("index.html").exists());
-        assert!(config.output_dir.join("about.html").exists());
+        assert!(config.output_dir.join("about/index.html").exists());
     }
 
     #[test]
@@ -125,7 +125,7 @@ mod tests {
             ("blog/post.md", "---\ntitle: Post\n---\n\nHello."),
         ]);
         build_site(&config, |_page, _ctx| Ok(String::new()), |_| {}).unwrap();
-        assert!(config.output_dir.join("blog/post.html").exists());
+        assert!(config.output_dir.join("blog/post/index.html").exists());
     }
 
     #[test]
