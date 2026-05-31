@@ -2,6 +2,13 @@
 name = "sherwood"
 version = "0.5.0"
 edition = "2024"
+description = "A small, opinionated static site generator. Markdown content + Sailfish templates, with pretty URLs, file-watch live reload, and a high-level CLI helper for downstream binaries."
+license = "MIT"
+repository = "https://github.com/thombruce/sherwood"
+homepage = "https://github.com/thombruce/sherwood"
+readme = "README.md"
+keywords = ["static-site-generator", "ssg", "markdown", "sailfish", "blog"]
+categories = ["command-line-utilities", "web-programming"]
 
 [features]
 default = ["cli", "default-template"]
