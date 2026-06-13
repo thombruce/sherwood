@@ -10,10 +10,13 @@ cargo test                           # run all tests
 cargo test frontmatter               # run tests in a specific module
 cargo run -- build                   # build site: content/ → _site/
 cargo run -- build --content-dir src --output-dir out  # custom dirs
-cargo run -- build --style my.css    # override bundled stylesheet
+cargo run -- build --asset style.css=my.css  # override a bundled asset from disk
 cargo run -- serve                   # dev server at http://127.0.0.1:4000
 cargo run -- serve --port 4001       # custom port
+cargo run -- serve --no-watch        # static server, no file-watch/live-reload
 ```
+
+The crate has two features, both on by default: `cli` (clap/axum/tokio dev server) and `default-template` (the bundled Sailfish template + stylesheet). The `sherwood` binary requires both. Library-only consumers can disable them with `default-features = false`.
 
 ## Architecture
 
@@ -21,7 +24,7 @@ Sherwood is a dual-delivery crate: a **library** (`src/lib.rs`) and a **binary**
 
 ### Library (public API)
 
-The library exposes the build pipeline without any template dependency. Advanced users add `sherwood` as a crate dependency, define their own Sailfish templates, and call `build_site` with a render closure and a progress callback:
+The core library (the always-on part, no features) exposes the build pipeline without any template dependency. Advanced users add `sherwood` as a crate dependency, define their own Sailfish templates, and call `build_site` with a render closure and a progress callback:
 
 ```rust
 sherwood::build_site(
@@ -31,21 +34,24 @@ sherwood::build_site(
             title: page.frontmatter.title.clone(),
             nav: ctx.nav.clone(),
             // ...
-        }.render_once()
+        }.render_once().map_err(|e| BuildError::Render(e.to_string()))
     },
     |page| println!("{} -> {}", page.source_path.display(), page.output_path.display()),
 )
 ```
 
-The progress callback is `FnMut(&Page)` and is invoked after each page is written. Pass `|_| {}` to silence build logging.
+The render closure is `FnMut(&Page, &PageContext) -> Result<String, BuildError>`. The progress callback is `FnMut(&Page)` and is invoked after each page is written. Pass `|_| {}` to silence build logging.
 
-Public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `BuildError`.
+Core public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `BuildError`, `Pod` (re-exported from `gray_matter`).
 
-### Binary (standalone)
+### Feature modules
 
-`src/main.rs` declares two binary-only modules — `mod serve` and `mod templates` — which are not re-exported by the library. `src/templates.rs` owns the baked-in Sailfish template (`templates/page.stpl`) compiled into the binary at build time.
+The bundled template and CLI live behind cargo features and are re-exported from `src/lib.rs` (not binary-only):
 
-Styling is binary-only. `src/templates.rs` embeds `templates/style.css` via `include_str!` as `DEFAULT_STYLE`, and the binary writes it once to `<output_dir>/style.css` after `build_site`. `--style <path>` overrides the embedded default with a file from disk. The library does not ship or prescribe a stylesheet — lib users embed their own CSS in their downstream binary.
+- **`default-template`** → `src/default_template.rs`. Owns the baked-in Sailfish template (`templates/page.stpl`, compiled at build time) and embeds `templates/style.css` via `include_str!` as `DEFAULT_STYLE`. Public exports: `render_page` (the ready-made render closure) and `DEFAULT_STYLE`. The core library does not ship or prescribe a stylesheet — pure-library users embed their own CSS in their downstream binary.
+- **`cli`** → `src/cli.rs` (+ `src/serve.rs` dev server). Owns the clap arg parsing and the `run_cli` / `try_run_cli` entry points. Public exports: `run_cli`, `try_run_cli`, `Asset`, `CliError`.
+
+`src/main.rs` is a thin shim: it calls `run_cli(render_page, vec![Asset::new("style.css", DEFAULT_STYLE.as_bytes())])`. Assets are written to `<output_dir>` after `build_site`. `--asset <name>=<path>` overrides a bundled asset (matched by its `dest`) with a file from disk; the flag is repeatable.
 
 ### Build pipeline flow
 
@@ -59,7 +65,7 @@ Pass 1 — collect:
 Pass 2 — sort + render:
   pages.sort_by(root index first, then output_path)
   for each page:
-    └─ nav::compute_context()  [nav.rs]       build PageContext (nav, breadcrumbs, prev, next)
+    └─ nav::compute_context()  [nav/]         build PageContext (nav, breadcrumbs, prev, next)
     └─ renderer closure()      [caller]       PageTemplate { ... }.render_once() → HTML string
     └─ write_page()            [build.rs]     create dirs, write _site/path/to/file.html
     └─ progress callback()     [caller]       optional per-page hook (e.g. CLI logging)
@@ -67,7 +73,11 @@ Pass 2 — sort + render:
 
 Sort key is `(!is_root_index, output_path)` — keeps the root `index.html` at the front of the nav rather than buried after alphabetical siblings.
 
-Output paths mirror source structure: `content/blog/post.md` → `_site/blog/post.html`.
+Output paths mirror source structure but use pretty URLs — each page becomes a `<dir>/index.html` so it serves at a trailing-slash URL: `content/blog/post.md` → `_site/blog/post/index.html` (served at `/blog/post/`). The root `content/index.md` and any `content/<dir>/index.md` section index map straight to `<dir>/index.html`.
+
+### nav module layout
+
+`src/nav/` is a directory module split by concern: `mod.rs` (`PageContext`, `NavItem`, `compute_context`, nav-inclusion rules, `is_root_index`), `url.rs` (`href_for` / `path_to_url` URL building), and `breadcrumb.rs` (`Breadcrumb` + breadcrumb trail). Shared test fixtures live in `src/nav/test_support.rs` (`#[cfg(test)]` only). Cross-crate callers reach the helpers through the re-exports in `mod.rs` (`nav::href_for`, `nav::is_root_index`).
 
 ### Key constraints
 
@@ -77,4 +87,4 @@ Output paths mirror source structure: `content/blog/post.md` → `_site/blog/pos
 
 **axum 0.8 static files**: use `Router::fallback_service(ServeDir::new(...))` — `nest_service("/", ...)` panics at runtime.
 
-**URL building from `Path`**: do not use `Path::display()` when constructing href strings. On Windows it emits `\` separators, producing invalid URLs like `/blog\post.html`. `nav::path_to_url` walks `Component::Normal` and joins with `/` — use it for any new URL output.
+**URL building from `Path`**: do not use `Path::display()` when constructing href strings. On Windows it emits `\` separators, producing invalid URLs like `/blog\post.html`. `path_to_url` (in `src/nav/url.rs`) walks `Component::Normal` and joins with `/` — use it for any new URL output.
