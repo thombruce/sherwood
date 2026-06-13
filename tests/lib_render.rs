@@ -258,14 +258,14 @@ use std::sync::Arc;
 
 use sherwood::{ContentParser, FrontMatter, Parsed, ParserError, Pod};
 
-/// A toy parser for `.txt` files: first line is the title, the rest is the
-/// body wrapped in a <pre> block. Reuses no Sherwood frontmatter machinery —
-/// the format defines its own metadata convention.
-struct PlainTextParser;
+/// A toy parser for a format the crate does not ship: `.shout` files, where the
+/// first line is the title and the body is upper-cased into a `<p>`. Proves the
+/// trait is open to brand-new formats, not just the built-ins.
+struct ShoutParser;
 
-impl ContentParser for PlainTextParser {
+impl ContentParser for ShoutParser {
     fn extensions(&self) -> &[&str] {
-        &["txt"]
+        &["shout"]
     }
 
     fn parse(&self, source: &str, _path: &Path) -> Result<Parsed, ParserError> {
@@ -274,32 +274,32 @@ impl ContentParser for PlainTextParser {
             .next()
             .ok_or_else(|| ParserError::Message("empty file".to_string()))?
             .to_string();
-        let body: String = lines.collect::<Vec<_>>().join("\n");
+        let body = lines.collect::<Vec<_>>().join(" ").to_uppercase();
         Ok(Parsed {
             frontmatter: FrontMatter {
                 title,
                 data: Pod::Null,
             },
-            content_html: format!("<pre>{body}</pre>"),
+            content_html: format!("<p>{body}</p>"),
             excerpt_html: None,
         })
     }
 }
 
 #[test]
-fn user_registered_parser_handles_its_extension() {
+fn user_registered_parser_handles_a_brand_new_extension() {
     let tmp = TempDir::new().unwrap();
     let content = tmp.path().join("content");
     let output = tmp.path().join("out");
 
-    // A markdown page and a .txt page, side by side.
+    // A markdown page and a .shout page, side by side.
     write(&content.join("index.md"), "---\ntitle: Home\n---\n\n# Hi\n");
-    write(&content.join("notes.txt"), "My Notes\nline one\nline two\n");
+    write(&content.join("notes.shout"), "My Notes\nhello world\n");
     // An asset with no registered parser — must be skipped, not error.
     write(&content.join("logo.png"), "not really a png");
 
-    let mut registry = ParserRegistry::default(); // markdown built in
-    registry.register(Arc::new(PlainTextParser));
+    let mut registry = ParserRegistry::default(); // markdown + text built in
+    registry.register(Arc::new(ShoutParser));
 
     let config = SiteConfig::new()
         .with_content_dir(content)
@@ -322,14 +322,46 @@ fn user_registered_parser_handles_its_extension() {
     let home = fs::read_to_string(output.join("index.html")).unwrap();
     assert!(home.contains("<h1>Home</h1>"));
 
-    // The .txt file was parsed by the custom plugin and written at its own
+    // The .shout file was parsed by the custom plugin and written at its own
     // pretty URL.
     let notes = fs::read_to_string(output.join("notes/index.html")).unwrap();
     assert!(notes.contains("<h1>My Notes</h1>"));
-    assert!(notes.contains("<pre>line one\nline two</pre>"));
+    assert!(notes.contains("<p>HELLO WORLD</p>"));
 
     // The unhandled asset produced no page.
     assert!(!output.join("logo/index.html").exists());
+}
+
+#[test]
+fn builtin_text_parser_renders_txt_out_of_the_box() {
+    let tmp = TempDir::new().unwrap();
+    let content = tmp.path().join("content");
+    let output = tmp.path().join("out");
+
+    write(&content.join("index.md"), "---\ntitle: Home\n---\n\n# Hi\n");
+    write(&content.join("notes.txt"), "My Notes\nline one\nline two\n");
+
+    // No custom registration — the default registry ships the text parser.
+    let config = SiteConfig::new()
+        .with_content_dir(content)
+        .with_output_dir(&output);
+
+    build_site(
+        &config,
+        &ParserRegistry::default(),
+        |page: &Page, _ctx: &PageContext| {
+            Ok(format!(
+                "<h1>{}</h1>{}",
+                page.frontmatter.title, page.content_html
+            ))
+        },
+        |_| {},
+    )
+    .unwrap();
+
+    let notes = fs::read_to_string(output.join("notes/index.html")).unwrap();
+    assert!(notes.contains("<h1>My Notes</h1>"));
+    assert!(notes.contains("<pre>line one\nline two</pre>"));
 }
 
 #[test]

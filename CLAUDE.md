@@ -41,6 +41,7 @@ src/
       parser/         pluggable ContentParser system (growth zone)
         mod.rs        ContentParser, Parsed, ParserError, ParserRegistry
         markdown.rs   built-in MarkdownParser + markdown_to_html
+        text.rs       built-in TextParser (.txt → <pre>)
     nav/              Page + siblings → PageContext
       mod.rs, url.rs, breadcrumb.rs, test_support.rs
   default_template.rs feature = "default-template" (single-file render layer)
@@ -86,11 +87,11 @@ pub trait ContentParser: Send + Sync {
 }
 ```
 
-A `ParserRegistry` maps extension → `Arc<dyn ContentParser>`. `ParserRegistry::default()` / `with_markdown()` registers the built-in `MarkdownParser`; `empty()` starts with none; `register(Arc::new(MyParser))` adds one (last registration for an extension wins). The build walks **all** files and skips any whose extension has no registered parser (so images/CSS can live in the content tree) — `load_page` returns `Ok(None)` for those.
+A `ParserRegistry` maps extension → `Arc<dyn ContentParser>`. Constructors: `default()` / `with_builtins()` register **all** built-ins (markdown + text); `with_markdown()` registers markdown only; `empty()` starts with none. `register(Arc::new(MyParser))` adds one (last registration for an extension wins). The build walks **all** files and skips any whose extension has no registered parser (so images/CSS can live in the content tree) — `load_page` returns `Ok(None)` for those. **To add a built-in format:** new file in `core/content/parser/`, `mod`/`pub use` it, register it in `with_builtins`, add it to the lib.rs facade.
 
-Third-party parsers own their whole file, including their metadata convention. Formats that use the `---`/`+++` convention call the public `split_frontmatter(source) -> Result<(FrontMatter, String), FrontmatterError>` helper; others ignore it. Parser-API exports: `ContentParser`, `Parsed`, `ParserError`, `ParserRegistry`, `MarkdownParser`, `split_frontmatter`.
+Third-party parsers own their whole file, including their metadata convention. Formats that use the `---`/`+++` convention call the public `split_frontmatter(source) -> Result<(FrontMatter, String), FrontmatterError>` helper; others ignore it (e.g. `TextParser` takes its title from the first line). Parser-API exports: `ContentParser`, `Parsed`, `ParserError`, `ParserRegistry`, `MarkdownParser`, `TextParser`, `markdown_to_html`, `split_frontmatter`.
 
-The built-in `MarkdownParser` (core/content/parser/markdown.rs) owns markdown rendering (`markdown_to_html`, `pulldown-cmark`) and the `<!-- more -->` excerpt split — excerpt is a markdown concern, not a frontmatter one, so `split_frontmatter` no longer touches it.
+Built-ins: `MarkdownParser` (core/content/parser/markdown.rs) owns markdown rendering (`markdown_to_html`, `pulldown-cmark`) and the `<!-- more -->` excerpt split — excerpt is a markdown concern, not a frontmatter one, so `split_frontmatter` no longer touches it. `TextParser` (core/content/parser/text.rs) handles `.txt`: first line = title, remaining lines = HTML-escaped `<pre>` body, no frontmatter.
 
 ### Feature modules
 

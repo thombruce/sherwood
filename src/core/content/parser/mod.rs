@@ -11,8 +11,10 @@
 //! the same `---` / `+++` convention.
 
 mod markdown;
+mod text;
 
 pub use markdown::{MarkdownParser, markdown_to_html};
+pub use text::TextParser;
 
 use crate::core::content::frontmatter::{FrontMatter, FrontmatterError};
 use std::collections::HashMap;
@@ -71,10 +73,10 @@ pub struct ParserRegistry {
 }
 
 impl Default for ParserRegistry {
-    /// Registers the built-in markdown parser. Use [`ParserRegistry::empty`]
-    /// for a registry with no formats.
+    /// Registers every built-in parser (see [`ParserRegistry::with_builtins`]).
+    /// Use [`ParserRegistry::empty`] for a registry with no formats.
     fn default() -> Self {
-        Self::with_markdown()
+        Self::with_builtins()
     }
 }
 
@@ -86,7 +88,15 @@ impl ParserRegistry {
         }
     }
 
-    /// A registry with the built-in markdown parser registered.
+    /// A registry with every built-in parser registered: [`MarkdownParser`]
+    /// (`.md`, `.markdown`) and [`TextParser`] (`.txt`).
+    pub fn with_builtins() -> Self {
+        let mut registry = Self::with_markdown();
+        registry.register(Arc::new(TextParser));
+        registry
+    }
+
+    /// A registry with only the built-in markdown parser registered.
     pub fn with_markdown() -> Self {
         let mut registry = Self::empty();
         registry.register(Arc::new(MarkdownParser));
@@ -140,10 +150,18 @@ mod tests {
     }
 
     #[test]
-    fn default_registry_handles_markdown_extensions() {
+    fn default_registry_has_all_builtin_parsers() {
         let registry = ParserRegistry::default();
         assert!(registry.get("md").is_some());
         assert!(registry.get("markdown").is_some());
+        assert!(registry.get("txt").is_some());
+        assert!(registry.get("rst").is_none());
+    }
+
+    #[test]
+    fn with_markdown_excludes_other_builtins() {
+        let registry = ParserRegistry::with_markdown();
+        assert!(registry.get("md").is_some());
         assert!(registry.get("txt").is_none());
     }
 
