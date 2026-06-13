@@ -1,9 +1,28 @@
-use crate::build::BuildError;
 use crate::config::SiteConfig;
-use crate::frontmatter::{FrontMatter, parse_frontmatter};
+use crate::frontmatter::{FrontMatter, FrontmatterError, parse_frontmatter};
 use crate::nav::href_for;
 use pulldown_cmark::{Options, Parser, html};
 use std::path::{Path, PathBuf};
+use thiserror::Error;
+
+/// Failure modes when loading a single Markdown source into a [`Page`]. Each
+/// variant carries the offending source path so build errors point at the
+/// exact file.
+#[derive(Debug, Error)]
+pub enum PageError {
+    #[error("reading {}: {source}", path.display())]
+    Read {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("frontmatter in {}: {source}", path.display())]
+    Frontmatter {
+        path: PathBuf,
+        #[source]
+        source: FrontmatterError,
+    },
+}
 
 #[derive(Debug, Clone)]
 pub struct Page {
@@ -32,10 +51,16 @@ pub fn markdown_to_html(markdown: &str) -> String {
     html_output
 }
 
-pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, BuildError> {
-    let source = std::fs::read_to_string(source_path)?;
-    let path_str = source_path.to_string_lossy();
-    let (frontmatter, body, excerpt_md) = parse_frontmatter(&source, &path_str)?;
+pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, PageError> {
+    let source = std::fs::read_to_string(source_path).map_err(|e| PageError::Read {
+        path: source_path.to_owned(),
+        source: e,
+    })?;
+    let (frontmatter, body, excerpt_md) =
+        parse_frontmatter(&source).map_err(|e| PageError::Frontmatter {
+            path: source_path.to_owned(),
+            source: e,
+        })?;
     let content_html = markdown_to_html(&body);
     let excerpt_html = excerpt_md.map(|md| markdown_to_html(&md));
     let is_section_index = source_path.file_stem().and_then(|s| s.to_str()) == Some("index");

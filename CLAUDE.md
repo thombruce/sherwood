@@ -42,7 +42,9 @@ sherwood::build_site(
 
 The render closure is `FnMut(&Page, &PageContext) -> Result<String, BuildError>`. The progress callback is `FnMut(&Page)` and is invoked after each page is written. Pass `|_| {}` to silence build logging.
 
-Core public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `BuildError`, `Pod` (re-exported from `gray_matter`).
+Core public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `Pod` (re-exported from `gray_matter`).
+
+**Error types are layered per module, each owning its own enum:** `FrontmatterError` (frontmatter.rs — `MissingDelimiters` / `Invalid(String)`, no file path) → wrapped by `PageError` (page.rs — `Read` / `Frontmatter`, both carrying the source `PathBuf`) → wrapped by `BuildError` (build.rs — `Io` / `Walk` / `Page(#[from] PageError)` / `Render`). Lower modules never import a higher module's error; `?` bubbles up through `#[from]`. `BuildError::Page` is `#[error(transparent)]`, so the displayed message is the `PageError` chain (path + frontmatter snippet) with no extra prefix.
 
 ### Feature modules
 

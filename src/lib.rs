@@ -15,10 +15,10 @@ pub mod default_template;
 
 pub use build::{BuildError, build_site};
 pub use config::SiteConfig;
-pub use frontmatter::FrontMatter;
+pub use frontmatter::{FrontMatter, FrontmatterError};
 pub use gray_matter::Pod;
 pub use nav::{Breadcrumb, NavItem, PageContext};
-pub use page::Page;
+pub use page::{Page, PageError};
 
 #[cfg(feature = "cli")]
 pub use cli::{Asset, CliError, run_cli, try_run_cli};

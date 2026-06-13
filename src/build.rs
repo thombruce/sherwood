@@ -1,6 +1,6 @@
 use crate::config::SiteConfig;
 use crate::nav::{self, PageContext, is_root_index};
-use crate::page::{Page, load_page};
+use crate::page::{Page, PageError, load_page};
 use std::path::Path;
 use thiserror::Error;
 use walkdir::WalkDir;
@@ -11,8 +11,8 @@ pub enum BuildError {
     Io(#[from] std::io::Error),
     #[error("Walk error: {0}")]
     Walk(#[from] walkdir::Error),
-    #[error("Frontmatter parse error in {path}: {message}")]
-    FrontmatterParse { path: String, message: String },
+    #[error(transparent)]
+    Page(#[from] PageError),
     #[error("Render error: {0}")]
     Render(String),
 }
