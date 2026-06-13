@@ -11,6 +11,7 @@ cargo test frontmatter               # run tests in a specific module
 cargo run -- build                   # build site: content/ → _site/
 cargo run -- build --content-dir src --output-dir out  # custom dirs
 cargo run -- build --asset style.css=my.css  # override a bundled asset from disk
+cargo run -- build --base-path /sherwood  # prefix generated URLs for subpath hosting
 cargo run -- serve                   # dev server at http://127.0.0.1:4000
 cargo run -- serve --port 4001       # custom port
 cargo run -- serve --no-watch        # static server, no file-watch/live-reload
@@ -27,7 +28,7 @@ The `sherwood` crate has two features, both on by default: `cli` (clap/axum/toki
 
 `site/` is a `publish = false` workspace member that depends on `sherwood` (`default-features = false, features = ["cli"]`) and ships its own Sailfish template + stylesheet — it's the canonical example of the library/`run_cli` path. The root `[package]` sets `exclude = ["/site"]` so the site never lands in the published `sherwood` crate; `site/_site/` is gitignored. CI builds the site as a smoke test (the `site` job).
 
-The site deploys to GitHub Pages via `.github/workflows/pages.yml` (official Pages actions, source = "GitHub Actions" — no `gh-pages` branch) on push to `main`. **Sherwood emits absolute URLs (`/style.css`, `/guide/`), so the site must be served from a domain root, not a project subpath.** It uses the custom domain in `site/CNAME` (copied into the build output by the deploy job); change that file to rehome it. One-time setup: repo Settings → Pages → Source = "GitHub Actions", and point the domain's DNS at GitHub Pages. (Hosting on `thombruce.github.io/sherwood/` would require adding base-path/prefix support to `path_to_url` — not implemented.)
+The site deploys to GitHub Pages via `.github/workflows/pages.yml` (official Pages actions, source = "GitHub Actions" — no `gh-pages` branch) on push to `main`. **Sherwood emits absolute URLs (`/style.css`, `/guide/`), so the site must be served from a domain root, not a project subpath.** It uses the custom domain in `site/CNAME` (copied into the build output by the deploy job); change that file to rehome it. One-time setup: repo Settings → Pages → Source = "GitHub Actions", and point the domain's DNS at GitHub Pages. To instead host on the project subpath `thombruce.github.io/sherwood/`, drop the CNAME and build with `--base-path /sherwood` (see the base-path constraint below).
 
 ## Architecture
 
@@ -152,3 +153,5 @@ Output paths mirror source structure but use pretty URLs — each page becomes a
 **`SiteConfig` is `#[non_exhaustive]`** so fields can be added without a breaking change. In-crate code may still use struct-literal construction; downstream library users cannot — they build via `SiteConfig::new()` / `default()` plus the `with_content_dir` / `with_output_dir` builder methods. Add a matching `with_*` method (and a default) for any new field.
 
 **URL building from `Path`**: do not use `Path::display()` when constructing href strings. On Windows it emits `\` separators, producing invalid URLs like `/blog\post.html`. `path_to_url` (in `src/core/nav/url.rs`) walks `Component::Normal` and joins with `/` — use it for any new URL output.
+
+**Base path (subpath hosting).** `SiteConfig.base_path` (set via `with_base_path` / `--base-path`, normalized to `""` or `"/prefix"`) prefixes generated URLs so a site can serve from `https://host/sherwood/`. The model is **canonical-internal, resolve-at-the-render-boundary**: `page.url` and `pages_under` stay canonical (un-prefixed) for matching/identity; only rendered hrefs carry the prefix. The library pre-resolves `NavItem.href`, `Breadcrumb.href`, and prev/next hrefs. Templates: use those directly, but wrap hrefs you build from `page.url`/`pages_under` in `ctx.resolve(...)`, and prefix static assets with `ctx.base_path` (`<%= base_path %>/style.css`). `nav::resolve(canonical, base)` is the primitive; `PageContext::{base_path, resolve}` expose it to render closures. **Base path affects URLs only — never output paths** (files stay at `_site/<dir>/index.html`; the host maps the subpath to the artifact root). `serve` mounts the dev server under the base path (`nest_service` + `/`→`/base/` redirect) so the preview matches production.

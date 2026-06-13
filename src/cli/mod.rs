@@ -46,6 +46,10 @@ enum Commands {
         content_dir: PathBuf,
         #[arg(long, default_value = "_site")]
         output_dir: PathBuf,
+        /// URL prefix for serving from a subdirectory, e.g. `/sherwood`.
+        /// Affects generated URLs only, not output paths.
+        #[arg(long, default_value = "")]
+        base_path: String,
         /// Override a bundled asset with a file from disk. Format: `name=path`,
         /// where `name` matches an Asset's `dest`. May be repeated.
         #[arg(long, value_parser = parse_asset_override)]
@@ -59,6 +63,10 @@ enum Commands {
         output_dir: PathBuf,
         #[arg(long, default_value_t = 4000)]
         port: u16,
+        /// URL prefix for serving from a subdirectory, e.g. `/sherwood`. The
+        /// dev server mounts the site under this path to match production.
+        #[arg(long, default_value = "")]
+        base_path: String,
         /// Override a bundled asset with a file from disk. Format: `name=path`.
         /// May be repeated. Re-applied on every rebuild.
         #[arg(long, value_parser = parse_asset_override)]
@@ -110,13 +118,14 @@ where
         Commands::Build {
             content_dir,
             output_dir,
+            base_path,
             asset,
         } => {
             let assets = apply_overrides(assets, asset)?;
-            let config = SiteConfig {
-                content_dir,
-                output_dir,
-            };
+            let config = SiteConfig::new()
+                .with_content_dir(content_dir)
+                .with_output_dir(output_dir)
+                .with_base_path(base_path);
             build_site(&config, &registry, renderer, |page| {
                 println!(
                     "{} -> {}",
@@ -132,14 +141,16 @@ where
             content_dir,
             output_dir,
             port,
+            base_path,
             asset,
             no_watch,
         } => {
             let assets = apply_overrides(assets, asset)?;
-            let config = SiteConfig {
-                content_dir: content_dir.clone(),
-                output_dir: output_dir.clone(),
-            };
+            let config = SiteConfig::new()
+                .with_content_dir(content_dir.clone())
+                .with_output_dir(output_dir.clone())
+                .with_base_path(base_path);
+            let base_path = config.base_path.clone();
 
             // Share the renderer + parsers + assets with the watcher's rebuild
             // closure.
@@ -171,6 +182,7 @@ where
             runtime.block_on(serve::serve_with_watch(
                 content_dir,
                 output_dir,
+                base_path,
                 port,
                 rebuild,
                 !no_watch,

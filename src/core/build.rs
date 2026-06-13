@@ -90,6 +90,7 @@ mod tests {
         let config = SiteConfig {
             content_dir,
             output_dir,
+            ..SiteConfig::default()
         };
         (tmp, config)
     }
@@ -166,6 +167,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().join("nonexistent"),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         assert!(
             build_site(

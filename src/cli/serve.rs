@@ -11,7 +11,7 @@ use axum::{
     },
     http::{Request, Response, header},
     middleware::{self, Next},
-    response::IntoResponse,
+    response::{IntoResponse, Redirect},
     routing::get,
 };
 use thiserror::Error;
@@ -35,20 +35,44 @@ const LIVE_RELOAD_PATH: &str = "/_sherwood/reload";
 const LIVE_RELOAD_SNIPPET: &str = "\n<script>\n(function(){function c(){var p=location.protocol==='https:'?'wss':'ws';var w=new WebSocket(p+'://'+location.host+'/_sherwood/reload');w.onmessage=function(){location.reload();};w.onclose=function(){setTimeout(c,1000);};}c();})();\n</script>\n";
 
 /// Build a router for static-only serving (no live reload).
-pub fn router(output_dir: &Path) -> Router {
-    Router::new().fallback_service(ServeDir::new(output_dir))
+pub fn router(output_dir: &Path, base_path: &str) -> Router {
+    mount(Router::new(), output_dir, base_path)
 }
 
 /// Build a router with live-reload wiring: a `/_sherwood/reload` websocket
 /// endpoint that pushes `reload` messages on the broadcast channel, plus a
 /// middleware that injects a tiny script into every served HTML response so
 /// the browser connects to that socket.
-pub fn router_with_reload(output_dir: &Path, reload_tx: broadcast::Sender<()>) -> Router {
+pub fn router_with_reload(
+    output_dir: &Path,
+    reload_tx: broadcast::Sender<()>,
+    base_path: &str,
+) -> Router {
     let state = Arc::new(reload_tx);
-    Router::new()
-        .route(LIVE_RELOAD_PATH, get(ws_handler).with_state(state))
-        .fallback_service(ServeDir::new(output_dir))
-        .layer(middleware::from_fn(inject_reload_script))
+    let router = Router::new().route(LIVE_RELOAD_PATH, get(ws_handler).with_state(state));
+    mount(router, output_dir, base_path).layer(middleware::from_fn(inject_reload_script))
+}
+
+/// Attach the static-file service to `router`. With an empty `base_path` the
+/// site is served at the root; with a base path (e.g. `/sherwood`) the site is
+/// mounted under it and `/` redirects there, mirroring production hosting on a
+/// subpath. The live-reload websocket route stays at the root either way.
+fn mount(router: Router, output_dir: &Path, base_path: &str) -> Router {
+    let serve = ServeDir::new(output_dir);
+    if base_path.is_empty() {
+        router.fallback_service(serve)
+    } else {
+        let target = format!("{base_path}/");
+        router
+            .route(
+                "/",
+                get(move || {
+                    let target = target.clone();
+                    async move { Redirect::permanent(&target) }
+                }),
+            )
+            .nest_service(base_path, serve)
+    }
 }
 
 /// Start the dev server. If `watch` is `Some`, also watches `content_dir`,
@@ -56,6 +80,7 @@ pub fn router_with_reload(output_dir: &Path, reload_tx: broadcast::Sender<()>) -
 pub async fn serve_with_watch<F>(
     content_dir: PathBuf,
     output_dir: PathBuf,
+    base_path: String,
     port: u16,
     mut rebuild: F,
     watch: bool,
@@ -74,22 +99,23 @@ where
         tokio::task::spawn_blocking(move || {
             watch_loop(content_dir_for_watcher, tx_for_watcher, rebuild);
         });
-        router_with_reload(&output_dir, tx)
+        router_with_reload(&output_dir, tx, &base_path)
     } else {
-        router(&output_dir)
+        router(&output_dir, &base_path)
     };
 
     let addr = format!("127.0.0.1:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
+    let url = format!("http://{addr}{base_path}/");
     if watch {
         println!(
-            "Serving {} at http://{} (watching {} for changes)",
+            "Serving {} at {} (watching {} for changes)",
             output_dir.display(),
-            addr,
+            url,
             content_dir.display()
         );
     } else {
-        println!("Serving {} at http://{}", output_dir.display(), addr);
+        println!("Serving {} at {}", output_dir.display(), url);
     }
     axum::serve(listener, app).await?;
     Ok(())
@@ -220,7 +246,7 @@ mod tests {
     async fn serves_existing_file() {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("index.html"), "<h1>hi</h1>").unwrap();
-        let resp = router(tmp.path())
+        let resp = router(tmp.path(), "")
             .oneshot(
                 Request::builder()
                     .uri("/index.html")
@@ -239,7 +265,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join("blog")).unwrap();
         fs::write(tmp.path().join("blog/post.html"), "post").unwrap();
-        let resp = router(tmp.path())
+        let resp = router(tmp.path(), "")
             .oneshot(
                 Request::builder()
                     .uri("/blog/post.html")
@@ -254,10 +280,48 @@ mod tests {
     #[tokio::test]
     async fn returns_404_for_missing() {
         let tmp = TempDir::new().unwrap();
-        let resp = router(tmp.path())
+        let resp = router(tmp.path(), "")
             .oneshot(
                 Request::builder()
                     .uri("/nope.html")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn base_path_mounts_under_prefix_and_redirects_root() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("index.html"), "<h1>hi</h1>").unwrap();
+
+        // Served under the base path.
+        let resp = router(tmp.path(), "/docs")
+            .oneshot(
+                Request::builder()
+                    .uri("/docs/index.html")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Root redirects to the base path.
+        let resp = router(tmp.path(), "/docs")
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(resp.headers()[header::LOCATION], "/docs/");
+
+        // The un-prefixed path is no longer served.
+        let resp = router(tmp.path(), "/docs")
+            .oneshot(
+                Request::builder()
+                    .uri("/index.html")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -275,7 +339,7 @@ mod tests {
         )
         .unwrap();
         let (tx, _rx) = broadcast::channel::<()>(4);
-        let resp = router_with_reload(tmp.path(), tx)
+        let resp = router_with_reload(tmp.path(), tx, "")
             .oneshot(
                 Request::builder()
                     .uri("/index.html")
@@ -338,7 +402,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("style.css"), "body{}").unwrap();
         let (tx, _rx) = broadcast::channel::<()>(4);
-        let resp = router_with_reload(tmp.path(), tx)
+        let resp = router_with_reload(tmp.path(), tx, "")
             .oneshot(
                 Request::builder()
                     .uri("/style.css")

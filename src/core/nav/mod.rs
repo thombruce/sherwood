@@ -9,7 +9,7 @@ mod url;
 pub(crate) mod test_support;
 
 pub use breadcrumb::Breadcrumb;
-pub(crate) use url::href_for;
+pub(crate) use url::{href_for, resolve};
 
 use breadcrumb::breadcrumbs_for;
 
@@ -26,6 +26,13 @@ pub struct PageContext<'a> {
     pub breadcrumbs: Vec<Breadcrumb>,
     pub prev: Option<NavItem>,
     pub next: Option<NavItem>,
+    /// The site's URL base path (`""` or e.g. `"/sherwood"`). Nav, breadcrumb,
+    /// and prev/next hrefs are already resolved against it; use [`resolve`] (or
+    /// this field) when emitting hrefs you build yourself from `page.url`,
+    /// `pages_under`, or static assets like the stylesheet.
+    ///
+    /// [`resolve`]: PageContext::resolve
+    pub base_path: String,
     /// All pages in the site, in build order (root index first, then by
     /// output path). Templates can iterate, filter, and sort this to build
     /// indexes, archives, tag listings, etc.
@@ -37,11 +44,22 @@ impl<'a> PageContext<'a> {
     /// indexes — e.g. a `/blog/index.html` page can call
     /// `ctx.pages_under("/blog/")` to list every post under `blog/`.
     /// The current page is included; filter it out yourself if undesired.
+    ///
+    /// Matches against canonical, un-prefixed `page.url`, so pass canonical
+    /// prefixes (`"/blog/"`) regardless of any base path.
     pub fn pages_under(&self, url_prefix: &str) -> Vec<&'a Page> {
         self.pages
             .iter()
             .filter(|p| p.url.starts_with(url_prefix))
             .collect()
+    }
+
+    /// Resolve a canonical (root-relative) URL against the site's base path —
+    /// `ctx.resolve("/blog/")` is `/sherwood/blog/` under a `/sherwood` base,
+    /// or `/blog/` at the root. Use it for hrefs built from `page.url` or
+    /// `pages_under`, and for static assets (`ctx.resolve("/style.css")`).
+    pub fn resolve(&self, canonical: &str) -> String {
+        resolve(canonical, &self.base_path)
     }
 }
 
@@ -54,19 +72,21 @@ pub fn compute_context<'a>(
         .iter()
         .position(|p| p.output_path == page.output_path);
 
+    let base = config.base_path.as_str();
+
     let nav = all_pages
         .iter()
         .filter(|p| include_in_nav(p, config))
-        .map(|p| nav_item_for(p, p.output_path == page.output_path))
+        .map(|p| nav_item_for(p, p.output_path == page.output_path, base))
         .collect();
 
     let prev = idx
         .filter(|&i| i > 0)
-        .map(|i| nav_item_for(&all_pages[i - 1], false));
+        .map(|i| nav_item_for(&all_pages[i - 1], false, base));
 
     let next = idx
         .filter(|&i| i + 1 < all_pages.len())
-        .map(|i| nav_item_for(&all_pages[i + 1], false));
+        .map(|i| nav_item_for(&all_pages[i + 1], false, base));
 
     let breadcrumbs = breadcrumbs_for(page, all_pages, config);
 
@@ -75,6 +95,7 @@ pub fn compute_context<'a>(
         breadcrumbs,
         prev,
         next,
+        base_path: config.base_path.clone(),
         pages: all_pages,
     }
 }
@@ -114,10 +135,10 @@ pub(crate) fn is_root_index(page: &Page, config: &SiteConfig) -> bool {
         .unwrap_or(false)
 }
 
-fn nav_item_for(p: &Page, is_current: bool) -> NavItem {
+fn nav_item_for(p: &Page, is_current: bool, base: &str) -> NavItem {
     NavItem {
         title: p.frontmatter.title.clone(),
-        href: p.url.clone(),
+        href: resolve(&p.url, base),
         is_current,
     }
 }
@@ -125,7 +146,9 @@ fn nav_item_for(p: &Page, is_current: bool) -> NavItem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_support::{make_page, make_page_with_data, pod_hash, test_config};
+    use test_support::{
+        make_page, make_page_with_data, pod_hash, test_config, test_config_with_base,
+    };
 
     #[test]
     fn nav_is_current_only_for_page() {
@@ -295,5 +318,57 @@ mod tests {
         let pages = vec![make_page("index", "Home"), make_page("about", "About")];
         let ctx = compute_context(&pages[0], &pages, &config);
         assert_eq!(ctx.pages.len(), 2);
+    }
+
+    #[test]
+    fn nav_hrefs_are_resolved_under_base_path() {
+        let config = test_config_with_base("/sherwood");
+        let pages = vec![make_page("index", "Home"), make_page("about", "About")];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        let hrefs: Vec<_> = ctx.nav.iter().map(|n| n.href.clone()).collect();
+        assert!(hrefs.contains(&"/sherwood/".to_string()), "{hrefs:?}");
+        assert!(hrefs.contains(&"/sherwood/about/".to_string()), "{hrefs:?}");
+        assert_eq!(ctx.base_path, "/sherwood");
+    }
+
+    #[test]
+    fn page_url_stays_canonical_under_base_path() {
+        let config = test_config_with_base("/sherwood");
+        let pages = vec![make_page("index", "Home"), make_page("about", "About")];
+        // page.url is canonical (no base) — base only applies at the href boundary.
+        assert_eq!(pages[1].url, "/about/");
+        let ctx = compute_context(&pages[0], &pages, &config);
+        assert_eq!(ctx.resolve("/about/"), "/sherwood/about/");
+        assert_eq!(ctx.resolve("/style.css"), "/sherwood/style.css");
+    }
+
+    #[test]
+    fn pages_under_matches_canonical_under_base_path() {
+        let config = test_config_with_base("/sherwood");
+        let pages = vec![
+            make_page("index", "Home"),
+            make_page("blog/index", "Blog"),
+            make_page("blog/first", "First"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        let urls: Vec<_> = ctx
+            .pages_under("/blog/")
+            .iter()
+            .map(|p| p.url.clone())
+            .collect();
+        assert_eq!(urls, vec!["/blog/", "/blog/first/"]);
+    }
+
+    #[test]
+    fn prev_next_hrefs_resolved_under_base_path() {
+        let config = test_config_with_base("/docs");
+        let pages = vec![
+            make_page("about", "About"),
+            make_page("blog/post", "Post"),
+            make_page("index", "Home"),
+        ];
+        let ctx = compute_context(&pages[1], &pages, &config);
+        assert_eq!(ctx.prev.unwrap().href, "/docs/about/");
+        assert_eq!(ctx.next.unwrap().href, "/docs/");
     }
 }

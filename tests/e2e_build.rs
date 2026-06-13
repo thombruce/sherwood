@@ -91,6 +91,54 @@ fn build_full_site_against_fixture() {
 }
 
 #[test]
+fn build_with_base_path_prefixes_urls_not_files() {
+    let bin = env!("CARGO_BIN_EXE_sherwood");
+    let tmp = TempDir::new().unwrap();
+    let content = tmp.path().join("content");
+    let output = tmp.path().join("out");
+
+    write(
+        &content.join("index.md"),
+        "---\ntitle: Home\n---\n\n# Welcome\n",
+    );
+    write(
+        &content.join("about.md"),
+        "---\ntitle: About\n---\n\nAbout.\n",
+    );
+
+    let status = Command::new(bin)
+        .args([
+            "build",
+            "--content-dir",
+            content.to_str().unwrap(),
+            "--output-dir",
+            output.to_str().unwrap(),
+            "--base-path",
+            "/sub",
+        ])
+        .status()
+        .expect("failed to launch sherwood binary");
+    assert!(status.success());
+
+    // Files are written at the output root — base path does NOT move them.
+    assert!(output.join("index.html").exists());
+    assert!(output.join("about/index.html").exists());
+
+    // Generated URLs are prefixed.
+    let home = fs::read_to_string(output.join("index.html")).unwrap();
+    assert!(
+        home.contains("href=\"/sub/style.css\""),
+        "stylesheet link not prefixed:\n{home}"
+    );
+    assert!(
+        home.contains("href=\"/sub/about/\""),
+        "nav link not prefixed:\n{home}"
+    );
+    // Current page (home) nav link resolves to the base root.
+    assert!(home.contains("href=\"/sub/\""), "home link not prefixed");
+}
+
+#[test]
 fn build_reports_frontmatter_error_with_snippet() {
     let bin = env!("CARGO_BIN_EXE_sherwood");
     let tmp = TempDir::new().unwrap();

@@ -108,6 +108,7 @@ mod tests {
         SiteConfig {
             content_dir: PathBuf::from("content"),
             output_dir: PathBuf::from("_site"),
+            ..SiteConfig::default()
         }
     }
 
@@ -154,6 +155,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         let page = load_page(&file, &config, &ParserRegistry::default())
             .unwrap()
@@ -170,6 +172,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         let page = load_page(&file, &config, &ParserRegistry::default())
             .unwrap()
@@ -185,6 +188,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         assert!(load_page(&file, &config, &ParserRegistry::default()).is_err());
     }
@@ -199,6 +203,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         let page = load_page(&file, &config, &ParserRegistry::default())
             .unwrap()
@@ -217,6 +222,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         let page = load_page(&file, &config, &ParserRegistry::default())
             .unwrap()
@@ -233,6 +239,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         let page = load_page(&file, &config, &ParserRegistry::default())
             .unwrap()
@@ -253,6 +260,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         let page = load_page(&file, &config, &ParserRegistry::default())
             .unwrap()
@@ -270,6 +278,7 @@ mod tests {
         let config = SiteConfig {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
+            ..SiteConfig::default()
         };
         let page = load_page(&file, &config, &ParserRegistry::default())
             .unwrap()

@@ -11,7 +11,12 @@ pub(crate) fn test_config() -> SiteConfig {
     SiteConfig {
         content_dir: PathBuf::from("content"),
         output_dir: PathBuf::from("_site"),
+        ..SiteConfig::default()
     }
+}
+
+pub(crate) fn test_config_with_base(base: &str) -> SiteConfig {
+    test_config().with_base_path(base)
 }
 
 /// `rel` is the source path stem relative to `content/`, without `.md`.

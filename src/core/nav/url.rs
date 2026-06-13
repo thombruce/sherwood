@@ -21,6 +21,19 @@ pub(crate) fn href_for(output_path: &Path, config: &SiteConfig) -> String {
     }
 }
 
+/// Prefix a canonical (root-relative) URL with the configured base path,
+/// turning `/guide/` into `/sherwood/guide/`. An empty base is the identity.
+/// The site root `/` resolves to `<base>/`.
+pub(crate) fn resolve(canonical: &str, base: &str) -> String {
+    if base.is_empty() {
+        canonical.to_string()
+    } else if canonical == "/" {
+        format!("{base}/")
+    } else {
+        format!("{base}{canonical}")
+    }
+}
+
 // Build an absolute URL from a relative output path. We walk components and
 // join with '/' rather than using `Path::display()` because on Windows
 // `display()` would emit '\' separators, producing invalid URLs like
@@ -74,5 +87,18 @@ mod tests {
     fn path_to_url_joins_with_forward_slash() {
         let p = PathBuf::from("a").join("b").join("c.html");
         assert_eq!(path_to_url(&p), "/a/b/c.html");
+    }
+
+    #[test]
+    fn resolve_empty_base_is_identity() {
+        assert_eq!(resolve("/guide/", ""), "/guide/");
+        assert_eq!(resolve("/", ""), "/");
+    }
+
+    #[test]
+    fn resolve_prefixes_base() {
+        assert_eq!(resolve("/guide/", "/sherwood"), "/sherwood/guide/");
+        assert_eq!(resolve("/", "/sherwood"), "/sherwood/");
+        assert_eq!(resolve("/style.css", "/sherwood"), "/sherwood/style.css");
     }
 }

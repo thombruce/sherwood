@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::href_for;
 use super::is_root_index;
+use super::resolve;
 
 #[derive(Debug, Clone)]
 pub struct Breadcrumb {
@@ -35,7 +36,7 @@ pub(crate) fn breadcrumbs_for(
 
     crumbs.push(Breadcrumb {
         title: home_title,
-        href: Some("/".to_string()),
+        href: Some(resolve("/", &config.base_path)),
     });
 
     let components: Vec<_> = relative.components().collect();
@@ -60,7 +61,7 @@ pub(crate) fn breadcrumbs_for(
 
         crumbs.push(Breadcrumb {
             title: dir_title,
-            href: Some(href_for(&index_output, config)),
+            href: Some(resolve(&href_for(&index_output, config), &config.base_path)),
         });
     }
 
@@ -95,7 +96,7 @@ fn capitalize_first(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use crate::core::nav::compute_context;
-    use crate::core::nav::test_support::{make_page, test_config};
+    use crate::core::nav::test_support::{make_page, test_config, test_config_with_base};
 
     #[test]
     fn breadcrumbs_empty_for_root() {
@@ -171,5 +172,19 @@ mod tests {
         assert_eq!(ctx.breadcrumbs[0].title, "Home");
         assert_eq!(ctx.breadcrumbs[1].title, "Blog");
         assert!(ctx.breadcrumbs[1].href.is_none());
+    }
+
+    #[test]
+    fn breadcrumb_hrefs_resolved_under_base_path() {
+        let config = test_config_with_base("/sherwood");
+        let pages = vec![
+            make_page("blog/post", "My Post"),
+            make_page("index", "Home"),
+        ];
+        let ctx = compute_context(&pages[0], &pages, &config);
+        // Home + Blog hrefs carry the base prefix; the leaf stays unlinked.
+        assert_eq!(ctx.breadcrumbs[0].href.as_deref(), Some("/sherwood/"));
+        assert_eq!(ctx.breadcrumbs[1].href.as_deref(), Some("/sherwood/blog/"));
+        assert!(ctx.breadcrumbs[2].href.is_none());
     }
 }
