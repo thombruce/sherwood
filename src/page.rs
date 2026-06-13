@@ -1,11 +1,11 @@
 use crate::config::SiteConfig;
-use crate::frontmatter::{FrontMatter, FrontmatterError, parse_frontmatter};
+use crate::frontmatter::FrontMatter;
 use crate::nav::href_for;
-use pulldown_cmark::{Options, Parser, html};
+use crate::parser::{ParserError, ParserRegistry};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-/// Failure modes when loading a single Markdown source into a [`Page`]. Each
+/// Failure modes when loading a single content source into a [`Page`]. Each
 /// variant carries the offending source path so build errors point at the
 /// exact file.
 #[derive(Debug, Error)]
@@ -16,11 +16,11 @@ pub enum PageError {
         #[source]
         source: std::io::Error,
     },
-    #[error("frontmatter in {}: {source}", path.display())]
-    Frontmatter {
+    #[error("parsing {}: {source}", path.display())]
+    Parse {
         path: PathBuf,
         #[source]
-        source: FrontmatterError,
+        source: ParserError,
     },
 }
 
@@ -44,37 +44,46 @@ pub struct Page {
     pub is_section_index: bool,
 }
 
-pub fn markdown_to_html(markdown: &str) -> String {
-    let parser = Parser::new_ext(markdown, Options::all());
-    let mut html_output = String::new();
-    html::push_html(&mut html_output, parser);
-    html_output
-}
+/// Load one content file into a [`Page`], dispatching to the parser registered
+/// for its extension. Returns `Ok(None)` when no parser claims the extension,
+/// so the build can skip non-content files (images, CSS, …) living in the
+/// content tree.
+pub fn load_page(
+    source_path: &Path,
+    config: &SiteConfig,
+    registry: &ParserRegistry,
+) -> Result<Option<Page>, PageError> {
+    let ext = source_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let Some(parser) = registry.get(ext) else {
+        return Ok(None);
+    };
 
-pub fn load_page(source_path: &Path, config: &SiteConfig) -> Result<Page, PageError> {
     let source = std::fs::read_to_string(source_path).map_err(|e| PageError::Read {
         path: source_path.to_owned(),
         source: e,
     })?;
-    let (frontmatter, body, excerpt_md) =
-        parse_frontmatter(&source).map_err(|e| PageError::Frontmatter {
+    let parsed = parser
+        .parse(&source, source_path)
+        .map_err(|e| PageError::Parse {
             path: source_path.to_owned(),
             source: e,
         })?;
-    let content_html = markdown_to_html(&body);
-    let excerpt_html = excerpt_md.map(|md| markdown_to_html(&md));
+
     let is_section_index = source_path.file_stem().and_then(|s| s.to_str()) == Some("index");
     let output_path = output_path_for(source_path, config);
     let url = href_for(&output_path, config);
-    Ok(Page {
-        frontmatter,
-        content_html,
-        excerpt_html,
+    Ok(Some(Page {
+        frontmatter: parsed.frontmatter,
+        content_html: parsed.content_html,
+        excerpt_html: parsed.excerpt_html,
         source_path: source_path.to_owned(),
         output_path,
         url,
         is_section_index,
-    })
+    }))
 }
 
 pub(crate) fn output_path_for(source: &Path, config: &SiteConfig) -> PathBuf {
@@ -100,24 +109,6 @@ mod tests {
             content_dir: PathBuf::from("content"),
             output_dir: PathBuf::from("_site"),
         }
-    }
-
-    #[test]
-    fn markdown_heading_converts_to_h1() {
-        let html = markdown_to_html("# Hello");
-        assert!(html.contains("<h1>Hello</h1>"));
-    }
-
-    #[test]
-    fn markdown_paragraph_converts_to_p() {
-        let html = markdown_to_html("Simple paragraph.");
-        assert!(html.contains("<p>Simple paragraph.</p>"));
-    }
-
-    #[test]
-    fn markdown_bold_converts_to_strong() {
-        let html = markdown_to_html("**bold**");
-        assert!(html.contains("<strong>bold</strong>"));
     }
 
     #[test]
@@ -164,7 +155,9 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        let page = load_page(&file, &config).unwrap();
+        let page = load_page(&file, &config, &ParserRegistry::default())
+            .unwrap()
+            .unwrap();
         assert_eq!(page.frontmatter.title, "About");
         assert!(page.content_html.contains("<h1>About</h1>"));
     }
@@ -178,7 +171,9 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        let page = load_page(&file, &config).unwrap();
+        let page = load_page(&file, &config, &ParserRegistry::default())
+            .unwrap()
+            .unwrap();
         assert_eq!(page.frontmatter.title, "My Post");
     }
 
@@ -191,7 +186,7 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        assert!(load_page(&file, &config).is_err());
+        assert!(load_page(&file, &config, &ParserRegistry::default()).is_err());
     }
 
     #[test]
@@ -205,7 +200,9 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        let page = load_page(&file, &config).unwrap();
+        let page = load_page(&file, &config, &ParserRegistry::default())
+            .unwrap()
+            .unwrap();
         assert_eq!(page.url, "/blog/post/");
         assert!(!page.is_section_index);
     }
@@ -221,7 +218,9 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        let page = load_page(&file, &config).unwrap();
+        let page = load_page(&file, &config, &ParserRegistry::default())
+            .unwrap()
+            .unwrap();
         assert_eq!(page.url, "/blog/");
         assert!(page.is_section_index);
     }
@@ -235,7 +234,9 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        let page = load_page(&file, &config).unwrap();
+        let page = load_page(&file, &config, &ParserRegistry::default())
+            .unwrap()
+            .unwrap();
         assert_eq!(page.url, "/");
         assert!(page.is_section_index);
     }
@@ -253,7 +254,9 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        let page = load_page(&file, &config).unwrap();
+        let page = load_page(&file, &config, &ParserRegistry::default())
+            .unwrap()
+            .unwrap();
         let excerpt = page.excerpt_html.expect("excerpt should be set");
         assert!(excerpt.contains("Intro paragraph."));
         assert!(!excerpt.contains("Rest of body."));
@@ -268,7 +271,9 @@ mod tests {
             content_dir: tmp.path().to_owned(),
             output_dir: tmp.path().join("_site"),
         };
-        let page = load_page(&file, &config).unwrap();
+        let page = load_page(&file, &config, &ParserRegistry::default())
+            .unwrap()
+            .unwrap();
         assert!(page.excerpt_html.is_none());
     }
 }

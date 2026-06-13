@@ -8,7 +8,7 @@ use std::cell::{Cell, RefCell};
 use std::fs;
 use std::path::Path;
 
-use sherwood::{BuildError, Page, PageContext, SiteConfig, build_site};
+use sherwood::{BuildError, Page, PageContext, ParserRegistry, SiteConfig, build_site};
 use tempfile::TempDir;
 
 fn write(path: &Path, body: &str) {
@@ -59,6 +59,7 @@ fn custom_renderer_output_is_written_at_pretty_urls() {
 
     build_site(
         &config,
+        &ParserRegistry::default(),
         |page: &Page, _ctx: &PageContext| {
             Ok(format!(
                 "<article data-title=\"{}\">{}</article>",
@@ -96,6 +97,7 @@ fn renderer_receives_nav_breadcrumbs_and_prev_next() {
 
     build_site(
         &config,
+        &ParserRegistry::default(),
         |page: &Page, ctx: &PageContext| {
             if page.url == "/blog/first/" {
                 *seen_nav.borrow_mut() = ctx.nav.iter().map(|n| n.title.clone()).collect();
@@ -135,6 +137,7 @@ fn pages_under_drives_section_index() {
 
     build_site(
         &config,
+        &ParserRegistry::default(),
         |page: &Page, ctx: &PageContext| {
             // A section index lists its descendants via the public helper.
             if page.url == "/blog/" {
@@ -165,6 +168,7 @@ fn renderer_can_read_custom_frontmatter_and_excerpt() {
 
     build_site(
         &config,
+        &ParserRegistry::default(),
         |page: &Page, _ctx: &PageContext| {
             let author = page
                 .frontmatter
@@ -193,6 +197,7 @@ fn progress_callback_runs_once_per_page() {
 
     build_site(
         &config,
+        &ParserRegistry::default(),
         |_page: &Page, _ctx: &PageContext| Ok(String::new()),
         |_page: &Page| count.set(count.get() + 1),
     )
@@ -208,6 +213,7 @@ fn renderer_error_propagates_as_build_error() {
 
     let result = build_site(
         &config,
+        &ParserRegistry::default(),
         |_page: &Page, _ctx: &PageContext| Err(BuildError::Render("boom".to_string())),
         |_| {},
     );
@@ -230,7 +236,12 @@ fn malformed_frontmatter_surfaces_as_page_error() {
         .with_content_dir(content)
         .with_output_dir(tmp.path().join("out"));
 
-    let result = build_site(&config, |_p, _c| Ok(String::new()), |_| {});
+    let result = build_site(
+        &config,
+        &ParserRegistry::default(),
+        |_p, _c| Ok(String::new()),
+        |_| {},
+    );
 
     let err = result.unwrap_err();
     assert!(matches!(err, BuildError::Page(_)));
@@ -239,4 +250,101 @@ fn malformed_frontmatter_surfaces_as_page_error() {
     assert!(msg.contains("bad.md"), "path missing: {msg}");
     assert!(msg.contains("missing required field `title`"), "{msg}");
     assert!(msg.contains(" | "), "snippet missing: {msg}");
+}
+
+// --- Custom parser plugin -------------------------------------------------
+
+use std::sync::Arc;
+
+use sherwood::{ContentParser, FrontMatter, Parsed, ParserError, Pod};
+
+/// A toy parser for `.txt` files: first line is the title, the rest is the
+/// body wrapped in a <pre> block. Reuses no Sherwood frontmatter machinery —
+/// the format defines its own metadata convention.
+struct PlainTextParser;
+
+impl ContentParser for PlainTextParser {
+    fn extensions(&self) -> &[&str] {
+        &["txt"]
+    }
+
+    fn parse(&self, source: &str, _path: &Path) -> Result<Parsed, ParserError> {
+        let mut lines = source.lines();
+        let title = lines
+            .next()
+            .ok_or_else(|| ParserError::Message("empty file".to_string()))?
+            .to_string();
+        let body: String = lines.collect::<Vec<_>>().join("\n");
+        Ok(Parsed {
+            frontmatter: FrontMatter {
+                title,
+                data: Pod::Null,
+            },
+            content_html: format!("<pre>{body}</pre>"),
+            excerpt_html: None,
+        })
+    }
+}
+
+#[test]
+fn user_registered_parser_handles_its_extension() {
+    let tmp = TempDir::new().unwrap();
+    let content = tmp.path().join("content");
+    let output = tmp.path().join("out");
+
+    // A markdown page and a .txt page, side by side.
+    write(&content.join("index.md"), "---\ntitle: Home\n---\n\n# Hi\n");
+    write(&content.join("notes.txt"), "My Notes\nline one\nline two\n");
+    // An asset with no registered parser — must be skipped, not error.
+    write(&content.join("logo.png"), "not really a png");
+
+    let mut registry = ParserRegistry::default(); // markdown built in
+    registry.register(Arc::new(PlainTextParser));
+
+    let config = SiteConfig::new()
+        .with_content_dir(content)
+        .with_output_dir(&output);
+
+    build_site(
+        &config,
+        &registry,
+        |page: &Page, _ctx: &PageContext| {
+            Ok(format!(
+                "<h1>{}</h1>{}",
+                page.frontmatter.title, page.content_html
+            ))
+        },
+        |_| {},
+    )
+    .unwrap();
+
+    // Markdown still works.
+    let home = fs::read_to_string(output.join("index.html")).unwrap();
+    assert!(home.contains("<h1>Home</h1>"));
+
+    // The .txt file was parsed by the custom plugin and written at its own
+    // pretty URL.
+    let notes = fs::read_to_string(output.join("notes/index.html")).unwrap();
+    assert!(notes.contains("<h1>My Notes</h1>"));
+    assert!(notes.contains("<pre>line one\nline two</pre>"));
+
+    // The unhandled asset produced no page.
+    assert!(!output.join("logo/index.html").exists());
+}
+
+#[test]
+fn empty_registry_skips_everything() {
+    let (_tmp, config) = fixture();
+    let out = config.output_dir.clone();
+
+    // No parsers registered → every file is skipped, build is a no-op success.
+    build_site(
+        &config,
+        &ParserRegistry::empty(),
+        |_p: &Page, _c: &PageContext| Ok("x".to_string()),
+        |_| {},
+    )
+    .unwrap();
+
+    assert!(!out.join("index.html").exists());
 }

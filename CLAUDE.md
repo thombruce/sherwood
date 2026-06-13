@@ -40,11 +40,28 @@ sherwood::build_site(
 )
 ```
 
-The render closure is `FnMut(&Page, &PageContext) -> Result<String, BuildError>`. The progress callback is `FnMut(&Page)` and is invoked after each page is written. Pass `|_| {}` to silence build logging.
+`build_site(&config, &registry, renderer, progress)`. The render closure is `FnMut(&Page, &PageContext) -> Result<String, BuildError>`. The progress callback is `FnMut(&Page)` and is invoked after each page is written. Pass `|_| {}` to silence build logging.
 
-Core public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `Pod` (re-exported from `gray_matter`).
+Core public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `Pod` (re-exported from `gray_matter`), plus the parser plugin API below.
 
-**Error types are layered per module, each owning its own enum:** `FrontmatterError` (frontmatter.rs — `MissingDelimiters` / `Invalid(String)`, no file path) → wrapped by `PageError` (page.rs — `Read` / `Frontmatter`, both carrying the source `PathBuf`) → wrapped by `BuildError` (build.rs — `Io` / `Walk` / `Page(#[from] PageError)` / `Render`). Lower modules never import a higher module's error; `?` bubbles up through `#[from]`. `BuildError::Page` is `#[error(transparent)]`, so the displayed message is the `PageError` chain (path + frontmatter snippet) with no extra prefix.
+**Error types are layered per module, each owning its own enum:** `FrontmatterError` (frontmatter.rs — `MissingDelimiters` / `Invalid(String)`, no file path) → `ParserError` (parser/mod.rs — `Frontmatter(#[from] FrontmatterError)` / `Message(String)` / `Other(Box<dyn Error + Send + Sync>)`) → `PageError` (page.rs — `Read` / `Parse`, both carrying the source `PathBuf`) → `BuildError` (build.rs — `Io` / `Walk` / `Page(#[from] PageError)` / `Render`). Lower modules never import a higher module's error; `?` bubbles up through `#[from]`. `BuildError::Page` and `PageError::Parse`'s inner `ParserError::Frontmatter` are `#[error(transparent)]`, so the displayed message is the chain (path + frontmatter snippet) with no extra prefixes.
+
+### Content parsers (plugin system)
+
+Parsing is pluggable. A `ContentParser` (parser/mod.rs) turns one file's raw source into a `Parsed { frontmatter, content_html, excerpt_html }`; it never computes paths/URLs — that stays in `load_page`. Parsers are `Send + Sync` (the dev server shares the registry across threads) and object-safe (`dyn ContentParser`).
+
+```rust
+pub trait ContentParser: Send + Sync {
+    fn extensions(&self) -> &[&str];                 // ["md", "markdown"], no dot
+    fn parse(&self, source: &str, path: &Path) -> Result<Parsed, ParserError>;
+}
+```
+
+A `ParserRegistry` maps extension → `Arc<dyn ContentParser>`. `ParserRegistry::default()` / `with_markdown()` registers the built-in `MarkdownParser`; `empty()` starts with none; `register(Arc::new(MyParser))` adds one (last registration for an extension wins). The build walks **all** files and skips any whose extension has no registered parser (so images/CSS can live in the content tree) — `load_page` returns `Ok(None)` for those.
+
+Third-party parsers own their whole file, including their metadata convention. Formats that use the `---`/`+++` convention call the public `split_frontmatter(source) -> Result<(FrontMatter, String), FrontmatterError>` helper; others ignore it. Parser-API exports: `ContentParser`, `Parsed`, `ParserError`, `ParserRegistry`, `MarkdownParser`, `split_frontmatter`.
+
+The built-in `MarkdownParser` (parser/markdown.rs) owns markdown rendering (`markdown_to_html`, `pulldown-cmark`) and the `<!-- more -->` excerpt split — excerpt is a markdown concern, not a frontmatter one, so `split_frontmatter` no longer touches it.
 
 ### Feature modules
 
@@ -53,7 +70,7 @@ The bundled template and CLI live behind cargo features and are re-exported from
 - **`default-template`** → `src/default_template.rs`. Owns the baked-in Sailfish template (`templates/page.stpl`, compiled at build time) and embeds `templates/style.css` via `include_str!` as `DEFAULT_STYLE`. Public exports: `render_page` (the ready-made render closure) and `DEFAULT_STYLE`. The core library does not ship or prescribe a stylesheet — pure-library users embed their own CSS in their downstream binary.
 - **`cli`** → `src/cli.rs` (+ `src/serve.rs` dev server). Owns the clap arg parsing and the `run_cli` / `try_run_cli` entry points. Public exports: `run_cli`, `try_run_cli`, `Asset`, `CliError`.
 
-`src/main.rs` is a thin shim: it calls `run_cli(render_page, vec![Asset::new("style.css", DEFAULT_STYLE.as_bytes())])`. Assets are written to `<output_dir>` after `build_site`. `--asset <name>=<path>` overrides a bundled asset (matched by its `dest`) with a file from disk; the flag is repeatable.
+`src/main.rs` is a thin shim: it calls `run_cli(ParserRegistry::default(), render_page, vec![Asset::new("style.css", DEFAULT_STYLE.as_bytes())])`. `run_cli` / `try_run_cli` take the registry as their first argument so binary authors can register custom parsers. Assets are written to `<output_dir>` after `build_site`. `--asset <name>=<path>` overrides a bundled asset (matched by its `dest`) with a file from disk; the flag is repeatable.
 
 ### Build pipeline flow
 
@@ -61,8 +78,9 @@ Two-pass pipeline — all pages collected and sorted before any rendering begins
 
 ```
 Pass 1 — collect:
-  content/**/*.md
-    └─ load_page()         [page.rs]         read file → parse frontmatter + markdown → Page
+  content/**/*  (every file)
+    └─ load_page()         [page.rs]         registry.get(ext)? → read file → parser.parse() → Page
+                                             (returns None — skipped — if no parser for the ext)
 
 Pass 2 — sort + render:
   pages.sort_by(root index first, then output_path)

@@ -1,6 +1,7 @@
 use crate::config::SiteConfig;
 use crate::nav::{self, PageContext, is_root_index};
 use crate::page::{Page, PageError, load_page};
+use crate::parser::ParserRegistry;
 use std::path::Path;
 use thiserror::Error;
 use walkdir::WalkDir;
@@ -19,6 +20,7 @@ pub enum BuildError {
 
 pub fn build_site<F, P>(
     config: &SiteConfig,
+    registry: &ParserRegistry,
     mut renderer: F,
     mut progress: P,
 ) -> Result<(), BuildError>
@@ -31,10 +33,12 @@ where
     let mut pages: Vec<Page> = Vec::new();
     for entry in WalkDir::new(&config.content_dir) {
         let entry = entry?;
-        if entry.file_type().is_file()
-            && entry.path().extension().and_then(|s| s.to_str()) == Some("md")
-        {
-            pages.push(load_page(entry.path(), config)?);
+        if entry.file_type().is_file() {
+            // Files with no parser registered for their extension are skipped,
+            // so assets (images, CSS) can live in the content tree.
+            if let Some(page) = load_page(entry.path(), config, registry)? {
+                pages.push(page);
+            }
         }
     }
 
@@ -98,6 +102,7 @@ mod tests {
         ]);
         build_site(
             &config,
+            &ParserRegistry::default(),
             |page, _ctx| {
                 Ok(format!(
                     "<html><title>{}</title></html>",
@@ -119,6 +124,7 @@ mod tests {
         ]);
         build_site(
             &config,
+            &ParserRegistry::default(),
             |_page, ctx| Ok(format!("nav:{}", ctx.nav.len())),
             |_| {},
         )
@@ -130,14 +136,28 @@ mod tests {
     #[test]
     fn build_output_mirrors_nested_structure() {
         let (_tmp, config) = setup(&[("blog/post.md", "---\ntitle: Post\n---\n\nHello.")]);
-        build_site(&config, |_page, _ctx| Ok(String::new()), |_| {}).unwrap();
+        build_site(
+            &config,
+            &ParserRegistry::default(),
+            |_page, _ctx| Ok(String::new()),
+            |_| {},
+        )
+        .unwrap();
         assert!(config.output_dir.join("blog/post/index.html").exists());
     }
 
     #[test]
     fn build_empty_content_dir_succeeds() {
         let (_tmp, config) = setup(&[]);
-        assert!(build_site(&config, |_page, _ctx| Ok(String::new()), |_| {}).is_ok());
+        assert!(
+            build_site(
+                &config,
+                &ParserRegistry::default(),
+                |_page, _ctx| Ok(String::new()),
+                |_| {}
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -147,7 +167,15 @@ mod tests {
             content_dir: tmp.path().join("nonexistent"),
             output_dir: tmp.path().join("_site"),
         };
-        assert!(build_site(&config, |_page, _ctx| Ok(String::new()), |_| {}).is_err());
+        assert!(
+            build_site(
+                &config,
+                &ParserRegistry::default(),
+                |_page, _ctx| Ok(String::new()),
+                |_| {}
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -155,6 +183,7 @@ mod tests {
         let (_tmp, config) = setup(&[("index.md", "---\ntitle: Home\n---\n")]);
         let result = build_site(
             &config,
+            &ParserRegistry::default(),
             |_p, _ctx| Err(BuildError::Render("boom".to_string())),
             |_| {},
         );
@@ -168,7 +197,13 @@ mod tests {
             ("about.md", "---\ntitle: About\n---\n"),
         ]);
         let mut count = 0;
-        build_site(&config, |_p, _ctx| Ok(String::new()), |_p| count += 1).unwrap();
+        build_site(
+            &config,
+            &ParserRegistry::default(),
+            |_p, _ctx| Ok(String::new()),
+            |_p| count += 1,
+        )
+        .unwrap();
         assert_eq!(count, 2);
     }
 
@@ -182,6 +217,7 @@ mod tests {
         let mut titles = Vec::new();
         build_site(
             &config,
+            &ParserRegistry::default(),
             |_p, ctx| {
                 if titles.is_empty() {
                     titles = ctx.nav.iter().map(|n| n.title.clone()).collect();

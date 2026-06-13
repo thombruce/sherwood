@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use clap::{Parser, Subcommand};
 
-use crate::{BuildError, Page, PageContext, SiteConfig, build_site, serve};
+use crate::{BuildError, Page, PageContext, ParserRegistry, SiteConfig, build_site, serve};
 
 /// A static asset written to the output directory after the site build.
 ///
@@ -81,11 +81,11 @@ fn parse_asset_override(raw: &str) -> Result<(PathBuf, PathBuf), String> {
 /// Run the standard Sherwood CLI (build + serve subcommands). Exits the
 /// process with code 0 on success, 1 on failure. Use [`try_run_cli`] if you
 /// want to handle errors yourself.
-pub fn run_cli<F>(renderer: F, assets: Vec<Asset>) -> ExitCode
+pub fn run_cli<F>(registry: ParserRegistry, renderer: F, assets: Vec<Asset>) -> ExitCode
 where
     F: FnMut(&Page, &PageContext) -> Result<String, BuildError> + Send + 'static,
 {
-    match try_run_cli(renderer, assets) {
+    match try_run_cli(registry, renderer, assets) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{e}");
@@ -95,7 +95,11 @@ where
 }
 
 /// Same as [`run_cli`] but returns the error instead of exiting.
-pub fn try_run_cli<F>(renderer: F, assets: Vec<Asset>) -> Result<(), CliError>
+pub fn try_run_cli<F>(
+    registry: ParserRegistry,
+    renderer: F,
+    assets: Vec<Asset>,
+) -> Result<(), CliError>
 where
     F: FnMut(&Page, &PageContext) -> Result<String, BuildError> + Send + 'static,
 {
@@ -111,7 +115,7 @@ where
                 content_dir,
                 output_dir,
             };
-            build_site(&config, renderer, |page| {
+            build_site(&config, &registry, renderer, |page| {
                 println!(
                     "{} -> {}",
                     page.source_path.display(),
@@ -135,11 +139,14 @@ where
                 output_dir: output_dir.clone(),
             };
 
-            // Share the renderer + assets with the watcher's rebuild closure.
+            // Share the renderer + parsers + assets with the watcher's rebuild
+            // closure.
             let renderer = Arc::new(Mutex::new(renderer));
+            let registry = Arc::new(registry);
             let assets = Arc::new(assets);
             let config_for_rebuild = config.clone();
             let renderer_for_rebuild = renderer.clone();
+            let registry_for_rebuild = registry.clone();
             let assets_for_rebuild = assets.clone();
 
             let rebuild = move || -> Result<(), BuildError> {
@@ -147,7 +154,12 @@ where
                     .lock()
                     .map_err(|_| BuildError::Render("renderer mutex poisoned".to_string()))?;
                 let renderer_ref: &mut F = &mut guard;
-                build_site(&config_for_rebuild, |p, c| renderer_ref(p, c), |_| {})?;
+                build_site(
+                    &config_for_rebuild,
+                    &registry_for_rebuild,
+                    |p, c| renderer_ref(p, c),
+                    |_| {},
+                )?;
                 write_assets(&assets_for_rebuild, &config_for_rebuild)
                     .map_err(|e| BuildError::Render(e.to_string()))?;
                 Ok(())
