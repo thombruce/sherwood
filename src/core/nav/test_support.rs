@@ -1,9 +1,9 @@
 //! Shared test fixtures for the `nav` submodule tests.
 
-use crate::config::SiteConfig;
-use crate::frontmatter::FrontMatter;
-use crate::nav::href_for;
-use crate::page::{Page, output_path_for};
+use crate::core::config::SiteConfig;
+use crate::core::content::frontmatter::FrontMatter;
+use crate::core::content::page::{Page, output_path_for};
+use crate::core::nav::href_for;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 

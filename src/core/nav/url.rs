@@ -1,4 +1,4 @@
-use crate::config::SiteConfig;
+use crate::core::config::SiteConfig;
 use std::path::Path;
 
 pub(crate) fn href_for(output_path: &Path, config: &SiteConfig) -> String {
@@ -39,7 +39,7 @@ pub(crate) fn path_to_url(relative: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nav::test_support::{make_page, test_config};
+    use crate::core::nav::test_support::{make_page, test_config};
     use std::path::PathBuf;
 
     #[test]

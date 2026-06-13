@@ -1,7 +1,7 @@
-use crate::config::SiteConfig;
-use crate::nav::{self, PageContext, is_root_index};
-use crate::page::{Page, PageError, load_page};
-use crate::parser::ParserRegistry;
+use crate::core::config::SiteConfig;
+use crate::core::content::page::{Page, PageError, load_page};
+use crate::core::content::parser::ParserRegistry;
+use crate::core::nav::{self, PageContext, is_root_index};
 use std::path::Path;
 use thiserror::Error;
 use walkdir::WalkDir;

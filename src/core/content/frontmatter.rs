@@ -6,7 +6,7 @@ use thiserror::Error;
 
 /// Failure modes when parsing a Markdown source's frontmatter block. Carries
 /// no file path — that context is the caller's to supply (see
-/// [`crate::page::PageError`]).
+/// [`crate::core::content::page::PageError`]).
 #[derive(Debug, Error)]
 pub enum FrontmatterError {
     /// The source did not begin with a `---` (YAML) or `+++` (TOML) delimiter.

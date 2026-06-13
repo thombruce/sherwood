@@ -18,7 +18,7 @@ use thiserror::Error;
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
 
-use crate::build::BuildError;
+use crate::core::build::BuildError;
 
 #[derive(Debug, Error)]
 pub enum ServeError {
@@ -91,17 +91,6 @@ where
     } else {
         println!("Serving {} at http://{}", output_dir.display(), addr);
     }
-    axum::serve(listener, app).await?;
-    Ok(())
-}
-
-/// Legacy entry point — serves `output_dir` statically with no watch and no
-/// live reload. Retained so existing call sites keep working.
-pub async fn serve(output_dir: &Path, port: u16) -> Result<(), ServeError> {
-    let app = router(output_dir);
-    let addr = format!("127.0.0.1:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    println!("Serving {} at http://{}", output_dir.display(), addr);
     axum::serve(listener, app).await?;
     Ok(())
 }

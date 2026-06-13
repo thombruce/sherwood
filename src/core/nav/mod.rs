@@ -1,5 +1,5 @@
-use crate::config::SiteConfig;
-use crate::page::Page;
+use crate::core::config::SiteConfig;
+use crate::core::content::page::Page;
 use std::path::Path;
 
 mod breadcrumb;

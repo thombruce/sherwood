@@ -14,7 +14,7 @@ mod markdown;
 
 pub use markdown::{MarkdownParser, markdown_to_html};
 
-use crate::frontmatter::{FrontMatter, FrontmatterError};
+use crate::core::content::frontmatter::{FrontMatter, FrontmatterError};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;

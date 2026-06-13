@@ -5,7 +5,9 @@ use std::sync::{Arc, Mutex};
 
 use clap::{Parser, Subcommand};
 
-use crate::{BuildError, Page, PageContext, ParserRegistry, SiteConfig, build_site, serve};
+mod serve;
+
+use crate::{BuildError, Page, PageContext, ParserRegistry, SiteConfig, build_site};
 
 /// A static asset written to the output directory after the site build.
 ///

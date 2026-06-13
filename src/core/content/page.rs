@@ -1,7 +1,7 @@
-use crate::config::SiteConfig;
-use crate::frontmatter::FrontMatter;
-use crate::nav::href_for;
-use crate::parser::{ParserError, ParserRegistry};
+use crate::core::config::SiteConfig;
+use crate::core::content::frontmatter::FrontMatter;
+use crate::core::content::parser::{ParserError, ParserRegistry};
+use crate::core::nav::href_for;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -100,7 +100,7 @@ pub(crate) fn output_path_for(source: &Path, config: &SiteConfig) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::SiteConfig;
+    use crate::core::config::SiteConfig;
     use std::fs;
     use tempfile::TempDir;
 

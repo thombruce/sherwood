@@ -1,5 +1,5 @@
 use super::{ContentParser, Parsed, ParserError};
-use crate::frontmatter::split_frontmatter;
+use crate::core::content::frontmatter::split_frontmatter;
 use pulldown_cmark::{Options, Parser, html};
 use std::path::Path;
 

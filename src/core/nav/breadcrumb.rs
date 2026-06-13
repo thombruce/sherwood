@@ -1,5 +1,5 @@
-use crate::config::SiteConfig;
-use crate::page::Page;
+use crate::core::config::SiteConfig;
+use crate::core::content::page::Page;
 use std::path::{Path, PathBuf};
 
 use super::href_for;
@@ -94,8 +94,8 @@ fn capitalize_first(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::nav::compute_context;
-    use crate::nav::test_support::{make_page, test_config};
+    use crate::core::nav::compute_context;
+    use crate::core::nav::test_support::{make_page, test_config};
 
     #[test]
     fn breadcrumbs_empty_for_root() {
