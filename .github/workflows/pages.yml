@@ -1,0 +1,47 @@
+name: Deploy site to Pages
+
+# Builds site/ with Sherwood and publishes it to GitHub Pages on every push to
+# main. Uses the official Pages actions (source: GitHub Actions — no gh-pages
+# branch). One-time setup: repo Settings → Pages → Source = "GitHub Actions",
+# and point the custom domain in site/CNAME at GitHub Pages via DNS.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the site
+        run: cargo run -p sherwood-site -- build --content-dir site/content --output-dir site/_site
+      - name: Apply custom domain
+        run: cp site/CNAME site/_site/CNAME
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

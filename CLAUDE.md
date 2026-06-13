@@ -27,6 +27,8 @@ The `sherwood` crate has two features, both on by default: `cli` (clap/axum/toki
 
 `site/` is a `publish = false` workspace member that depends on `sherwood` (`default-features = false, features = ["cli"]`) and ships its own Sailfish template + stylesheet — it's the canonical example of the library/`run_cli` path. The root `[package]` sets `exclude = ["/site"]` so the site never lands in the published `sherwood` crate; `site/_site/` is gitignored. CI builds the site as a smoke test (the `site` job).
 
+The site deploys to GitHub Pages via `.github/workflows/pages.yml` (official Pages actions, source = "GitHub Actions" — no `gh-pages` branch) on push to `main`. **Sherwood emits absolute URLs (`/style.css`, `/guide/`), so the site must be served from a domain root, not a project subpath.** It uses the custom domain in `site/CNAME` (copied into the build output by the deploy job); change that file to rehome it. One-time setup: repo Settings → Pages → Source = "GitHub Actions", and point the domain's DNS at GitHub Pages. (Hosting on `thombruce.github.io/sherwood/` would require adding base-path/prefix support to `path_to_url` — not implemented.)
+
 ## Architecture
 
 Sherwood is a dual-delivery crate: a **library** (`src/lib.rs`) and a **binary** (`src/main.rs`) built from the same package.
