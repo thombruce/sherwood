@@ -16,7 +16,16 @@ cargo run -- serve --port 4001       # custom port
 cargo run -- serve --no-watch        # static server, no file-watch/live-reload
 ```
 
-The crate has two features, both on by default: `cli` (clap/axum/tokio dev server) and `default-template` (the bundled Sailfish template + stylesheet). The `sherwood` binary requires both. Library-only consumers can disable them with `default-features = false`.
+This is a cargo **workspace** with two members: the `sherwood` crate (root) and `site/` (the dogfooding site). `cargo build` / `cargo test` from the root default to the `sherwood` package only — the feature-matrix commands below still target it. Use `-p sherwood-site` for the site:
+
+```bash
+cargo run -p sherwood-site -- build --content-dir site/content --output-dir site/_site
+cargo run -p sherwood-site -- serve --content-dir site/content --output-dir site/_site
+```
+
+The `sherwood` crate has two features, both on by default: `cli` (clap/axum/tokio dev server) and `default-template` (the bundled Sailfish template + stylesheet). The `sherwood` binary requires both. Library-only consumers can disable them with `default-features = false`.
+
+`site/` is a `publish = false` workspace member that depends on `sherwood` (`default-features = false, features = ["cli"]`) and ships its own Sailfish template + stylesheet — it's the canonical example of the library/`run_cli` path. The root `[package]` sets `exclude = ["/site"]` so the site never lands in the published `sherwood` crate; `site/_site/` is gitignored. CI builds the site as a smoke test (the `site` job).
 
 ## Architecture
 

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> · Sherwood</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Sherwood</a>
+      <nav class="site-nav">
+        <% for item in nav { %>
+          <% if item.is_current { %>
+            <a href="<%= &item.href %>" aria-current="page"><%= &item.title %></a>
+          <% } else { %>
+            <a href="<%= &item.href %>"><%= &item.title %></a>
+          <% } %>
+        <% } %>
+        <a class="external" href="https://github.com/thombruce/sherwood">GitHub</a>
+      </nav>
+    </header>
+
+    <% if !breadcrumbs.is_empty() { %>
+      <nav class="breadcrumb" aria-label="breadcrumb">
+        <ol>
+          <% for crumb in breadcrumbs { %>
+            <% if let Some(href) = &crumb.href { %>
+              <li><a href="<%= href %>"><%= &crumb.title %></a></li>
+            <% } else { %>
+              <li aria-current="page"><%= &crumb.title %></li>
+            <% } %>
+          <% } %>
+        </ol>
+      </nav>
+    <% } %>
+
+    <main class="content">
+      <%- content %>
+    </main>
+
+    <% if prev.is_some() || next.is_some() { %>
+      <nav class="pager" aria-label="page navigation">
+        <% if let Some(p) = prev { %>
+          <a class="pager-prev" rel="prev" href="<%= &p.href %>">&#8592; <%= &p.title %></a>
+        <% } else { %>
+          <span></span>
+        <% } %>
+        <% if let Some(n) = next { %>
+          <a class="pager-next" rel="next" href="<%= &n.href %>"><%= &n.title %> &#8594;</a>
+        <% } %>
+      </nav>
+    <% } %>
+
+    <footer class="site-footer">
+      <p>Built with <a href="https://github.com/thombruce/sherwood">Sherwood</a> — this site is its own dogfood.</p>
+    </footer>
+  </body>
+</html>

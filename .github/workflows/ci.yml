@@ -50,3 +50,16 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets -- -D warnings
+
+  site:
+    name: site (dogfood)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p sherwood-site --all-targets -- -D warnings
+      - name: build the site
+        run: cargo run -p sherwood-site -- build --content-dir site/content --output-dir site/_site

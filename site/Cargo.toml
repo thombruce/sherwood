@@ -1,0 +1,13 @@
+[package]
+name = "sherwood-site"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "The Sherwood marketing/documentation site, built with Sherwood."
+
+[dependencies]
+# Depend on the library only (core + the cli helper), not the bundled
+# template — this site ships its own Sailfish template and stylesheet, which is
+# the whole point of dogfooding the library API.
+sherwood = { path = "..", default-features = false, features = ["cli"] }
+sailfish = "0.11"
