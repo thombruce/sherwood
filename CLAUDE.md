@@ -89,4 +89,6 @@ Output paths mirror source structure but use pretty URLs — each page becomes a
 
 **axum 0.8 static files**: use `Router::fallback_service(ServeDir::new(...))` — `nest_service("/", ...)` panics at runtime.
 
+**`SiteConfig` is `#[non_exhaustive]`** so fields can be added without a breaking change. In-crate code may still use struct-literal construction; downstream library users cannot — they build via `SiteConfig::new()` / `default()` plus the `with_content_dir` / `with_output_dir` builder methods. Add a matching `with_*` method (and a default) for any new field.
+
 **URL building from `Path`**: do not use `Path::display()` when constructing href strings. On Windows it emits `\` separators, producing invalid URLs like `/blog\post.html`. `path_to_url` (in `src/nav/url.rs`) walks `Component::Normal` and joins with `/` — use it for any new URL output.
