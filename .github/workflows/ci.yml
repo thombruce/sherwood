@@ -26,9 +26,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: cargo build
-        run: cargo build ${{ matrix.features == 'default' && '' || matrix.features }}
+        run: cargo build ${{ matrix.features != 'default' && matrix.features || '' }}
       - name: cargo test
-        run: cargo test ${{ matrix.features == 'default' && '' || matrix.features }}
+        run: cargo test ${{ matrix.features != 'default' && matrix.features || '' }}
 
   fmt:
     name: rustfmt
