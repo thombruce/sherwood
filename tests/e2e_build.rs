@@ -1,6 +1,10 @@
 // End-to-end test for the `sherwood build` subcommand. Exercises the full
 // binary: clap CLI parsing, the build pipeline, the bundled default
 // template, and the asset writer. Run via `cargo test --test e2e_build`.
+//
+// The `sherwood` binary has `required-features = ["cli", "default-template"]`,
+// so it isn't built under reduced feature sets — skip the whole file there.
+#![cfg(all(feature = "cli", feature = "default-template"))]
 
 use std::fs;
 use std::process::Command;
