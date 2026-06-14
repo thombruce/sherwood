@@ -8,14 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cargo build                          # compile
 cargo test                           # run all tests
 cargo test frontmatter               # run tests in a specific module
-cargo run -- build                   # build site: content/ → _site/
-cargo run -- build --content-dir src --output-dir out  # custom dirs
+cargo run -- build --content-dir src --output-dir out  # build a content dir → output dir
 cargo run -- build --asset style.css=my.css  # override a bundled asset from disk
 cargo run -- build --base-path /sherwood  # prefix generated URLs for subpath hosting
 cargo run -- serve                   # dev server at http://127.0.0.1:4000
 cargo run -- serve --port 4001       # custom port
 cargo run -- serve --no-watch        # static server, no file-watch/live-reload
 ```
+
+The root `sherwood` crate ships **no demo content** — for a runnable build pass `--content-dir` (or use the `site/` member below); the bare `cargo run -- build`/`serve` need a `content/` dir to exist.
 
 This is a cargo **workspace** with two members: the `sherwood` crate (root) and `site/` (the dogfooding site). `cargo build` / `cargo test` from the root default to the `sherwood` package only — the feature-matrix commands below still target it. Use `-p sherwood-site` for the site:
 
