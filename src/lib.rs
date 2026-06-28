@@ -11,8 +11,7 @@ pub use core::config::SiteConfig;
 pub use core::content::frontmatter::{FrontMatter, FrontmatterError, split_frontmatter};
 pub use core::content::page::{Page, PageError};
 pub use core::content::parser::{
-    ContentParser, MarkdownParser, Parsed, ParserError, ParserRegistry, TextParser,
-    markdown_to_html,
+    ContentParser, MarkdownParser, Parsed, ParserError, ParserRegistry, markdown_to_html,
 };
 pub use core::nav::{Breadcrumb, NavItem, PageContext};
 pub use gray_matter::Pod;

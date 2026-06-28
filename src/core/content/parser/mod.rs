@@ -11,10 +11,8 @@
 //! the same `---` / `+++` convention.
 
 mod markdown;
-mod text;
 
 pub use markdown::{MarkdownParser, markdown_to_html};
-pub use text::TextParser;
 
 use crate::core::content::frontmatter::{FrontMatter, FrontmatterError};
 use std::collections::HashMap;
@@ -50,33 +48,31 @@ pub trait ContentParser: Send + Sync {
 }
 
 /// Errors a [`ContentParser`] may return. Open enough that third-party parsers
-/// can surface their own failures via [`ParserError::Message`] or
-/// [`ParserError::Other`].
+/// can surface their own failures via [`ParserError::Message`].
 #[derive(Debug, Error)]
 pub enum ParserError {
     #[error(transparent)]
     Frontmatter(#[from] FrontmatterError),
     #[error("{0}")]
     Message(String),
-    #[error(transparent)]
-    Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// Maps file extensions to the parser that handles them.
 ///
-/// [`ParserRegistry::default`] (and [`with_markdown`](Self::with_markdown))
-/// registers the built-in [`MarkdownParser`]. Start from [`empty`](Self::empty)
-/// for a registry with no formats at all.
+/// [`ParserRegistry::default`] registers the built-in [`MarkdownParser`]. Start
+/// from [`empty`](Self::empty) for a registry with no formats at all.
 #[derive(Clone)]
 pub struct ParserRegistry {
     by_ext: HashMap<String, Arc<dyn ContentParser>>,
 }
 
 impl Default for ParserRegistry {
-    /// Registers every built-in parser (see [`ParserRegistry::with_builtins`]).
-    /// Use [`ParserRegistry::empty`] for a registry with no formats.
+    /// Registers the built-in [`MarkdownParser`] (`.md`, `.markdown`). Use
+    /// [`ParserRegistry::empty`] for a registry with no formats.
     fn default() -> Self {
-        Self::with_builtins()
+        let mut registry = Self::empty();
+        registry.register(Arc::new(MarkdownParser));
+        registry
     }
 }
 
@@ -86,21 +82,6 @@ impl ParserRegistry {
         Self {
             by_ext: HashMap::new(),
         }
-    }
-
-    /// A registry with every built-in parser registered: [`MarkdownParser`]
-    /// (`.md`, `.markdown`) and [`TextParser`] (`.txt`).
-    pub fn with_builtins() -> Self {
-        let mut registry = Self::with_markdown();
-        registry.register(Arc::new(TextParser));
-        registry
-    }
-
-    /// A registry with only the built-in markdown parser registered.
-    pub fn with_markdown() -> Self {
-        let mut registry = Self::empty();
-        registry.register(Arc::new(MarkdownParser));
-        registry
     }
 
     /// Register a parser for every extension it claims. A later registration
@@ -150,19 +131,11 @@ mod tests {
     }
 
     #[test]
-    fn default_registry_has_all_builtin_parsers() {
+    fn default_registry_has_markdown() {
         let registry = ParserRegistry::default();
         assert!(registry.get("md").is_some());
         assert!(registry.get("markdown").is_some());
-        assert!(registry.get("txt").is_some());
         assert!(registry.get("rst").is_none());
-    }
-
-    #[test]
-    fn with_markdown_excludes_other_builtins() {
-        let registry = ParserRegistry::with_markdown();
-        assert!(registry.get("md").is_some());
-        assert!(registry.get("txt").is_none());
     }
 
     #[test]
@@ -181,7 +154,7 @@ mod tests {
 
     #[test]
     fn later_registration_wins_for_shared_extension() {
-        let mut registry = ParserRegistry::with_markdown();
+        let mut registry = ParserRegistry::default();
         // FakeParser does not claim "md", so markdown stays; sanity check the
         // override path with a parser that re-claims "md".
         struct MdShadow;

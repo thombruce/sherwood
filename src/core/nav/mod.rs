@@ -200,28 +200,6 @@ mod tests {
     }
 
     #[test]
-    fn sort_order() {
-        let mut pages = [
-            make_page("index", "Home"),
-            make_page("about", "About"),
-            make_page("blog/post", "Post"),
-        ];
-        pages.sort_by(|a, b| a.output_path.cmp(&b.output_path));
-        assert_eq!(
-            pages[0].output_path,
-            std::path::PathBuf::from("_site/about/index.html")
-        );
-        assert_eq!(
-            pages[1].output_path,
-            std::path::PathBuf::from("_site/blog/post/index.html")
-        );
-        assert_eq!(
-            pages[2].output_path,
-            std::path::PathBuf::from("_site/index.html")
-        );
-    }
-
-    #[test]
     fn is_root_index_detects_root() {
         let config = test_config();
         let root = make_page("index", "Home");

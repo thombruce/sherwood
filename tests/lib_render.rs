@@ -333,38 +333,6 @@ fn user_registered_parser_handles_a_brand_new_extension() {
 }
 
 #[test]
-fn builtin_text_parser_renders_txt_out_of_the_box() {
-    let tmp = TempDir::new().unwrap();
-    let content = tmp.path().join("content");
-    let output = tmp.path().join("out");
-
-    write(&content.join("index.md"), "---\ntitle: Home\n---\n\n# Hi\n");
-    write(&content.join("notes.txt"), "My Notes\nline one\nline two\n");
-
-    // No custom registration — the default registry ships the text parser.
-    let config = SiteConfig::new()
-        .with_content_dir(content)
-        .with_output_dir(&output);
-
-    build_site(
-        &config,
-        &ParserRegistry::default(),
-        |page: &Page, _ctx: &PageContext| {
-            Ok(format!(
-                "<h1>{}</h1>{}",
-                page.frontmatter.title, page.content_html
-            ))
-        },
-        |_| {},
-    )
-    .unwrap();
-
-    let notes = fs::read_to_string(output.join("notes/index.html")).unwrap();
-    assert!(notes.contains("<h1>My Notes</h1>"));
-    assert!(notes.contains("<pre>line one\nline two</pre>"));
-}
-
-#[test]
 fn empty_registry_skips_everything() {
     let (_tmp, config) = fixture();
     let out = config.output_dir.clone();
