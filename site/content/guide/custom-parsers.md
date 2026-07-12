@@ -5,8 +5,8 @@ title: Custom Parsers
 # Custom Parsers
 
 Sherwood parses content through a small trait, so you can teach it formats
-beyond the built-in Markdown and plain text. A parser turns one file's raw
-source into a `Parsed` payload; it never deals with paths or URLs.
+beyond the built-in Markdown. A parser turns one file's raw source into a
+`Parsed` payload; it never deals with paths or URLs.
 
 ```rust
 use std::path::Path;
@@ -38,12 +38,13 @@ Register it on a `ParserRegistry` and pass that to the build:
 use std::sync::Arc;
 use sherwood::ParserRegistry;
 
-let mut registry = ParserRegistry::default(); // markdown + text built in
+let mut registry = ParserRegistry::default(); // markdown built in
 registry.register(Arc::new(ShoutParser));
 ```
 
-Now any `.shout` file becomes a page. Files whose extension no parser claims are
-skipped, so assets can sit in the content tree untouched.
+Now any `.shout` file becomes a page. Files whose extension no parser claims
+are copied verbatim to the mirrored output path, so assets (images, downloads)
+can sit in the content tree next to the pages that use them.
 
 ## Reusing frontmatter
 
@@ -54,5 +55,5 @@ call the public `split_frontmatter` helper instead of reinventing it:
 let (frontmatter, body) = sherwood::split_frontmatter(source)?;
 ```
 
-Formats with their own metadata convention — like the built-in text parser,
-which takes the title from the first line — simply ignore it.
+Formats with their own metadata convention — like `ShoutParser` above, which
+takes the title from the first line — simply ignore it.

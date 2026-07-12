@@ -17,8 +17,8 @@ build were awkward, you'd be reading about it here.
   on the crate and bring your own templates.
 - **Pretty URLs.** Every page is written as `<dir>/index.html`, so it serves at
   a clean trailing-slash URL.
-- **Pluggable parsers.** Markdown and plain text ship built in; add your own
-  content format by implementing one trait.
+- **Pluggable parsers.** Markdown ships built in; add your own content format
+  by implementing one trait.
 - **Live reload.** `sherwood serve` watches your content and refreshes the
   browser on save.
 
