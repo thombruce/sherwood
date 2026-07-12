@@ -145,22 +145,21 @@ where
             asset,
             no_watch,
         } => {
-            let assets = apply_overrides(assets, asset)?;
             let config = SiteConfig::new()
                 .with_content_dir(content_dir.clone())
                 .with_output_dir(output_dir.clone())
                 .with_base_path(base_path);
             let base_path = config.base_path.clone();
+            // Watch the `--asset` override sources too, so editing e.g. a
+            // custom stylesheet triggers a rebuild like content edits do.
+            let watch_paths: Vec<PathBuf> = asset.iter().map(|(_, path)| path.clone()).collect();
 
-            // Share the renderer + parsers + assets with the watcher's rebuild
-            // closure.
+            // Share the renderer + parsers with the watcher's rebuild closure.
             let renderer = Arc::new(Mutex::new(renderer));
             let registry = Arc::new(registry);
-            let assets = Arc::new(assets);
             let config_for_rebuild = config.clone();
             let renderer_for_rebuild = renderer.clone();
             let registry_for_rebuild = registry.clone();
-            let assets_for_rebuild = assets.clone();
 
             let rebuild = move || -> Result<(), BuildError> {
                 let mut guard = renderer_for_rebuild
@@ -173,7 +172,11 @@ where
                     |p, c| renderer_ref(p, c),
                     |_| {},
                 )?;
-                write_assets(&assets_for_rebuild, &config_for_rebuild)
+                // Overrides are re-read from disk on every rebuild so edits to
+                // `--asset` source files land, not the bytes from startup.
+                let assets = apply_overrides(assets.clone(), asset.clone())
+                    .map_err(|e| BuildError::Render(e.to_string()))?;
+                write_assets(&assets, &config_for_rebuild)
                     .map_err(|e| BuildError::Render(e.to_string()))?;
                 Ok(())
             };
@@ -186,6 +189,7 @@ where
                 port,
                 rebuild,
                 !no_watch,
+                watch_paths,
             ))?;
             Ok(())
         }

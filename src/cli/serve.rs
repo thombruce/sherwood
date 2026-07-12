@@ -75,8 +75,9 @@ fn mount(router: Router, output_dir: &Path, base_path: &str) -> Router {
     }
 }
 
-/// Start the dev server. If `watch` is `Some`, also watches `content_dir`,
-/// reruns `rebuild` on changes, and pushes live-reload notifications.
+/// Start the dev server. If `watch` is true, also watches `content_dir` (and
+/// any extra `watch_paths`, e.g. `--asset` override source files), reruns
+/// `rebuild` on changes, and pushes live-reload notifications.
 pub async fn serve_with_watch<F>(
     content_dir: PathBuf,
     output_dir: PathBuf,
@@ -84,6 +85,7 @@ pub async fn serve_with_watch<F>(
     port: u16,
     mut rebuild: F,
     watch: bool,
+    watch_paths: Vec<PathBuf>,
 ) -> Result<(), ServeError>
 where
     F: FnMut() -> Result<(), BuildError> + Send + 'static,
@@ -97,7 +99,7 @@ where
         let tx_for_watcher = tx.clone();
         let content_dir_for_watcher = content_dir.clone();
         tokio::task::spawn_blocking(move || {
-            watch_loop(content_dir_for_watcher, tx_for_watcher, rebuild);
+            watch_loop(content_dir_for_watcher, watch_paths, tx_for_watcher, rebuild);
         });
         router_with_reload(&output_dir, tx, &base_path)
     } else {
@@ -121,8 +123,12 @@ where
     Ok(())
 }
 
-fn watch_loop<F>(content_dir: PathBuf, reload_tx: broadcast::Sender<()>, mut rebuild: F)
-where
+fn watch_loop<F>(
+    content_dir: PathBuf,
+    watch_paths: Vec<PathBuf>,
+    reload_tx: broadcast::Sender<()>,
+    mut rebuild: F,
+) where
     F: FnMut() -> Result<(), BuildError> + Send + 'static,
 {
     use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
@@ -144,17 +150,22 @@ where
         eprintln!("Failed to watch {}: {e}", content_dir.display());
         return;
     }
+    for path in &watch_paths {
+        if let Err(e) = debouncer.watcher().watch(path, RecursiveMode::NonRecursive) {
+            eprintln!("Failed to watch {}: {e}", path.display());
+        }
+    }
 
-    // Snapshot content-file mtimes so we can ignore spurious events.
+    // Snapshot watched-file mtimes so we can ignore spurious events.
     // Reading files during a rebuild updates `atime`, which fires `IN_ATTRIB`
     // events on Linux even though the data hasn't changed — without this
     // guard, every rebuild self-triggers another rebuild.
-    let mut snapshot = snapshot_mtimes(&content_dir);
+    let mut snapshot = snapshot_watched(&content_dir, &watch_paths);
 
     for res in event_rx {
         match res {
             Ok(events) if !events.is_empty() => {
-                let current = snapshot_mtimes(&content_dir);
+                let current = snapshot_watched(&content_dir, &watch_paths);
                 if current == snapshot {
                     continue;
                 }
@@ -166,12 +177,29 @@ where
                     }
                     Err(e) => eprintln!("Rebuild failed: {e}"),
                 }
-                snapshot = snapshot_mtimes(&content_dir);
+                snapshot = snapshot_watched(&content_dir, &watch_paths);
             }
             Ok(_) => {}
             Err(e) => eprintln!("Watcher error: {e}"),
         }
     }
+}
+
+/// Mtime snapshot of the content tree plus any extra watched files (`--asset`
+/// override sources), so changes to either defeat the spurious-event guard.
+fn snapshot_watched(
+    content_dir: &Path,
+    watch_paths: &[PathBuf],
+) -> std::collections::HashMap<PathBuf, std::time::SystemTime> {
+    let mut map = snapshot_mtimes(content_dir);
+    for path in watch_paths {
+        if let Ok(meta) = std::fs::metadata(path)
+            && let Ok(mtime) = meta.modified()
+        {
+            map.insert(path.clone(), mtime);
+        }
+    }
+    map
 }
 
 fn snapshot_mtimes(root: &Path) -> std::collections::HashMap<PathBuf, std::time::SystemTime> {
@@ -385,6 +413,24 @@ mod tests {
         let _ = fs::read_to_string(&f).unwrap();
         let snap2 = snapshot_mtimes(tmp.path());
         assert_eq!(snap1, snap2, "reading a file must not change snapshot");
+    }
+
+    #[test]
+    fn snapshot_watched_detects_extra_path_change() {
+        // An --asset override source lives outside the content dir; editing
+        // it must change the snapshot or the watch loop would discard the
+        // event as spurious.
+        let tmp = TempDir::new().unwrap();
+        let content = tmp.path().join("content");
+        fs::create_dir_all(&content).unwrap();
+        let style = tmp.path().join("style.css");
+        fs::write(&style, "v1").unwrap();
+        let extra = vec![style.clone()];
+        let snap1 = snapshot_watched(&content, &extra);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        fs::write(&style, "v2 with more bytes").unwrap();
+        let snap2 = snapshot_watched(&content, &extra);
+        assert_ne!(snap1, snap2);
     }
 
     #[test]

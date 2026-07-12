@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `parse_frontmatter(source, path) -> (FrontMatter, String, Option<String>)` is replaced by `split_frontmatter(source) -> Result<(FrontMatter, String), FrontmatterError>`. Excerpt extraction (`<!-- more -->`) moved into `MarkdownParser` — it's a markdown concern, not a frontmatter one. Third-party parsers using the `---`/`+++` convention call `split_frontmatter` and handle excerpts themselves.
 - The build walks every file and dispatches by extension through the registry, instead of hardcoding `.md`; `.markdown` files are now recognized.
 
+### Fixed
+
+- `sherwood serve` now watches `--asset` override source files: editing e.g. a custom stylesheet triggers a rebuild and live reload, like content edits. Override bytes are also re-read from disk on every rebuild — previously they were read once at startup, so rebuilds rewrote stale bytes.
+
 ### Removed
 
 - The root demo `content/` directory. The bare `cargo run -- build` / `serve` now need a `content/` dir to exist; use `--content-dir` or the `site/` workspace member for a runnable example.
