@@ -99,7 +99,7 @@ pub trait ContentParser: Send + Sync {
 }
 ```
 
-A `ParserRegistry` maps extension → `Arc<dyn ContentParser>`. Constructors: `default()` registers the built-in markdown parser; `empty()` starts with none. `register(Arc::new(MyParser))` adds one (last registration for an extension wins). The build walks **all** files and skips any whose extension has no registered parser (so images/CSS can live in the content tree) — `load_page` returns `Ok(None)` for those. **To add a built-in format:** new file in `core/content/parser/`, `mod`/`pub use` it, register it in `ParserRegistry::default`, add it to the lib.rs facade.
+A `ParserRegistry` maps extension → `Arc<dyn ContentParser>`. Constructors: `default()` registers the built-in markdown parser; `empty()` starts with none. `register(Arc::new(MyParser))` adds one (last registration for an extension wins). The build walks **all** files; any file whose extension has no registered parser (`load_page` returns `Ok(None)`) is a **static asset** and is copied verbatim to the mirrored output path (`content/blog/img.png` → `_site/blog/img.png`), so images/CSS can live in the content tree. **To add a built-in format:** new file in `core/content/parser/`, `mod`/`pub use` it, register it in `ParserRegistry::default`, add it to the lib.rs facade.
 
 Third-party parsers own their whole file, including their metadata convention. Formats that use the `---`/`+++` convention call the public `split_frontmatter(source) -> Result<(FrontMatter, String), FrontmatterError>` helper; others ignore it (taking their title from elsewhere). Parser-API exports: `ContentParser`, `Parsed`, `ParserError`, `ParserRegistry`, `MarkdownParser`, `markdown_to_html`, `split_frontmatter`.
 
@@ -123,7 +123,11 @@ Pass 1 — collect:
   content/**/*  (every file)
     └─ load_page()  [core/content/page.rs]
          registry.get(ext)? → read file → parser.parse() → Page
-         (returns None — skipped — if no parser claims the extension)
+         (returns None if no parser claims the extension → the file is a
+          static asset, copied verbatim to the mirrored output path)
+         every output path is claimed in an output→source map; two sources
+         mapping to the same output (e.g. about.md + about/index.md) fail
+         the build with BuildError::DuplicateOutput
 
 Pass 2 — sort + render:
   pages.sort_by(root index first, then output_path)

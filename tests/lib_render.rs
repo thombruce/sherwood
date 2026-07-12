@@ -295,7 +295,7 @@ fn user_registered_parser_handles_a_brand_new_extension() {
     // A markdown page and a .shout page, side by side.
     write(&content.join("index.md"), "---\ntitle: Home\n---\n\n# Hi\n");
     write(&content.join("notes.shout"), "My Notes\nhello world\n");
-    // An asset with no registered parser — must be skipped, not error.
+    // An asset with no registered parser — copied through verbatim, not parsed.
     write(&content.join("logo.png"), "not really a png");
 
     let mut registry = ParserRegistry::default(); // markdown + text built in
@@ -328,16 +328,21 @@ fn user_registered_parser_handles_a_brand_new_extension() {
     assert!(notes.contains("<h1>My Notes</h1>"));
     assert!(notes.contains("<p>HELLO WORLD</p>"));
 
-    // The unhandled asset produced no page.
+    // The unhandled asset produced no page — it was copied through verbatim.
     assert!(!output.join("logo/index.html").exists());
+    assert_eq!(
+        fs::read_to_string(output.join("logo.png")).unwrap(),
+        "not really a png"
+    );
 }
 
 #[test]
-fn empty_registry_skips_everything() {
+fn empty_registry_renders_no_pages() {
     let (_tmp, config) = fixture();
     let out = config.output_dir.clone();
 
-    // No parsers registered → every file is skipped, build is a no-op success.
+    // No parsers registered → no file becomes a page; everything is treated
+    // as a static asset and copied through verbatim.
     build_site(
         &config,
         &ParserRegistry::empty(),
@@ -347,4 +352,7 @@ fn empty_registry_skips_everything() {
     .unwrap();
 
     assert!(!out.join("index.html").exists());
+    // The markdown source was passed through as-is, not rendered.
+    let raw = fs::read_to_string(out.join("index.md")).unwrap();
+    assert!(raw.contains("title: Home"));
 }

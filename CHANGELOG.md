@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Static-asset passthrough: files in the content tree whose extension has no registered parser (images, downloads, extra CSS, …) are now copied verbatim to the mirrored output path (`content/blog/img.png` → `_site/blog/img.png`) instead of being silently dropped from the build.
+- Duplicate-output detection: two sources that map to the same output file (e.g. `content/about.md` and `content/about/index.md`, both → `_site/about/index.html`; or a static `about/index.html` colliding with a rendered page) now fail the build with `BuildError::DuplicateOutput` naming both sources, instead of one silently overwriting the other.
+
 ## [0.5.0] - 2026-05-31
 
 ### Added

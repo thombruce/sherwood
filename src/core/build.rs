@@ -2,7 +2,8 @@ use crate::core::config::SiteConfig;
 use crate::core::content::page::{Page, PageError, load_page};
 use crate::core::content::parser::ParserRegistry;
 use crate::core::nav::{self, PageContext, is_root_index};
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use walkdir::WalkDir;
 
@@ -16,6 +17,12 @@ pub enum BuildError {
     Page(#[from] PageError),
     #[error("Render error: {0}")]
     Render(String),
+    #[error("{} and {} both write {}", first.display(), second.display(), output.display())]
+    DuplicateOutput {
+        first: PathBuf,
+        second: PathBuf,
+        output: PathBuf,
+    },
 }
 
 pub fn build_site<F, P>(
@@ -31,13 +38,31 @@ where
     std::fs::create_dir_all(&config.output_dir)?;
 
     let mut pages: Vec<Page> = Vec::new();
+    // output path -> source path, so two sources mapping to the same output
+    // file (e.g. content/about.md and content/about/index.md) fail loudly
+    // instead of one silently overwriting the other.
+    let mut claimed: HashMap<PathBuf, PathBuf> = HashMap::new();
     for entry in WalkDir::new(&config.content_dir) {
         let entry = entry?;
-        if entry.file_type().is_file() {
-            // Files with no parser registered for their extension are skipped,
-            // so assets (images, CSS) can live in the content tree.
-            if let Some(page) = load_page(entry.path(), config, registry)? {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        match load_page(entry.path(), config, registry)? {
+            Some(page) => {
+                claim_output(&mut claimed, &page.output_path, &page.source_path)?;
                 pages.push(page);
+            }
+            // No parser claims the extension: a static asset (image, CSS, …)
+            // living in the content tree. Copy it verbatim to the mirrored
+            // output path.
+            None => {
+                let relative = entry
+                    .path()
+                    .strip_prefix(&config.content_dir)
+                    .unwrap_or(entry.path());
+                let dest = config.output_dir.join(relative);
+                claim_output(&mut claimed, &dest, entry.path())?;
+                copy_asset(entry.path(), &dest)?;
             }
         }
     }
@@ -66,6 +91,29 @@ fn write_page(output_path: &Path, html: &str) -> Result<(), BuildError> {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(output_path, html)?;
+    Ok(())
+}
+
+fn copy_asset(source: &Path, dest: &Path) -> Result<(), BuildError> {
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::copy(source, dest)?;
+    Ok(())
+}
+
+fn claim_output(
+    claimed: &mut HashMap<PathBuf, PathBuf>,
+    output: &Path,
+    source: &Path,
+) -> Result<(), BuildError> {
+    if let Some(first) = claimed.insert(output.to_owned(), source.to_owned()) {
+        return Err(BuildError::DuplicateOutput {
+            first,
+            second: source.to_owned(),
+            output: output.to_owned(),
+        });
+    }
     Ok(())
 }
 
@@ -207,6 +255,68 @@ mod tests {
         )
         .unwrap();
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn build_copies_unparsed_files_verbatim() {
+        let (_tmp, config) = setup(&[
+            ("index.md", "---\ntitle: Home\n---\n"),
+            ("logo.png", "png bytes"),
+            ("blog/photo.jpg", "jpg bytes"),
+        ]);
+        build_site(
+            &config,
+            &ParserRegistry::default(),
+            |_p, _ctx| Ok(String::new()),
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(config.output_dir.join("logo.png")).unwrap(),
+            "png bytes"
+        );
+        assert_eq!(
+            fs::read_to_string(config.output_dir.join("blog/photo.jpg")).unwrap(),
+            "jpg bytes"
+        );
+    }
+
+    #[test]
+    fn build_duplicate_page_outputs_error() {
+        // about.md and about/index.md both map to _site/about/index.html.
+        let (_tmp, config) = setup(&[
+            ("about.md", "---\ntitle: About\n---\n"),
+            ("about/index.md", "---\ntitle: Also About\n---\n"),
+        ]);
+        let err = build_site(
+            &config,
+            &ParserRegistry::default(),
+            |_p, _ctx| Ok(String::new()),
+            |_| {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, BuildError::DuplicateOutput { .. }), "{err}");
+        let msg = err.to_string();
+        assert!(msg.contains("about.md"), "{msg}");
+        assert!(msg.contains("index.html"), "{msg}");
+    }
+
+    #[test]
+    fn build_asset_colliding_with_page_output_errors() {
+        // A static about/index.html would be overwritten by the page rendered
+        // from about.md.
+        let (_tmp, config) = setup(&[
+            ("about.md", "---\ntitle: About\n---\n"),
+            ("about/index.html", "<h1>static</h1>"),
+        ]);
+        let err = build_site(
+            &config,
+            &ParserRegistry::default(),
+            |_p, _ctx| Ok(String::new()),
+            |_| {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, BuildError::DuplicateOutput { .. }), "{err}");
     }
 
     #[test]
