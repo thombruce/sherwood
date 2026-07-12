@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-12
+
 ### Added
 
 - Pluggable content parsers. A `ContentParser` trait turns one file's raw source into a `Parsed { frontmatter, content_html, excerpt_html }` payload; a `ParserRegistry` maps file extensions to parsers (`default()` registers the built-in `MarkdownParser` for `.md`/`.markdown`; `empty()` starts bare; `register(Arc::new(MyParser))` adds one, last registration for an extension wins). New public exports: `ContentParser`, `Parsed`, `ParserError`, `ParserRegistry`, `MarkdownParser`, `markdown_to_html`, `split_frontmatter`, plus the layered error types `FrontmatterError` and `PageError`.
@@ -35,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - The root demo `content/` directory. The bare `cargo run -- build` / `serve` now need a `content/` dir to exist; use `--content-dir` or the `site/` workspace member for a runnable example.
+
+### Tests
+
+- Test count: 79 → 118 (including 2 doctests).
 
 ## [0.5.0] - 2026-05-31
 
