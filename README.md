@@ -122,7 +122,7 @@ Sherwood ships in two layers. Most projects want the high-level CLI helper; adva
 
 ```toml
 [dependencies]
-sherwood = { version = "0.6", default-features = false, features = ["cli"] }
+sherwood = { version = "0.9", default-features = false, features = ["cli"] }
 sailfish = "0.11"
 ```
 
@@ -182,7 +182,7 @@ For full control — non-CLI driver, custom asset pipeline, embedded use — cal
 
 ```toml
 [dependencies]
-sherwood = { version = "0.6", default-features = false }
+sherwood = { version = "0.9", default-features = false }
 ```
 
 ```rust

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-12
+
+Identical to 0.6.0 apart from the version number. This is the first release of
+the rewritten Sherwood published to crates.io: versions 0.6.0–0.8.0 were
+already used by the pre-rewrite crate under the same name, and crates.io
+version numbers are permanently reserved (yanked or not), so the rewrite skips
+to 0.9.0. The pre-rewrite releases (old 0.1.0–0.8.0) are yanked.
+
 ## [0.6.0] - 2026-07-12
 
 ### Added
