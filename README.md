@@ -174,7 +174,7 @@ fn main() -> ExitCode {
 
 `Asset::new` takes any `Into<Cow<'static, [u8]>>`, so compile-time `include_bytes!`, a `&'static str` slice, or a runtime `Vec<u8>` all work.
 
-Use `try_run_cli` instead of `run_cli` if you want a `Result<(), CliError>` rather than process exit.
+Use `try_run_cli` instead of `run_cli` if you want a `Result<(), CliError>` rather than process exit, and `try_run_cli_from(args, ...)` to supply the arguments yourself (e.g. in tests) instead of reading `std::env::args`.
 
 ### Low-level: `build_site`
 

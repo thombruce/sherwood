@@ -71,7 +71,7 @@ pub use core::nav::{Breadcrumb, NavItem, PageContext};
 pub use gray_matter::Pod;
 
 #[cfg(feature = "cli")]
-pub use cli::{Asset, CliError, run_cli, try_run_cli};
+pub use cli::{Asset, CliError, run_cli, try_run_cli, try_run_cli_from};
 
 #[cfg(feature = "default-template")]
 pub use default_template::{DEFAULT_STYLE, render_page};

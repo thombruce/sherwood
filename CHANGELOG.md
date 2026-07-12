@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Duplicate-output detection: two sources that map to the same output file (e.g. `content/about.md` and `content/about/index.md`, both → `_site/about/index.html`; or a static `about/index.html` colliding with a rendered page) now fail the build with `BuildError::DuplicateOutput` naming both sources, instead of one silently overwriting the other.
 - Dogfooding site: `site/` is a `publish = false` workspace member that builds the project's documentation site (<https://sherwood.thombruce.com>) through the library/`run_cli` path with its own template and stylesheet, deployed to GitHub Pages on push to `main`. Excluded from the published crate.
 - CI now builds and tests the full feature matrix (default, no-default, `cli`-only, `default-template`-only) plus the site as a smoke test.
+- `try_run_cli_from(args, registry, renderer, assets)` — like `try_run_cli` but parses the given arguments (clap `parse_from` convention, first item is the binary name) instead of `std::env::args`, so tests and embedding binaries can drive the CLI directly.
 
 ### Changed
 

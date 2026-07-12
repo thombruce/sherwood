@@ -113,7 +113,27 @@ pub fn try_run_cli<F>(
 where
     F: FnMut(&Page, &PageContext) -> Result<String, BuildError> + Send + 'static,
 {
-    let cli = Cli::parse();
+    try_run_cli_from(std::env::args_os(), registry, renderer, assets)
+}
+
+/// Same as [`try_run_cli`] but parses `args` instead of the process arguments
+/// (the first item is the binary name, per clap convention). Lets tests and
+/// embedding binaries drive the CLI without touching `std::env::args`.
+///
+/// Note: invalid arguments (and `--help` / `--version`) still print and exit
+/// the process — clap's `parse_from` semantics.
+pub fn try_run_cli_from<I, T, F>(
+    args: I,
+    registry: ParserRegistry,
+    renderer: F,
+    assets: Vec<Asset>,
+) -> Result<(), CliError>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+    F: FnMut(&Page, &PageContext) -> Result<String, BuildError> + Send + 'static,
+{
+    let cli = Cli::parse_from(args);
     match cli.command {
         Commands::Build {
             content_dir,
@@ -307,5 +327,55 @@ mod tests {
             apply_overrides(assets, overrides),
             Err(CliError::AssetRead { .. })
         ));
+    }
+
+    #[test]
+    fn try_run_cli_from_builds_site_and_writes_assets() {
+        let tmp = tempfile::tempdir().unwrap();
+        let content = tmp.path().join("content");
+        let output = tmp.path().join("out");
+        std::fs::create_dir_all(&content).unwrap();
+        std::fs::write(content.join("index.md"), "---\ntitle: Home\n---\n\n# Hi\n").unwrap();
+
+        try_run_cli_from(
+            [
+                "sherwood",
+                "build",
+                "--content-dir",
+                content.to_str().unwrap(),
+                "--output-dir",
+                output.to_str().unwrap(),
+            ],
+            ParserRegistry::default(),
+            |page, _ctx| Ok(format!("<title>{}</title>", page.frontmatter.title)),
+            vec![Asset::new("style.css", &b"body{}"[..])],
+        )
+        .unwrap();
+
+        let home = std::fs::read_to_string(output.join("index.html")).unwrap();
+        assert_eq!(home, "<title>Home</title>");
+        assert_eq!(
+            std::fs::read_to_string(output.join("style.css")).unwrap(),
+            "body{}"
+        );
+    }
+
+    #[test]
+    fn try_run_cli_from_missing_content_dir_returns_build_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = try_run_cli_from(
+            [
+                "sherwood",
+                "build",
+                "--content-dir",
+                tmp.path().join("nonexistent").to_str().unwrap(),
+                "--output-dir",
+                tmp.path().join("out").to_str().unwrap(),
+            ],
+            ParserRegistry::default(),
+            |_p, _c| Ok(String::new()),
+            vec![],
+        );
+        assert!(matches!(result, Err(CliError::Build(_))), "{result:?}");
     }
 }

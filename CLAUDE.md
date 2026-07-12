@@ -111,7 +111,7 @@ Built-in: `MarkdownParser` (core/content/parser/markdown.rs) owns markdown rende
 The bundled template and CLI live behind cargo features and are re-exported from `src/lib.rs` (not binary-only):
 
 - **`default-template`** → `src/default_template.rs`. Owns the baked-in Sailfish template (`templates/page.stpl`, compiled at build time) and embeds `templates/style.css` via `include_str!` as `DEFAULT_STYLE`. Public exports: `render_page` (the ready-made render closure) and `DEFAULT_STYLE`. The core library does not ship or prescribe a stylesheet — pure-library users embed their own CSS in their downstream binary.
-- **`cli`** → `src/cli/mod.rs` (+ `src/cli/serve.rs` dev server). Owns the clap arg parsing and the `run_cli` / `try_run_cli` entry points. Public exports: `run_cli`, `try_run_cli`, `Asset`, `CliError`.
+- **`cli`** → `src/cli/mod.rs` (+ `src/cli/serve.rs` dev server). Owns the clap arg parsing and the `run_cli` / `try_run_cli` entry points. Public exports: `run_cli`, `try_run_cli`, `try_run_cli_from` (injectable args, for tests/embedders), `Asset`, `CliError`.
 
 `src/main.rs` is a thin shim: it calls `run_cli(ParserRegistry::default(), render_page, vec![Asset::new("style.css", DEFAULT_STYLE.as_bytes())])`. `run_cli` / `try_run_cli` take the registry as their first argument so binary authors can register custom parsers. Assets are written to `<output_dir>` after `build_site`. `--asset <name>=<path>` overrides a bundled asset (matched by its `dest`) with a file from disk; the flag is repeatable.
 
