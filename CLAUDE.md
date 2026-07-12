@@ -71,6 +71,7 @@ The core library (the always-on part, no features) exposes the build pipeline wi
 ```rust
 sherwood::build_site(
     &config,
+    &ParserRegistry::default(),
     |page, ctx| {
         MyTemplate {
             title: page.frontmatter.title.clone(),
@@ -86,7 +87,7 @@ sherwood::build_site(
 
 Core public API surface: `SiteConfig`, `FrontMatter`, `Page`, `PageContext`, `NavItem`, `Breadcrumb`, `build_site`, `Pod` (re-exported from `gray_matter`), plus the parser plugin API below.
 
-**Error types are layered per module, each owning its own enum:** `FrontmatterError` (core/content/frontmatter.rs — `MissingDelimiters` / `Invalid(String)`, no file path) → `ParserError` (core/content/parser/mod.rs — `Frontmatter(#[from] FrontmatterError)` / `Message(String)` / `Other(Box<dyn Error + Send + Sync>)`) → `PageError` (core/content/page.rs — `Read` / `Parse`, both carrying the source `PathBuf`) → `BuildError` (core/build.rs — `Io` / `Walk` / `Page(#[from] PageError)` / `Render`). Lower modules never import a higher module's error; `?` bubbles up through `#[from]`. `BuildError::Page` and `PageError::Parse`'s inner `ParserError::Frontmatter` are `#[error(transparent)]`, so the displayed message is the chain (path + frontmatter snippet) with no extra prefixes.
+**Error types are layered per module, each owning its own enum:** `FrontmatterError` (core/content/frontmatter.rs — `MissingDelimiters` / `Invalid(String)`, no file path) → `ParserError` (core/content/parser/mod.rs — `Frontmatter(#[from] FrontmatterError)` / `Message(String)`) → `PageError` (core/content/page.rs — `Read` / `Parse`, both carrying the source `PathBuf`) → `BuildError` (core/build.rs — `Io` / `Walk` / `Page(#[from] PageError)` / `Render` / `DuplicateOutput`). Lower modules never import a higher module's error; `?` bubbles up through `#[from]`. `BuildError::Page` and `PageError::Parse`'s inner `ParserError::Frontmatter` are `#[error(transparent)]`, so the displayed message is the chain (path + frontmatter snippet) with no extra prefixes.
 
 ### Content parsers (plugin system)
 

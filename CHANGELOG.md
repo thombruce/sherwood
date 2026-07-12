@@ -9,8 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Pluggable content parsers. A `ContentParser` trait turns one file's raw source into a `Parsed { frontmatter, content_html, excerpt_html }` payload; a `ParserRegistry` maps file extensions to parsers (`default()` registers the built-in `MarkdownParser` for `.md`/`.markdown`; `empty()` starts bare; `register(Arc::new(MyParser))` adds one, last registration for an extension wins). New public exports: `ContentParser`, `Parsed`, `ParserError`, `ParserRegistry`, `MarkdownParser`, `markdown_to_html`, `split_frontmatter`, plus the layered error types `FrontmatterError` and `PageError`.
+- Base-path support for subpath hosting (e.g. `https://host/sherwood/`). `SiteConfig.base_path` (via `with_base_path` or `--base-path` on `build`/`serve`, normalized to `""` or `"/prefix"`) prefixes generated URLs: `NavItem.href`, `Breadcrumb.href`, and prev/next hrefs come pre-resolved; `PageContext::{base_path, resolve}` cover hrefs templates build themselves. `page.url` and `pages_under` stay canonical (un-prefixed). Output paths are unaffected. The dev server mounts the site under the base path and redirects `/` to it, matching production.
 - Static-asset passthrough: files in the content tree whose extension has no registered parser (images, downloads, extra CSS, …) are now copied verbatim to the mirrored output path (`content/blog/img.png` → `_site/blog/img.png`) instead of being silently dropped from the build.
 - Duplicate-output detection: two sources that map to the same output file (e.g. `content/about.md` and `content/about/index.md`, both → `_site/about/index.html`; or a static `about/index.html` colliding with a rendered page) now fail the build with `BuildError::DuplicateOutput` naming both sources, instead of one silently overwriting the other.
+- Dogfooding site: `site/` is a `publish = false` workspace member that builds the project's documentation site (<https://sherwood.thombruce.com>) through the library/`run_cli` path with its own template and stylesheet, deployed to GitHub Pages on push to `main`. Excluded from the published crate.
+- CI now builds and tests the full feature matrix (default, no-default, `cli`-only, `default-template`-only) plus the site as a smoke test.
+
+### Changed
+
+- **Breaking:** `build_site` gains a `&ParserRegistry` second parameter: `build_site(&config, &registry, renderer, progress)`. Pass `&ParserRegistry::default()` for the previous markdown-only behaviour.
+- **Breaking:** `run_cli` / `try_run_cli` gain a `ParserRegistry` first parameter so binary authors can register custom parsers: `run_cli(ParserRegistry::default(), renderer, assets)`.
+- **Breaking:** the module tree is now private behind a facade — `lib.rs` re-exports the public API and internal paths (`sherwood::build::…`, `sherwood::page::…`, etc.) are no longer reachable. In particular the `serve` module (`router`, `router_with_reload`, `serve_with_watch`) is no longer public; the supported serving entry point is the CLI's `serve` subcommand.
+- **Breaking:** `SiteConfig` is `#[non_exhaustive]`. Downstream crates construct via `SiteConfig::new()` / `default()` and the `with_content_dir` / `with_output_dir` / `with_base_path` builder methods instead of struct literals.
+- **Breaking:** error types are restructured per module. `BuildError::FrontmatterParse { path, message }` is gone; parse failures now arrive as `BuildError::Page(PageError::Parse { path, source: ParserError })` with `FrontmatterError` at the bottom of the chain, and display transparently (path + line-numbered snippet, no stacked prefixes).
+- **Breaking:** `parse_frontmatter(source, path) -> (FrontMatter, String, Option<String>)` is replaced by `split_frontmatter(source) -> Result<(FrontMatter, String), FrontmatterError>`. Excerpt extraction (`<!-- more -->`) moved into `MarkdownParser` — it's a markdown concern, not a frontmatter one. Third-party parsers using the `---`/`+++` convention call `split_frontmatter` and handle excerpts themselves.
+- The build walks every file and dispatches by extension through the registry, instead of hardcoding `.md`; `.markdown` files are now recognized.
+
+### Removed
+
+- The root demo `content/` directory. The bare `cargo run -- build` / `serve` now need a `content/` dir to exist; use `--content-dir` or the `site/` workspace member for a runnable example.
 
 ## [0.5.0] - 2026-05-31
 
