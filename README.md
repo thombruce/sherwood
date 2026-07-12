@@ -82,7 +82,7 @@ Every page's render context includes:
 
 - **Global nav** — top-level pages and section indexes (`<dir>/index.md`), current page marked with `aria-current="page"`. Deep leaf pages (e.g. individual blog posts) are excluded by default; frontmatter `nav: true` force-includes a page, `nav: false` force-excludes one.
 - **Breadcrumbs** — directory hierarchy (hidden on the root page).
-- **Prev / Next links** — sequential navigation in build order (root `index.md` first, then alphabetical by output path).
+- **Prev / Next links** — sequential navigation scoped to the page's section: pages chain to siblings under the same URL parent (a blog post's neighbours are other posts; top-level pages and section indexes chain in the root sequence), in build order (root `index.md` first, then alphabetical by output path).
 
 ## Styling
 

@@ -145,7 +145,7 @@ Output paths mirror source structure but use pretty URLs — each page becomes a
 
 ### nav module layout
 
-`src/core/nav/` is a directory module split by concern: `mod.rs` (`PageContext`, `NavItem`, `compute_context`, nav-inclusion rules, `is_root_index`), `url.rs` (`href_for` / `path_to_url` URL building), and `breadcrumb.rs` (`Breadcrumb` + breadcrumb trail). Shared test fixtures live in `src/core/nav/test_support.rs` (`#[cfg(test)]` only). Cross-crate callers reach the helpers through the re-exports in `mod.rs` (`nav::href_for`, `nav::is_root_index`).
+`src/core/nav/` is a directory module split by concern: `mod.rs` (`PageContext`, `NavItem`, `compute_context`, nav-inclusion rules, `is_root_index`), `url.rs` (`href_for` / `path_to_url` URL building, `section_of` URL-parent grouping), and `breadcrumb.rs` (`Breadcrumb` + breadcrumb trail). Prev/next is **section-scoped**: pages chain only among siblings with the same URL parent (`section_of(page.url)`), so `/blog/first/` links to other posts while section indexes like `/blog/` chain in the parent (root) sequence. Shared test fixtures live in `src/core/nav/test_support.rs` (`#[cfg(test)]` only). Cross-crate callers reach the helpers through the re-exports in `mod.rs` (`nav::href_for`, `nav::is_root_index`).
 
 ### Key constraints
 

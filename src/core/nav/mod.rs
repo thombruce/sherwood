@@ -9,7 +9,7 @@ mod url;
 pub(crate) mod test_support;
 
 pub use breadcrumb::Breadcrumb;
-pub(crate) use url::{href_for, resolve};
+pub(crate) use url::{href_for, resolve, section_of};
 
 use breadcrumb::breadcrumbs_for;
 
@@ -68,10 +68,6 @@ pub fn compute_context<'a>(
     all_pages: &'a [Page],
     config: &SiteConfig,
 ) -> PageContext<'a> {
-    let idx = all_pages
-        .iter()
-        .position(|p| p.output_path == page.output_path);
-
     let base = config.base_path.as_str();
 
     let nav = all_pages
@@ -80,13 +76,25 @@ pub fn compute_context<'a>(
         .map(|p| nav_item_for(p, p.output_path == page.output_path, base))
         .collect();
 
+    // Prev/next chain within the page's section (same URL parent, in build
+    // order), so a blog post's neighbours are other posts, not whatever page
+    // sorts adjacent site-wide.
+    let section = section_of(&page.url);
+    let siblings: Vec<&Page> = all_pages
+        .iter()
+        .filter(|p| section_of(&p.url) == section)
+        .collect();
+    let idx = siblings
+        .iter()
+        .position(|p| p.output_path == page.output_path);
+
     let prev = idx
         .filter(|&i| i > 0)
-        .map(|i| nav_item_for(&all_pages[i - 1], false, base));
+        .map(|i| nav_item_for(siblings[i - 1], false, base));
 
     let next = idx
-        .filter(|&i| i + 1 < all_pages.len())
-        .map(|i| nav_item_for(&all_pages[i + 1], false, base));
+        .filter(|&i| i + 1 < siblings.len())
+        .map(|i| nav_item_for(siblings[i + 1], false, base));
 
     let breadcrumbs = breadcrumbs_for(page, all_pages, config);
 
@@ -182,12 +190,50 @@ mod tests {
         let config = test_config();
         let pages = vec![
             make_page("about", "About"),
-            make_page("blog/post", "Post"),
+            make_page("contact", "Contact"),
             make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[1], &pages, &config);
         assert!(ctx.prev.is_some());
         assert!(ctx.next.is_some());
+    }
+
+    #[test]
+    fn prev_next_scoped_to_section() {
+        let config = test_config();
+        let pages = vec![
+            make_page("index", "Home"),
+            make_page("about", "About"),
+            make_page("blog/index", "Blog"),
+            make_page("blog/first", "First"),
+            make_page("blog/second", "Second"),
+            make_page("docs/index", "Docs"),
+        ];
+        // First post: no prev (the section index lives in the parent
+        // sequence), next is the second post.
+        let ctx = compute_context(&pages[3], &pages, &config);
+        assert!(ctx.prev.is_none());
+        assert_eq!(ctx.next.unwrap().title, "Second");
+        // Last post: next must not leak into /docs/.
+        let ctx = compute_context(&pages[4], &pages, &config);
+        assert_eq!(ctx.prev.unwrap().title, "First");
+        assert!(ctx.next.is_none());
+    }
+
+    #[test]
+    fn section_indexes_chain_in_parent_sequence() {
+        let config = test_config();
+        let pages = vec![
+            make_page("index", "Home"),
+            make_page("about", "About"),
+            make_page("blog/index", "Blog"),
+            make_page("blog/first", "First"),
+        ];
+        // The blog section index sits in the top-level chain: Home → About →
+        // Blog. Its prev is About, not one of its own posts.
+        let ctx = compute_context(&pages[2], &pages, &config);
+        assert_eq!(ctx.prev.unwrap().title, "About");
+        assert!(ctx.next.is_none());
     }
 
     #[test]
@@ -342,7 +388,7 @@ mod tests {
         let config = test_config_with_base("/docs");
         let pages = vec![
             make_page("about", "About"),
-            make_page("blog/post", "Post"),
+            make_page("contact", "Contact"),
             make_page("index", "Home"),
         ];
         let ctx = compute_context(&pages[1], &pages, &config);

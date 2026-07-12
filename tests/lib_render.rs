@@ -125,8 +125,10 @@ fn renderer_receives_nav_breadcrumbs_and_prev_next() {
     // Breadcrumb trail: Home > Blog > First Post.
     assert_eq!(seen_crumbs.into_inner(), vec!["Home", "Blog", "First Post"]);
 
-    // A middle page has both neighbours.
-    assert!(has_prev.get());
+    // Prev/next is section-scoped: the first post has no prev (the Blog
+    // section index chains in the top-level sequence, not among its posts)
+    // and the second post as next.
+    assert!(!has_prev.get());
     assert!(has_next.get());
 }
 

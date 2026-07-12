@@ -21,6 +21,17 @@ pub(crate) fn href_for(output_path: &Path, config: &SiteConfig) -> String {
     }
 }
 
+/// The section a canonical URL belongs to: its parent directory. `/blog/first/`
+/// → `/blog/`; `/about/` and section indexes like `/blog/` → `/`; the root `/`
+/// → `/`. Drives prev/next scoping — pages chain only within their section.
+pub(crate) fn section_of(url: &str) -> &str {
+    let trimmed = url.trim_end_matches('/');
+    match trimmed.rfind('/') {
+        Some(i) => &trimmed[..=i],
+        None => "/",
+    }
+}
+
 /// Prefix a canonical (root-relative) URL with the configured base path,
 /// turning `/guide/` into `/sherwood/guide/`. An empty base is the identity.
 /// The site root `/` resolves to `<base>/`.
@@ -87,6 +98,16 @@ mod tests {
     fn path_to_url_joins_with_forward_slash() {
         let p = PathBuf::from("a").join("b").join("c.html");
         assert_eq!(path_to_url(&p), "/a/b/c.html");
+    }
+
+    #[test]
+    fn section_of_groups_by_parent_dir() {
+        assert_eq!(section_of("/blog/first/"), "/blog/");
+        assert_eq!(section_of("/guide/advanced/x/"), "/guide/advanced/");
+        // Top-level pages, section indexes, and the root all live in "/".
+        assert_eq!(section_of("/about/"), "/");
+        assert_eq!(section_of("/blog/"), "/");
+        assert_eq!(section_of("/"), "/");
     }
 
     #[test]

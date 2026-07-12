@@ -56,8 +56,9 @@ Each call gets:
 - **`Page`** — frontmatter (`title` plus arbitrary fields via `frontmatter.get`),
   rendered `content_html`, optional `excerpt_html`, and the source/output paths.
 - **`PageContext`** — the computed `nav`, `breadcrumbs`, `prev` / `next`
-  neighbours, and the full `pages` slice (use `ctx.pages_under("/blog/")` to
-  drive section indexes).
+  neighbours (scoped to the page's section, so a post chains to other posts),
+  and the full `pages` slice (use `ctx.pages_under("/blog/")` to drive section
+  indexes).
 
 ## Templates must use `TemplateSimple`
 

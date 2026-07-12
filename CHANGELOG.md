@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** error types are restructured per module. `BuildError::FrontmatterParse { path, message }` is gone; parse failures now arrive as `BuildError::Page(PageError::Parse { path, source: ParserError })` with `FrontmatterError` at the bottom of the chain, and display transparently (path + line-numbered snippet, no stacked prefixes).
 - **Breaking:** `parse_frontmatter(source, path) -> (FrontMatter, String, Option<String>)` is replaced by `split_frontmatter(source) -> Result<(FrontMatter, String), FrontmatterError>`. Excerpt extraction (`<!-- more -->`) moved into `MarkdownParser` — it's a markdown concern, not a frontmatter one. Third-party parsers using the `---`/`+++` convention call `split_frontmatter` and handle excerpts themselves.
 - The build walks every file and dispatches by extension through the registry, instead of hardcoding `.md`; `.markdown` files are now recognized.
+- **Breaking (behaviour):** prev/next links are now scoped to the page's section instead of walking the full site-wide build order. Pages chain among siblings sharing the same URL parent — a blog post's neighbours are other posts under `/blog/`, never an unrelated page that happened to sort adjacent. Section indexes (`/blog/`) and top-level pages chain together in the root sequence. Sites relying on the old continuous site-wide chain will see prev/next end at section boundaries.
 
 ### Fixed
 
